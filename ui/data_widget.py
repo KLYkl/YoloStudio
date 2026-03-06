@@ -17,6 +17,7 @@ data_widget.py - 数据准备模块 UI
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -404,6 +405,7 @@ class DataWidget(QWidget):
         self.convert_btn.setMinimumHeight(32)
         self.convert_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.convert_btn.setProperty("class", "success")
+        self.convert_btn.setEnabled(False)
         convert_btn_layout.addWidget(self.convert_btn)
         convert_layout.addLayout(convert_btn_layout)
         
@@ -436,12 +438,12 @@ class DataWidget(QWidget):
         # 输入字段
         form_layout = QFormLayout()
         self.old_name_input = QLineEdit()
-        self.old_name_input.setPlaceholderText("原类别名称")
-        form_layout.addRow("原名称:", self.old_name_input)
+        self.old_name_input.setPlaceholderText("原类别名称或 ID")
+        form_layout.addRow("原类别/ID:", self.old_name_input)
         
-        self._new_name_label = QLabel("新名称:")
+        self._new_name_label = QLabel("新类别/ID:")
         self.new_name_input = QLineEdit()
-        self.new_name_input.setPlaceholderText("新类别名称 (删除时留空)")
+        self.new_name_input.setPlaceholderText("新类别名称或 ID (删除时留空)")
         form_layout.addRow(self._new_name_label, self.new_name_input)
         right_layout.addLayout(form_layout)
         
@@ -749,6 +751,7 @@ class DataWidget(QWidget):
         self.stats_path_group.paths_changed.connect(self._sync_paths_from_stats)
         self.edit_path_group.paths_changed.connect(self._sync_paths_from_edit)
         self.split_path_group.paths_changed.connect(self._sync_paths_from_split)
+        self.edit_path_group.paths_changed.connect(self._update_edit_action_states)
         
         # Tab 1 - 统计
         self.scan_btn.clicked.connect(self._on_scan)
@@ -773,6 +776,8 @@ class DataWidget(QWidget):
         
         # 取消按钮
         self.cancel_btn.clicked.connect(self._on_cancel)
+        
+        self._update_edit_action_states()
     
     # ============================================================
     # 路径同步
@@ -783,6 +788,7 @@ class DataWidget(QWidget):
         paths = self.stats_path_group.get_all_paths()
         self.edit_path_group.set_all_paths(paths, emit_signal=False)
         self.split_path_group.set_all_paths(paths, emit_signal=False)
+        self._update_edit_action_states()
         # 自动设置输出目录
         if paths.get("image_dir"):
             img_path = Path(paths["image_dir"])
@@ -795,12 +801,39 @@ class DataWidget(QWidget):
         paths = self.edit_path_group.get_all_paths()
         self.stats_path_group.set_all_paths(paths, emit_signal=False)
         self.split_path_group.set_all_paths(paths, emit_signal=False)
+        self._update_edit_action_states()
     
     def _sync_paths_from_split(self) -> None:
         """从划分 Tab 同步路径到其他 Tab"""
         paths = self.split_path_group.get_all_paths()
         self.stats_path_group.set_all_paths(paths, emit_signal=False)
         self.edit_path_group.set_all_paths(paths, emit_signal=False)
+        self._update_edit_action_states()
+
+    def _resolve_dataset_root(
+        self,
+        image_dir: Path,
+        label_dir: Optional[Path] = None,
+    ) -> Path:
+        """根据图片目录和标签目录推断数据集根目录"""
+        if label_dir and label_dir.exists():
+            return Path(os.path.commonpath([str(image_dir), str(label_dir)]))
+        
+        if image_dir.name.lower() in {"images", "jpegimages", "imgs", "img"}:
+            return image_dir.parent
+        
+        return image_dir
+
+    def _update_edit_action_states(self) -> None:
+        """根据当前路径和任务状态更新编辑按钮可用性"""
+        img_path = self.edit_path_group.get_image_dir()
+        has_image_dir = bool(img_path and img_path.exists())
+        is_busy = bool(self._worker and self._worker.isRunning())
+        enabled = has_image_dir and not is_busy
+        
+        self.gen_empty_btn.setEnabled(enabled)
+        self.convert_btn.setEnabled(enabled)
+        self.modify_btn.setEnabled(enabled)
     
     # ============================================================
     # 槽函数
@@ -876,10 +909,7 @@ class DataWidget(QWidget):
         # 更新共享状态 -> Tab 4
         self.detected_classes = result.classes
         self.classes_edit.setPlainText("\n".join(result.classes))
-        
-        # 启用编辑按钮
-        self.gen_empty_btn.setEnabled(len(result.missing_labels) > 0)
-        self.modify_btn.setEnabled(result.labeled_images > 0)
+        self._update_edit_action_states()
         
         self.log_message.emit(f"扫描完成: {summary}")
     
@@ -934,16 +964,24 @@ class DataWidget(QWidget):
     @Slot()
     def _on_generate_empty(self) -> None:
         """生成空标签"""
-        if not self._scan_result or not self._scan_result.missing_labels:
-            self.log_message.emit("没有需要生成标签的图片")
+        img_path = self.edit_path_group.get_image_dir()
+        if not img_path:
+            self.log_message.emit("请先选择图片目录")
             return
+        
+        if not img_path.exists():
+            self.log_message.emit(f"图片目录不存在: {img_path}")
+            return
+        
+        label_path = self.edit_path_group.get_label_dir()
         
         label_format = LabelFormat.TXT if self.empty_txt_radio.isChecked() else LabelFormat.XML
         
         self._start_worker(
-            lambda: self._handler.generate_empty_labels(
-                self._scan_result.missing_labels,
+            lambda: self._handler.generate_missing_labels(
+                img_path,
                 label_format,
+                label_dir=label_path,
                 interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
                 progress_callback=self._emit_progress,
                 message_callback=self._emit_message,
@@ -957,23 +995,31 @@ class DataWidget(QWidget):
         # 从编辑 Tab 的 PathInputGroup 读取路径
         img_path = self.edit_path_group.get_image_dir()
         if not img_path:
-            self.log_message.emit("请先选择数据集根目录")
+            self.log_message.emit("请先选择图片目录")
             return
         
+        if not img_path.exists():
+            self.log_message.emit(f"图片目录不存在: {img_path}")
+            return
+        
+        label_path = self.edit_path_group.get_label_dir()
+        dataset_root = self._resolve_dataset_root(img_path, label_path)
         to_xml = self.txt_to_xml_radio.isChecked()
         
-        # 获取类别列表 (如果有)
+        # 优先使用当前 classes.txt
         classes = None
-        if self._handler._class_mapping:
-            classes = list(self._handler._class_mapping.values())
+        classes_txt = self.edit_path_group.get_classes_path()
+        if classes_txt and classes_txt.exists():
+            classes = self._handler.load_classes_txt(classes_txt)
         elif self.detected_classes:
             classes = self.detected_classes
         
         self._start_worker(
             lambda: self._handler.convert_format(
-                img_path,
+                dataset_root,
                 to_xml=to_xml,
                 classes=classes,
+                label_dir=label_path,
                 interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
                 progress_callback=self._emit_progress,
                 message_callback=self._emit_message,
@@ -987,34 +1033,36 @@ class DataWidget(QWidget):
         # 从编辑 Tab 的 PathInputGroup 读取路径
         img_path = self.edit_path_group.get_image_dir()
         if not img_path:
-            self.log_message.emit("请先选择数据集根目录")
+            self.log_message.emit("请先选择图片目录")
+            return
+        
+        if not img_path.exists():
+            self.log_message.emit(f"图片目录不存在: {img_path}")
             return
         
         old_value = self.old_name_input.text().strip()
         if not old_value:
-            self.log_message.emit("请输入原类别名称")
+            self.log_message.emit("请输入原类别名称或 ID")
             return
         
         action = ModifyAction.REPLACE if self.replace_radio.isChecked() else ModifyAction.REMOVE
         new_value = self.new_name_input.text().strip()
         
         if action == ModifyAction.REPLACE and not new_value:
-            self.log_message.emit("替换模式下必须输入新类别名称")
+            self.log_message.emit("替换模式下必须输入新类别名称或 ID")
             return
         
         # 优先使用标签目录，如果未设置则回退到图片目录
         label_path = self.edit_path_group.get_label_dir()
-        search_dir = label_path if label_path and label_path.exists() else img_path
-        
-        # 收集所有标签文件
-        label_files = list(search_dir.rglob("*.txt")) + list(search_dir.rglob("*.xml"))
+        dataset_root = self._resolve_dataset_root(img_path, label_path)
+        search_dir = label_path if label_path and label_path.exists() else dataset_root
         
         # classes.txt
         classes_txt = self.edit_path_group.get_classes_path()
         
         self._start_worker(
             lambda: self._handler.modify_labels(
-                label_files,
+                search_dir,
                 action,
                 old_value,
                 new_value,
@@ -1250,7 +1298,16 @@ class DataWidget(QWidget):
         """设置 UI 忙碌状态"""
         self.cancel_btn.setEnabled(busy)
         self.scan_btn.setEnabled(not busy)
+        self.categorize_btn.setEnabled(not busy)
         self.split_btn.setEnabled(not busy)
+        self.save_yaml_btn.setEnabled(not busy)
+        
+        if busy:
+            self.gen_empty_btn.setEnabled(False)
+            self.convert_btn.setEnabled(False)
+            self.modify_btn.setEnabled(False)
+        else:
+            self._update_edit_action_states()
         
         if not busy:
             self.progress_bar.setValue(0)

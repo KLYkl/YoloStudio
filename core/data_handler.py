@@ -202,6 +202,7 @@ class DataHandler:
             ScanResult: 扫描结果
         """
         result = ScanResult()
+        self._class_mapping = {}
         
         # 加载类别映射
         if classes_txt and classes_txt.exists():
@@ -256,6 +257,61 @@ class DataHandler:
         result.classes = sorted(result.class_stats.keys())
         
         return result
+
+    def generate_missing_labels(
+        self,
+        img_dir: Path,
+        label_format: LabelFormat,
+        label_dir: Optional[Path] = None,
+        output_dir: Optional[Path] = None,
+        interrupt_check: Callable[[], bool] = lambda: False,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+        message_callback: Optional[Callable[[str], None]] = None,
+    ) -> int:
+        """
+        扫描缺失标签图片并生成空标签文件
+        
+        Args:
+            img_dir: 图片目录
+            label_format: 标签格式 (TXT/XML)
+            label_dir: 标签目录 (可选)
+            output_dir: 输出目录 (可选)
+            interrupt_check: 中断检查函数
+            progress_callback: 进度回调
+            message_callback: 消息回调
+        
+        Returns:
+            生成的标签文件数量
+        """
+        scan_result = self.scan_dataset(
+            img_dir,
+            label_dir=label_dir,
+            interrupt_check=interrupt_check,
+            progress_callback=progress_callback,
+            message_callback=message_callback,
+        )
+        
+        if interrupt_check():
+            return 0
+        
+        if not scan_result.missing_labels:
+            if message_callback:
+                message_callback("没有需要生成标签的图片")
+            return 0
+        
+        if message_callback:
+            message_callback(
+                f"找到 {len(scan_result.missing_labels)} 张缺失标签图片，开始生成空标签"
+            )
+        
+        return self.generate_empty_labels(
+            scan_result.missing_labels,
+            label_format,
+            output_dir=output_dir,
+            interrupt_check=interrupt_check,
+            progress_callback=progress_callback,
+            message_callback=message_callback,
+        )
     
     def _find_label_in_dir(self, img_path: Path, label_dir: Path) -> tuple[Optional[Path], Optional[LabelFormat]]:
         """
@@ -387,7 +443,7 @@ class DataHandler:
     
     def modify_labels(
         self,
-        label_files: list[Path],
+        search_dir: Path,
         action: ModifyAction,
         old_value: str,
         new_value: str = "",
@@ -401,12 +457,12 @@ class DataHandler:
         批量修改标签文件
         
         Args:
-            label_files: 标签文件路径列表
+            search_dir: 标签搜索目录
             action: 修改动作 (REPLACE/REMOVE)
             old_value: 原始类别名/ID
             new_value: 新类别名/ID (仅 REPLACE 时使用)
             backup: 是否备份原文件
-            classes_txt: classes.txt 路径 (TXT 标签替换时必需)
+            classes_txt: classes.txt 路径 (可选，提供后可使用类别名称)
             interrupt_check: 中断检查函数
             progress_callback: 进度回调
             message_callback: 消息回调
@@ -414,10 +470,18 @@ class DataHandler:
         Returns:
             修改的文件数量
         """
+        label_files = self.collect_label_files(search_dir)
         modified_count = 0
         total = len(label_files)
+        backup_count = 0
+        
+        if total == 0:
+            if message_callback:
+                message_callback("未找到可修改的标签文件")
+            return 0
         
         # 加载类别映射 (TXT 替换需要)
+        self._class_mapping = {}
         if classes_txt and classes_txt.exists():
             self.load_classes_txt(classes_txt)
         
@@ -430,16 +494,25 @@ class DataHandler:
             if not label_path.exists():
                 continue
             
-            # 备份
-            if backup:
-                backup_path = label_path.with_suffix(label_path.suffix + ".bak")
-                shutil.copy2(label_path, backup_path)
-            
             # 根据文件类型处理
             if label_path.suffix.lower() == ".xml":
-                modified = self._modify_xml(label_path, action, old_value, new_value)
+                modified, tree = self._prepare_modified_xml(label_path, action, old_value, new_value)
+                if modified and tree is not None:
+                    if backup:
+                        backup_path = label_path.with_suffix(label_path.suffix + ".bak")
+                        shutil.copy2(label_path, backup_path)
+                        backup_count += 1
+                    ET.indent(tree, space="    ")
+                    tree.write(label_path, encoding="utf-8", xml_declaration=True)
             else:
-                modified = self._modify_txt(label_path, action, old_value, new_value)
+                modified, new_lines = self._prepare_modified_txt(label_path, action, old_value, new_value)
+                if modified and new_lines is not None:
+                    if backup:
+                        backup_path = label_path.with_suffix(label_path.suffix + ".bak")
+                        shutil.copy2(label_path, backup_path)
+                        backup_count += 1
+                    with open(label_path, "w", encoding="utf-8") as f:
+                        f.writelines(new_lines)
             
             if modified:
                 modified_count += 1
@@ -450,14 +523,9 @@ class DataHandler:
         if message_callback:
             message_callback(f"已修改 {modified_count} 个标签文件")
         
-        if backup and message_callback:
-            bak_count = sum(
-                1 for f in label_files
-                if f.with_suffix(f.suffix + ".bak").exists()
-            )
-            if bak_count > 0:
+        if backup and message_callback and backup_count > 0:
                 message_callback(
-                    f"提示: 当前目录存在 {bak_count} 个 .bak 备份文件，可手动清理"
+                    f"提示: 已创建 {backup_count} 个 .bak 备份文件，可手动清理"
                 )
         
         return modified_count
@@ -624,6 +692,7 @@ class DataHandler:
         root: Path,
         to_xml: bool = True,
         classes: Optional[list[str]] = None,
+        label_dir: Optional[Path] = None,
         interrupt_check: Callable[[], bool] = lambda: False,
         progress_callback: Optional[Callable[[int, int], None]] = None,
         message_callback: Optional[Callable[[str], None]] = None,
@@ -643,17 +712,16 @@ class DataHandler:
             转换成功的文件数量
         """
         converted = 0
+        search_dir = label_dir if label_dir and label_dir.exists() else root
         
         if to_xml:
             # TXT → XML
-            label_files = list(root.rglob("*.txt"))
-            # 过滤非标签文件
-            label_files = [f for f in label_files if not f.name.startswith(("classes", "train", "val", "test"))]
+            label_files = self.collect_label_files(search_dir, suffixes={".txt"})
             output_dir_name = "converted_labels_xml"
             target_ext = ".xml"
         else:
             # XML → TXT
-            label_files = list(root.rglob("*.xml"))
+            label_files = self.collect_label_files(search_dir, suffixes={".xml"})
             output_dir_name = "converted_labels_txt"
             target_ext = ".txt"
         
@@ -706,7 +774,13 @@ class DataHandler:
             
             try:
                 # 计算输出路径
-                output_path = output_dir / (label_path.stem + target_ext)
+                try:
+                    relative_path = label_path.relative_to(search_dir)
+                except ValueError:
+                    relative_path = Path(label_path.name)
+                
+                output_path = output_dir / relative_path.with_suffix(target_ext)
+                output_path.parent.mkdir(parents=True, exist_ok=True)
                 
                 if to_xml:
                     # TXT → XML
@@ -732,6 +806,33 @@ class DataHandler:
             message_callback(f"文件已保存到: {output_dir}")
         
         return converted
+
+    def collect_label_files(
+        self,
+        root: Path,
+        suffixes: Optional[set[str]] = None,
+    ) -> list[Path]:
+        """递归收集有效标签文件"""
+        if not root.exists():
+            return []
+        
+        allowed_suffixes = {suffix.lower() for suffix in (suffixes or LABEL_EXTENSIONS)}
+        label_files: list[Path] = []
+        
+        for path in root.rglob("*"):
+            if not path.is_file():
+                continue
+            
+            suffix = path.suffix.lower()
+            if suffix not in allowed_suffixes:
+                continue
+            
+            if suffix == ".txt" and self._is_txt_label_file(path):
+                label_files.append(path)
+            elif suffix == ".xml" and self._is_xml_label_file(path):
+                label_files.append(path)
+        
+        return sorted(label_files)
     
     def _convert_txt_to_xml(self, txt_path: Path, id_to_class: dict, root: Path, output_path: Path) -> bool:
         """将 TXT 标签转换为 XML"""
@@ -1012,8 +1113,14 @@ class DataHandler:
         ET.indent(tree, space="    ")
         tree.write(label_path, encoding="utf-8", xml_declaration=True)
     
-    def _modify_xml(self, label_path: Path, action: ModifyAction, old_value: str, new_value: str) -> bool:
-        """修改 XML 标签文件"""
+    def _prepare_modified_xml(
+        self,
+        label_path: Path,
+        action: ModifyAction,
+        old_value: str,
+        new_value: str,
+    ) -> tuple[bool, Optional[ET.ElementTree]]:
+        """构建修改后的 XML 标签树"""
         try:
             tree = ET.parse(label_path)
             root = tree.getroot()
@@ -1031,30 +1138,26 @@ class DataHandler:
                         root.remove(obj)
                         modified = True
             
-            if modified:
-                ET.indent(tree, space="    ")
-                tree.write(label_path, encoding="utf-8", xml_declaration=True)
-            
-            return modified
+            return modified, tree if modified else None
             
         except Exception:
-            return False
+            return False, None
     
-    def _modify_txt(self, label_path: Path, action: ModifyAction, old_value: str, new_value: str) -> bool:
-        """修改 TXT 标签文件"""
+    def _prepare_modified_txt(
+        self,
+        label_path: Path,
+        action: ModifyAction,
+        old_value: str,
+        new_value: str,
+    ) -> tuple[bool, Optional[list[str]]]:
+        """构建修改后的 TXT 标签内容"""
         try:
             # 将类别名转换为 ID
-            old_id = None
-            new_id = None
-            
-            for id_, name in self._class_mapping.items():
-                if name == old_value or str(id_) == old_value:
-                    old_id = id_
-                if name == new_value or str(id_) == new_value:
-                    new_id = id_
+            old_id = self._resolve_class_id(old_value)
+            new_id = self._resolve_class_id(new_value) if action == ModifyAction.REPLACE else None
             
             if old_id is None:
-                return False
+                return False, None
             
             with open(label_path, "r", encoding="utf-8") as f:
                 lines = f.readlines()
@@ -1080,14 +1183,56 @@ class DataHandler:
                 else:
                     new_lines.append(line)
             
-            if modified:
-                with open(label_path, "w", encoding="utf-8") as f:
-                    f.writelines(new_lines)
+            return modified, new_lines if modified else None
             
-            return modified
+        except Exception:
+            return False, None
+
+    def _resolve_class_id(self, value: str) -> Optional[int]:
+        """将类别名称或字符串 ID 转为整数 ID"""
+        normalized = value.strip()
+        if not normalized:
+            return None
+        
+        if normalized.isdigit():
+            return int(normalized)
+        
+        for id_, name in self._class_mapping.items():
+            if name == normalized:
+                return id_
+        
+        return None
+
+    def _is_txt_label_file(self, path: Path) -> bool:
+        """判断 TXT 文件是否为有效检测标签"""
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    
+                    parts = stripped.split()
+                    if len(parts) < 5:
+                        return False
+                    
+                    int(parts[0])
+                    for value in parts[1:5]:
+                        float(value)
+            
+            return True
             
         except Exception:
             return False
+
+    def _is_xml_label_file(self, path: Path) -> bool:
+        """判断 XML 文件是否为 VOC 标签"""
+        try:
+            root = ET.parse(path).getroot()
+        except Exception:
+            return False
+        
+        return root.tag.lower() == "annotation"
     
     def _split_files(
         self,
