@@ -82,6 +82,7 @@ class DataWidget(QWidget):
         # Tab 间共享状态
         self.detected_classes: list[str] = []  # Tab1 -> Tab4
         self.split_paths: dict = {}             # Tab3 -> Tab4
+        self._stats_overview_labels: dict[str, QLabel] = {}
         
         # 当前扫描结果
         self._scan_result: Optional[ScanResult] = None
@@ -134,13 +135,69 @@ class DataWidget(QWidget):
         )
         layout.addWidget(self.stats_path_group)
         
+        # 中部内容区: 左侧类别表，右侧概览
+        content_layout = QHBoxLayout()
+        content_layout.setSpacing(15)
+        
         # 统计表格
         self.stats_table = QTableWidget()
         self.stats_table.setColumnCount(3)
         self.stats_table.setHorizontalHeaderLabels(["类别名称", "数量", "占比"])
         self.stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.stats_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        layout.addWidget(self.stats_table, 1)
+        self.stats_table.setAlternatingRowColors(True)
+        self.stats_table.verticalHeader().setVisible(False)
+        self.stats_table.setShowGrid(False)
+        content_layout.addWidget(self.stats_table, 3)
+        
+        # 右侧概览 (无边框面板)
+        overview_panel = QFrame()
+        overview_panel.setObjectName("statsOverviewPanel")
+        overview_panel.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        overview_panel.setMinimumWidth(310)
+        overview_panel.setMaximumWidth(350)
+        
+        overview_outer = QVBoxLayout(overview_panel)
+        overview_outer.setContentsMargins(0, 0, 0, 0)
+        overview_outer.setSpacing(10)
+        
+        # 概览标题
+        overview_title = QLabel("📊 数据概览")
+        overview_title.setObjectName("accentLabel")
+        overview_title.setStyleSheet("font-size: 14px; padding: 4px 0;")
+        overview_outer.addWidget(overview_title)
+        
+        # 分隔线
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setObjectName("statsOverviewSep")
+        overview_outer.addWidget(sep)
+        
+        # 卡片网格
+        overview_grid = QGridLayout()
+        overview_grid.setHorizontalSpacing(8)
+        overview_grid.setVerticalSpacing(8)
+        
+        overview_items = [
+            ("total_images", "图片总数", "#89b4fa"),
+            ("labeled_images", "有标签图片", "#a6e3a1"),
+            ("missing_labels", "缺失标签", "#fab387"),
+            ("empty_labels", "空标签", "#f9e2af"),
+            ("class_count", "类别数", "#cba6f7"),
+            ("total_objects", "目标总数", "#89b4fa"),
+            ("missing_ratio", "缺失占比", "#f38ba8"),
+            ("empty_ratio", "空标签占比", "#f9e2af"),
+        ]
+        
+        for index, (key, title, color) in enumerate(overview_items):
+            card = self._create_stats_overview_card(title, key, color)
+            overview_grid.addWidget(card, index // 2, index % 2)
+        
+        overview_outer.addLayout(overview_grid)
+        overview_outer.addStretch()
+        
+        content_layout.addWidget(overview_panel, 1)
+        layout.addLayout(content_layout, 1)
         
         # 按钮区域 (底部)
         btn_layout = QHBoxLayout()
@@ -176,6 +233,78 @@ class DataWidget(QWidget):
         layout.addLayout(btn_layout)
         
         return tab
+
+    def _create_stats_overview_card(self, title: str, key: str, accent_color: str = "#89b4fa") -> QFrame:
+        """创建带彩色指示条的统计概览卡片"""
+        card = QFrame()
+        card.setObjectName("statsOverviewCard")
+        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        card.setMinimumHeight(72)
+        
+        card_layout = QHBoxLayout(card)
+        card_layout.setContentsMargins(0, 0, 12, 0)
+        card_layout.setSpacing(0)
+        
+        # 左侧彩色指示条
+        accent_bar = QFrame()
+        accent_bar.setFixedWidth(4)
+        accent_bar.setStyleSheet(
+            f"background-color: {accent_color}; "
+            f"border-top-left-radius: 10px; "
+            f"border-bottom-left-radius: 10px;"
+        )
+        card_layout.addWidget(accent_bar)
+        
+        # 右侧内容区
+        text_layout = QVBoxLayout()
+        text_layout.setContentsMargins(12, 10, 0, 10)
+        text_layout.setSpacing(4)
+        
+        title_label = QLabel(title)
+        title_label.setObjectName("mutedLabel")
+        title_label.setStyleSheet("font-size: 11px;")
+        
+        value_label = QLabel("--")
+        value_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        value_label.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {accent_color};")
+        
+        text_layout.addWidget(title_label)
+        text_layout.addWidget(value_label)
+        card_layout.addLayout(text_layout)
+        
+        self._stats_overview_labels[key] = value_label
+        return card
+
+    def _reset_stats_overview(self) -> None:
+        """重置右侧概览显示"""
+        for label in self._stats_overview_labels.values():
+            label.setText("--")
+
+    def _update_stats_overview(self, result: ScanResult) -> None:
+        """更新右侧概览数据"""
+        total_images = result.total_images
+        labeled_images = result.labeled_images
+        missing_labels = len(result.missing_labels)
+        empty_labels = result.empty_labels
+        class_count = len(result.classes)
+        total_objects = sum(result.class_stats.values())
+        missing_ratio = f"{missing_labels / total_images * 100:.1f}%" if total_images > 0 else "0.0%"
+        empty_ratio = f"{empty_labels / labeled_images * 100:.1f}%" if labeled_images > 0 else "0.0%"
+        
+        overview_values = {
+            "total_images": f"{total_images}",
+            "labeled_images": f"{labeled_images}",
+            "missing_labels": f"{missing_labels}",
+            "empty_labels": f"{empty_labels}",
+            "class_count": f"{class_count}",
+            "total_objects": f"{total_objects}",
+            "missing_ratio": missing_ratio,
+            "empty_ratio": empty_ratio,
+        }
+        
+        for key, value in overview_values.items():
+            if key in self._stats_overview_labels:
+                self._stats_overview_labels[key].setText(value)
     
     def _create_edit_tab(self) -> QWidget:
         """
@@ -688,6 +817,10 @@ class DataWidget(QWidget):
         # 可选: classes.txt
         classes_txt = self.stats_path_group.get_classes_path()
         
+        self._scan_result = None
+        self.stats_table.setRowCount(0)
+        self._reset_stats_overview()
+        
         self._start_worker(
             lambda: self._handler.scan_dataset(
                 img_path,
@@ -703,6 +836,7 @@ class DataWidget(QWidget):
     def _on_scan_finished(self, result: ScanResult) -> None:
         """扫描完成回调"""
         self._scan_result = result
+        self._update_stats_overview(result)
         
         # 更新表格
         self.stats_table.setRowCount(0)
