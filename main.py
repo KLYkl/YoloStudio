@@ -23,7 +23,7 @@ from typing import Type
 # 在导入 OpenCV 之前设置日志级别，抑制摄像头扫描警告
 os.environ["OPENCV_LOG_LEVEL"] = "SILENT"
 
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication
 from PySide6.QtGui import QFont
 
 from config import AppConfig
@@ -60,14 +60,15 @@ def exception_hook(
     logger.critical(f"未捕获的异常:\n{tb_text}")
     
     # 弹出错误对话框 (查找当前活动窗口作为父窗口以居中显示)
+    from ui.styled_message_box import StyledMessageBox
     app = QApplication.instance()
     parent = app.activeWindow() if app else None
-    error_dialog = QMessageBox(parent)
-    error_dialog.setIcon(QMessageBox.Icon.Critical)
-    error_dialog.setWindowTitle("程序错误")
-    error_dialog.setText("程序遇到了一个未预期的错误，请联系开发者。")
-    error_dialog.setDetailedText(tb_text)
-    error_dialog.exec()
+    StyledMessageBox.critical(
+        parent,
+        "程序错误",
+        "程序遇到了一个未预期的错误，请联系开发者。",
+        detailed_text=tb_text,
+    )
 
 
 def main() -> int:

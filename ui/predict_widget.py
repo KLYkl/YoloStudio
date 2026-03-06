@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QMessageBox,
+
     QPushButton,
     QRadioButton,
     QScrollArea,
@@ -55,6 +55,7 @@ from core.predict_handler import (
     SaveCondition
 )
 from ui.base_ui import set_button_class
+from ui.styled_message_box import StyledMessageBox
 from ui.focus_widgets import FocusSlider
 from ui.image_result_browser import ImageResultBrowser, ImageProgressBar
 from ui.predict_preview import PreviewCanvas
@@ -895,15 +896,15 @@ class PredictWidget(QWidget):
     def _on_test_rtsp(self) -> None:
         url = self._rtsp_edit.text().strip()
         if not url:
-            QMessageBox.warning(self, "警告", "请输入 RTSP 地址")
+            StyledMessageBox.warning(self, "警告", "请输入 RTSP 地址")
             return
         self.log_message.emit(f"正在测试 RTSP: {url}")
         success, error = DeviceScanner.test_rtsp(url)
         if success:
-            QMessageBox.information(self, "成功", "RTSP 连接成功!")
+            StyledMessageBox.information(self, "成功", "RTSP 连接成功!")
             self.log_message.emit("RTSP 测试通过")
         else:
-            QMessageBox.warning(self, "失败", f"RTSP 连接失败: {error}")
+            StyledMessageBox.warning(self, "失败", f"RTSP 连接失败: {error}")
             self.log_message.emit(f"RTSP 测试失败: {error}")
     
     @Slot(int)
@@ -987,13 +988,13 @@ class PredictWidget(QWidget):
         """启动预测"""
         model_path = self._model_path_edit.text().strip()
         if not model_path or not Path(model_path).exists():
-            QMessageBox.warning(self, "警告", "请选择有效的模型文件")
+            StyledMessageBox.warning(self, "警告", "请选择有效的模型文件")
             return
         # 检查模型路径是否变化，如果变化则重新加载
         if self._predict_manager._model_path != model_path:
             self.log_message.emit(f"正在加载模型: {model_path}")
             if not self._predict_manager.load_model(model_path):
-                QMessageBox.critical(self, "错误", "模型加载失败")
+                StyledMessageBox.critical(self, "错误", "模型加载失败")
                 return
             self.log_message.emit("模型加载成功")
             self._populate_class_filter()
@@ -1016,26 +1017,26 @@ class PredictWidget(QWidget):
                 source = self._source_path_edit.text().strip()
                 source_type = InputSourceType.VIDEO
                 if not source or not Path(source).exists():
-                    QMessageBox.warning(self, "警告", "请选择有效的视频")
+                    StyledMessageBox.warning(self, "警告", "请选择有效的视频")
                     return
         elif source_id == 2:
             if self._rtsp_check.isChecked():
                 source = self._rtsp_edit.text().strip()
                 source_type = InputSourceType.RTSP
                 if not source:
-                    QMessageBox.warning(self, "警告", "请输入 RTSP 地址")
+                    StyledMessageBox.warning(self, "警告", "请输入 RTSP 地址")
                     return
             else:
                 idx = self._camera_combo.currentIndex()
                 if idx < 0 or idx >= len(self._cameras):
-                    QMessageBox.warning(self, "警告", "请选择摄像头")
+                    StyledMessageBox.warning(self, "警告", "请选择摄像头")
                     return
                 source = self._cameras[idx]["id"]
                 source_type = InputSourceType.CAMERA
         elif source_id == 3:
             idx = self._screen_combo.currentIndex()
             if idx < 0 or idx >= len(self._screens):
-                QMessageBox.warning(self, "警告", "请选择屏幕")
+                StyledMessageBox.warning(self, "警告", "请选择屏幕")
                 return
             screen = self._screens[idx]
             source = f"screen_{idx}"  # 仅用于日志标识，实际使用 screen_region
@@ -1086,7 +1087,7 @@ class PredictWidget(QWidget):
                 self._start_btn.setText("⏸ 暂停")
                 set_button_class(self._start_btn, "warning")
         else:
-            QMessageBox.critical(self, "错误", "启动预测失败")
+            StyledMessageBox.critical(self, "错误", "启动预测失败")
     
     @Slot()
     def _on_stop(self) -> None:
@@ -1564,7 +1565,7 @@ class PredictWidget(QWidget):
         self._frame_display.setText(f"已处理: {len(stats)} 个视频")
         self._object_display.setText(f"检测: {total_detections} 个")
         
-        QMessageBox.information(
+        StyledMessageBox.information(
             self,
             "批量处理完成",
             f"已处理 {len(stats)} 个视频\n"
@@ -1576,13 +1577,13 @@ class PredictWidget(QWidget):
         """启动视频批量处理"""
         source = self._batch_video_folder_edit.text().strip()
         if not source:
-            QMessageBox.warning(self, "警告", "请选择视频文件夹")
+            StyledMessageBox.warning(self, "警告", "请选择视频文件夹")
             return
         
         # 加载模型
         model_path = self._model_path_edit.text().strip()
         if not model_path:
-            QMessageBox.warning(self, "警告", "请选择模型文件")
+            StyledMessageBox.warning(self, "警告", "请选择模型文件")
             return
         
         if not self._predict_manager.is_model_loaded:
@@ -1594,7 +1595,7 @@ class PredictWidget(QWidget):
         # 获取输出目录，以模型名命名子文件夹
         output_dir = self._output_dir_edit.text().strip()
         if not output_dir:
-            QMessageBox.warning(self, "警告", "请选择输出目录")
+            StyledMessageBox.warning(self, "警告", "请选择输出目录")
             return
         model_name = Path(model_path).stem  # 模型名（不含扩展名）
         output_dir = str(Path(output_dir) / model_name)
@@ -1602,7 +1603,7 @@ class PredictWidget(QWidget):
         # 加载视频
         video_count = self._video_batch_processor.load_videos(source)
         if video_count == 0:
-            QMessageBox.warning(self, "警告", "未找到视频文件")
+            StyledMessageBox.warning(self, "警告", "未找到视频文件")
             return
         
         # 设置处理器
