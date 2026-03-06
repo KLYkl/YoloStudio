@@ -351,6 +351,21 @@ QFrame#cardWidget {
     border-radius: 12px;
 }
 
+QFrame#statsOverviewCard {
+    background-color: #181825;
+    border: 1px solid #313244;
+    border-radius: 10px;
+}
+
+QFrame#statsOverviewCard:hover {
+    background-color: #1e1e2e;
+    border: 1px solid #45475a;
+}
+
+QFrame#statsOverviewSep {
+    color: #313244;
+}
+
 QPushButton#logPanelBtn, QToolButton#logPanelBtn {
     background-color: #45475a;
     color: #cdd6f4;
@@ -970,6 +985,21 @@ QFrame#cardWidget {
     background-color: #dce0e8;
     border: 1px solid #bcc0cc;
     border-radius: 12px;
+}
+
+QFrame#statsOverviewCard {
+    background-color: #e6e9ef;
+    border: 1px solid #ccd0da;
+    border-radius: 10px;
+}
+
+QFrame#statsOverviewCard:hover {
+    background-color: #dce0e8;
+    border: 1px solid #bcc0cc;
+}
+
+QFrame#statsOverviewSep {
+    color: #bcc0cc;
 }
 
 QPushButton#logPanelBtn, QToolButton#logPanelBtn {

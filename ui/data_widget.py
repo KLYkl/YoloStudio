@@ -121,9 +121,20 @@ class DataWidget(QWidget):
         main_layout.addWidget(self._create_progress_zone())
     
     def _create_stats_tab(self) -> QWidget:
-        """创建统计 Tab"""
+        """创建统计 Tab (使用 QScrollArea 防止日志面板展开时内容被压缩)"""
         tab = QWidget()
-        layout = QVBoxLayout(tab)
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.setSpacing(0)
+        
+        # 用 QScrollArea 包裹所有内容，防止日志面板展开时被压缩
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        
+        scroll_content = QWidget()
+        layout = QVBoxLayout(scroll_content)
         layout.setSpacing(10)
         
         # 路径输入组
@@ -231,6 +242,10 @@ class DataWidget(QWidget):
         btn_layout.addWidget(self.categorize_btn)
         
         layout.addLayout(btn_layout)
+        
+        # 将内容装入滚动区域
+        scroll_area.setWidget(scroll_content)
+        tab_layout.addWidget(scroll_area)
         
         return tab
 
