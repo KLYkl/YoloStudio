@@ -382,7 +382,6 @@ QToolButton#themeToggleBtn {
     border: none;
     border-radius: 8px;
     padding: 0px;
-    font-size: 16px;
 }
 
 QToolButton#themeToggleBtn:hover {
@@ -1018,7 +1017,6 @@ QToolButton#themeToggleBtn {
     border: none;
     border-radius: 8px;
     padding: 0px;
-    font-size: 16px;
 }
 
 QToolButton#themeToggleBtn:hover {

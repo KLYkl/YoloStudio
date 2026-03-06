@@ -18,13 +18,15 @@ data_widget.py - 数据准备模块 UI
 from __future__ import annotations
 
 import os
+import time
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from PySide6.QtCore import Qt, Signal, Slot, QMetaObject, Q_ARG
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QFormLayout,
     QGridLayout,
@@ -60,6 +62,7 @@ from core.data_handler import (
 )
 from ui.focus_widgets import FocusSlider, FocusSpinBox
 from ui.path_input_group import PathInputGroup
+from ui.styled_message_box import StyledMessageBox, StyledProgressDialog
 
 
 class DataWidget(QWidget):
@@ -79,6 +82,16 @@ class DataWidget(QWidget):
         # 核心逻辑
         self._handler = DataHandler()
         self._worker: Optional[DataWorker] = None
+        self._edit_precheck_cache: Optional[dict] = None
+        self._edit_precheck_cache_ttl = 120.0
+        self._precheck_dialog: Optional[StyledProgressDialog] = None
+        self._precheck_dialog_text = ""
+        self._precheck_cancelled = False
+        self._pending_precheck_result = None
+        self._pending_precheck_handler: Optional[Callable[[object], None]] = None
+        self._pending_precheck_cache_key = None
+        self._pending_precheck_error: Optional[str] = None
+        self._pending_precheck_title = ""
         
         # Tab 间共享状态
         self.detected_classes: list[str] = []  # Tab1 -> Tab4
@@ -370,7 +383,7 @@ class DataWidget(QWidget):
         gen_layout.addWidget(self.empty_xml_radio)
         gen_layout.addStretch()
         
-        # 生成按钮 (右对齐)
+        # 操作按钮 (右对齐)
         gen_btn_layout = QHBoxLayout()
         gen_btn_layout.addStretch()
         self.gen_empty_btn = QPushButton("📝 生成空标签")
@@ -398,7 +411,7 @@ class DataWidget(QWidget):
         convert_layout.addWidget(self.xml_to_txt_radio)
         convert_layout.addStretch()
         
-        # 转换按钮 (右对齐)
+        # 操作按钮 (右对齐)
         convert_btn_layout = QHBoxLayout()
         convert_btn_layout.addStretch()
         self.convert_btn = QPushButton("🔄 执行转换")
@@ -437,13 +450,17 @@ class DataWidget(QWidget):
         
         # 输入字段
         form_layout = QFormLayout()
-        self.old_name_input = QLineEdit()
-        self.old_name_input.setPlaceholderText("原类别名称或 ID")
+        self.old_name_input = QComboBox()
+        self.old_name_input.setEditable(True)
+        self.old_name_input.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.old_name_input.lineEdit().setPlaceholderText("原类别名称或 ID")
         form_layout.addRow("原类别/ID:", self.old_name_input)
         
         self._new_name_label = QLabel("新类别/ID:")
-        self.new_name_input = QLineEdit()
-        self.new_name_input.setPlaceholderText("新类别名称或 ID (删除时留空)")
+        self.new_name_input = QComboBox()
+        self.new_name_input.setEditable(True)
+        self.new_name_input.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
+        self.new_name_input.lineEdit().setPlaceholderText("新类别名称或 ID (留空表示删除)")
         form_layout.addRow(self._new_name_label, self.new_name_input)
         right_layout.addLayout(form_layout)
         
@@ -451,10 +468,9 @@ class DataWidget(QWidget):
         self.backup_check = QCheckBox("修改前备份原文件 (.bak)")
         self.backup_check.setChecked(True)
         right_layout.addWidget(self.backup_check)
-        
         right_layout.addStretch()
         
-        # 执行按钮 (右对齐)
+        # 操作按钮 (右对齐)
         btn_layout2 = QHBoxLayout()
         btn_layout2.addStretch()
         self.modify_btn = QPushButton("⚡ 执行修改")
@@ -713,7 +729,7 @@ class DataWidget(QWidget):
         return tab
     
     def _create_progress_zone(self) -> QWidget:
-        """创建进度条区域 (仅进度条 + 状态 + 取消)"""
+        """创建进度条区域 (进度条 + 状态 + 取消)"""
         zone = QWidget()
         layout = QHBoxLayout(zone)
         layout.setContentsMargins(0, 5, 0, 0)
@@ -752,6 +768,7 @@ class DataWidget(QWidget):
         self.edit_path_group.paths_changed.connect(self._sync_paths_from_edit)
         self.split_path_group.paths_changed.connect(self._sync_paths_from_split)
         self.edit_path_group.paths_changed.connect(self._update_edit_action_states)
+        self.tab_widget.currentChanged.connect(self._on_sub_tab_changed)
         
         # Tab 1 - 统计
         self.scan_btn.clicked.connect(self._on_scan)
@@ -762,6 +779,13 @@ class DataWidget(QWidget):
         self.modify_btn.clicked.connect(self._on_modify_labels)
         self.remove_radio.toggled.connect(self._on_action_changed)
         self.convert_btn.clicked.connect(self._on_convert_format)
+        self.empty_txt_radio.toggled.connect(self._invalidate_edit_precheck_cache)
+        self.empty_xml_radio.toggled.connect(self._invalidate_edit_precheck_cache)
+        self.txt_to_xml_radio.toggled.connect(self._invalidate_edit_precheck_cache)
+        self.xml_to_txt_radio.toggled.connect(self._invalidate_edit_precheck_cache)
+        self.old_name_input.currentTextChanged.connect(self._invalidate_edit_precheck_cache)
+        self.new_name_input.currentTextChanged.connect(self._invalidate_edit_precheck_cache)
+        self.backup_check.toggled.connect(self._invalidate_edit_precheck_cache)
         
         # Tab 3 - 划分
         self.ratio_slider.valueChanged.connect(self._on_ratio_changed)
@@ -777,6 +801,7 @@ class DataWidget(QWidget):
         # 取消按钮
         self.cancel_btn.clicked.connect(self._on_cancel)
         
+        self._refresh_edit_class_options()
         self._update_edit_action_states()
     
     # ============================================================
@@ -788,6 +813,8 @@ class DataWidget(QWidget):
         paths = self.stats_path_group.get_all_paths()
         self.edit_path_group.set_all_paths(paths, emit_signal=False)
         self.split_path_group.set_all_paths(paths, emit_signal=False)
+        self._invalidate_edit_precheck_cache()
+        self._refresh_edit_class_options()
         self._update_edit_action_states()
         # 自动设置输出目录
         if paths.get("image_dir"):
@@ -801,6 +828,8 @@ class DataWidget(QWidget):
         paths = self.edit_path_group.get_all_paths()
         self.stats_path_group.set_all_paths(paths, emit_signal=False)
         self.split_path_group.set_all_paths(paths, emit_signal=False)
+        self._invalidate_edit_precheck_cache()
+        self._refresh_edit_class_options()
         self._update_edit_action_states()
     
     def _sync_paths_from_split(self) -> None:
@@ -808,6 +837,8 @@ class DataWidget(QWidget):
         paths = self.split_path_group.get_all_paths()
         self.stats_path_group.set_all_paths(paths, emit_signal=False)
         self.edit_path_group.set_all_paths(paths, emit_signal=False)
+        self._invalidate_edit_precheck_cache()
+        self._refresh_edit_class_options()
         self._update_edit_action_states()
 
     def _resolve_dataset_root(
@@ -834,6 +865,374 @@ class DataWidget(QWidget):
         self.gen_empty_btn.setEnabled(enabled)
         self.convert_btn.setEnabled(enabled)
         self.modify_btn.setEnabled(enabled)
+
+    @Slot(int)
+    def _on_sub_tab_changed(self, index: int) -> None:
+        """子页切换后刷新可用状态"""
+        self._update_edit_action_states()
+
+    def _apply_edit_class_options(self, options: list[str]) -> None:
+        """应用修改标签下拉选项并保留当前输入"""
+        old_value = self.old_name_input.currentText().strip()
+        new_value = self.new_name_input.currentText().strip()
+        
+        self.old_name_input.blockSignals(True)
+        self.new_name_input.blockSignals(True)
+        
+        self.old_name_input.clear()
+        self.new_name_input.clear()
+        
+        if options:
+            self.old_name_input.addItems(options)
+            self.new_name_input.addItems(options)
+        
+        self.old_name_input.setCurrentText(old_value)
+        self.new_name_input.setCurrentText(new_value)
+        
+        self.old_name_input.blockSignals(False)
+        self.new_name_input.blockSignals(False)
+
+    def _refresh_edit_class_options(self) -> None:
+        """刷新修改标签下拉选项 (轻量模式)"""
+        classes_txt = self.edit_path_group.get_classes_path()
+        if classes_txt and classes_txt.exists():
+            self._apply_edit_class_options(self._handler.load_classes_txt(classes_txt))
+        elif self.detected_classes:
+            self._apply_edit_class_options(self.detected_classes)
+        else:
+            self._apply_edit_class_options([])
+
+    def _resolve_modify_action(self) -> ModifyAction:
+        """根据当前输入解析修改动作"""
+        new_value = self.new_name_input.currentText().strip()
+        if self.remove_radio.isChecked() or not new_value:
+            return ModifyAction.REMOVE
+        return ModifyAction.REPLACE
+
+    def _show_modify_warning(self, message: str) -> None:
+        """修改功能警告弹窗"""
+        StyledMessageBox.warning(self, "修改标签", message)
+
+    def _show_modify_info(self, title: str, message: str) -> None:
+        """修改功能信息弹窗"""
+        StyledMessageBox.information(self, title, message)
+
+    def _invalidate_edit_precheck_cache(self, *_args) -> None:
+        """清除编辑页最近一次预检查缓存"""
+        self._edit_precheck_cache = None
+
+    def _get_edit_precheck_cache(self, cache_key: tuple) -> Optional[object]:
+        """获取有效的编辑预检查缓存"""
+        if not self._edit_precheck_cache:
+            return None
+        
+        if self._edit_precheck_cache.get("key") != cache_key:
+            return None
+        
+        timestamp = self._edit_precheck_cache.get("timestamp", 0.0)
+        if time.monotonic() - timestamp > self._edit_precheck_cache_ttl:
+            self._edit_precheck_cache = None
+            return None
+        
+        return self._edit_precheck_cache.get("result")
+
+    def _set_edit_precheck_cache(self, cache_key: tuple, result: object) -> None:
+        """保存编辑页最近一次预检查结果"""
+        self._edit_precheck_cache = {
+            "key": cache_key,
+            "timestamp": time.monotonic(),
+            "result": result,
+        }
+
+    def _confirm_edit_action(self, title: str, message: str) -> bool:
+        """显示确认弹窗"""
+        return StyledMessageBox.question(self, title, message)
+
+    def _cancel_precheck(self) -> None:
+        """取消正在进行的预检查"""
+        if not (self._worker and self._worker.isRunning()):
+            return
+        
+        self._precheck_cancelled = True
+        self._worker.request_interrupt()
+        self.log_message.emit("正在取消预检查...")
+
+    @Slot(int, int)
+    def _on_precheck_progress(self, current: int, total: int) -> None:
+        """更新预检查进度弹窗"""
+        dialog = self._precheck_dialog
+        if dialog is None:
+            return
+        
+        maximum = max(total, 1)
+        try:
+            if dialog.maximum() == 0:
+                dialog.setRange(0, maximum)
+            dialog.setMaximum(maximum)
+            dialog.setValue(min(current, maximum))
+            dialog.setLabelText(f"{self._precheck_dialog_text}\n{current}/{maximum}")
+        except RuntimeError:
+            return
+
+    def _cleanup_precheck_dialog(self) -> None:
+        """关闭预检查进度弹窗"""
+        dialog = self._precheck_dialog
+        self._precheck_dialog = None
+        if dialog is None:
+            return
+        
+        try:
+            dialog.canceled.disconnect(self._cancel_precheck)
+        except (RuntimeError, TypeError):
+            pass
+        
+        dialog.blockSignals(True)
+        dialog.close()
+        dialog.deleteLater()
+        self._precheck_dialog_text = ""
+
+    def _on_precheck_result(self, result: object) -> None:
+        """保存预检查结果，等待线程收尾后再确认"""
+        if self._precheck_cancelled:
+            return
+        
+        self._pending_precheck_result = result
+
+    def _on_precheck_error(self, error: str) -> None:
+        """记录预检查错误"""
+        self._pending_precheck_error = error
+
+    @Slot()
+    def _on_precheck_finished(self) -> None:
+        """预检查线程完成后做清理和确认"""
+        self._set_ui_busy(False)
+        self._cleanup_precheck_dialog()
+        
+        worker = self._worker
+        self._worker = None
+        if worker:
+            worker.deleteLater()
+        
+        if self._precheck_cancelled:
+            self._pending_precheck_result = None
+            self._pending_precheck_handler = None
+            self._pending_precheck_cache_key = None
+            self._pending_precheck_error = None
+            self._pending_precheck_title = ""
+            self.log_message.emit("已取消预检查")
+            return
+        
+        if self._pending_precheck_error:
+            StyledMessageBox.warning(self, self._pending_precheck_title or "预检查", self._pending_precheck_error)
+            self._pending_precheck_result = None
+            self._pending_precheck_handler = None
+            self._pending_precheck_cache_key = None
+            self._pending_precheck_error = None
+            self._pending_precheck_title = ""
+            return
+        
+        result = self._pending_precheck_result
+        handler = self._pending_precheck_handler
+        cache_key = self._pending_precheck_cache_key
+        
+        self._pending_precheck_result = None
+        self._pending_precheck_handler = None
+        self._pending_precheck_cache_key = None
+        self._pending_precheck_error = None
+        self._pending_precheck_title = ""
+        
+        if result is not None and handler:
+            if cache_key is not None:
+                self._set_edit_precheck_cache(cache_key, result)
+            handler(result)
+
+    def _start_precheck_worker(
+        self,
+        *,
+        title: str,
+        label_text: str,
+        cache_key: tuple,
+        task,
+        on_ready: Callable[[object], None],
+    ) -> None:
+        """启动后台预检查，并在完成后弹出确认框"""
+        cached_result = self._get_edit_precheck_cache(cache_key)
+        if cached_result is not None:
+            on_ready(cached_result)
+            return
+        
+        if self._worker and self._worker.isRunning():
+            self.log_message.emit("已有任务在运行中")
+            return
+        
+        self._precheck_cancelled = False
+        self._pending_precheck_result = None
+        self._pending_precheck_handler = on_ready
+        self._pending_precheck_cache_key = cache_key
+        self._pending_precheck_error = None
+        self._pending_precheck_title = title
+        
+        self._precheck_dialog = StyledProgressDialog(self, title, label_text, "取消")
+        self._precheck_dialog.setWindowModality(Qt.WindowModality.WindowModal)
+        self._precheck_dialog.setRange(0, 0)
+        self._precheck_dialog.setValue(0)
+        self._precheck_dialog_text = label_text
+        self._precheck_dialog.canceled.connect(self._cancel_precheck)
+        
+        self._worker = DataWorker(self)
+        self._worker.set_task(task)
+        self._worker.progress.connect(self._on_precheck_progress)
+        self._worker.result_ready.connect(self._on_precheck_result)
+        self._worker.error.connect(self._on_precheck_error)
+        self._worker.finished.connect(self._on_precheck_finished)
+        
+        self._set_ui_busy(True, enable_cancel=False)
+        self.log_message.emit(label_text)
+        self._precheck_dialog.show()
+        self._worker.start()
+
+    def _confirm_generate_empty_after_precheck(
+        self,
+        preview: dict,
+        img_path: Path,
+        label_path: Optional[Path],
+        label_format: LabelFormat,
+    ) -> None:
+        """根据预检查结果确认是否生成空标签"""
+        total_images = preview.get("total_images", 0)
+        missing_labels = preview.get("missing_labels", 0)
+        format_text = "TXT (YOLO)" if label_format == LabelFormat.TXT else "XML (VOC)"
+        
+        if total_images == 0:
+            StyledMessageBox.information(self, "生成空标签", "未找到可检查的图片文件。")
+            return
+        
+        if missing_labels == 0:
+            StyledMessageBox.information(self, "生成空标签", "未发现缺失标签图片，无需生成空标签。")
+            return
+        
+        message = (
+            f"将检查 {total_images} 张图片。\n"
+            f"预计生成 {missing_labels} 个空标签。\n"
+            f"标签格式: {format_text}\n\n"
+            "是否继续执行？"
+        )
+        if not self._confirm_edit_action("生成空标签", message):
+            return
+        
+        self._start_worker(
+            lambda: self._handler.generate_missing_labels(
+                img_path,
+                label_format,
+                label_dir=label_path,
+                interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
+                progress_callback=self._emit_progress,
+                message_callback=self._emit_message,
+            ),
+            on_finished=self._on_generate_empty_finished,
+        )
+
+    def _confirm_convert_after_precheck(
+        self,
+        preview: dict,
+        img_path: Path,
+        label_path: Optional[Path],
+        to_xml: bool,
+    ) -> None:
+        """根据预检查结果确认是否执行格式转换"""
+        total_labels = preview.get("total_labels", 0)
+        source_type = preview.get("source_type", "TXT")
+        target_type = preview.get("target_type", "XML")
+        output_dir_name = preview.get("output_dir_name", "")
+        
+        if total_labels == 0:
+            StyledMessageBox.information(self, "格式互转", f"未找到可转换的 {source_type} 标签文件。")
+            return
+        
+        message = (
+            f"将转换 {total_labels} 个 {source_type} 标签文件。\n"
+            f"输出格式: {target_type}\n"
+            f"输出目录: {output_dir_name}\n\n"
+            "是否继续执行？"
+        )
+        if not self._confirm_edit_action("格式互转", message):
+            return
+        
+        classes = None
+        classes_txt = self.edit_path_group.get_classes_path()
+        if classes_txt and classes_txt.exists():
+            classes = self._handler.load_classes_txt(classes_txt)
+        elif self.detected_classes:
+            classes = self.detected_classes
+        
+        dataset_root = self._resolve_dataset_root(img_path, label_path)
+        self._start_worker(
+            lambda: self._handler.convert_format(
+                dataset_root,
+                to_xml=to_xml,
+                classes=classes,
+                label_dir=label_path,
+                interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
+                progress_callback=self._emit_progress,
+                message_callback=self._emit_message,
+            ),
+            on_finished=self._on_convert_format_finished,
+        )
+
+    def _confirm_modify_after_precheck(
+        self,
+        preview: dict,
+        search_dir: Path,
+        action: ModifyAction,
+        old_value: str,
+        new_value: str,
+        classes_txt: Optional[Path],
+    ) -> None:
+        """根据预检查结果确认是否执行标签修改"""
+        total_label_files = preview.get("total_label_files", 0)
+        txt_files = preview.get("txt_files", 0)
+        xml_files = preview.get("xml_files", 0)
+        matched_files = preview.get("matched_files", 0)
+        matched_annotations = preview.get("matched_annotations", 0)
+        backup_enabled = self.backup_check.isChecked()
+        
+        if total_label_files == 0:
+            self._show_modify_info("修改标签", "未找到可修改的标签文件。")
+            return
+        
+        if matched_annotations == 0:
+            self._show_modify_info("修改标签", f"未找到与“{old_value}”匹配的标注。")
+            return
+        
+        action_text = "替换类别" if action == ModifyAction.REPLACE else "删除类别"
+        target_text = f"\n新类别/ID: {new_value}" if action == ModifyAction.REPLACE else ""
+        backup_text = "开" if backup_enabled else "关"
+        message = (
+            f"将检查 {total_label_files} 个标签文件 (TXT {txt_files} / XML {xml_files})。\n"
+            f"预计影响 {matched_files} 个文件 / {matched_annotations} 条标注。\n"
+            f"操作: {action_text}\n"
+            f"原类别/ID: {old_value}"
+            f"{target_text}\n"
+            f"备份: {backup_text}\n\n"
+            "是否继续执行？"
+        )
+        if not self._confirm_edit_action("修改标签", message):
+            return
+        
+        self._start_worker(
+            lambda: self._handler.modify_labels(
+                search_dir,
+                action,
+                old_value,
+                new_value,
+                backup=backup_enabled,
+                classes_txt=classes_txt,
+                interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
+                progress_callback=self._emit_progress,
+                message_callback=self._emit_message,
+            ),
+            on_finished=self._on_modify_labels_finished,
+        )
     
     # ============================================================
     # 槽函数
@@ -909,6 +1308,7 @@ class DataWidget(QWidget):
         # 更新共享状态 -> Tab 4
         self.detected_classes = result.classes
         self.classes_edit.setPlainText("\n".join(result.classes))
+        self._refresh_edit_class_options()
         self._update_edit_action_states()
         
         self.log_message.emit(f"扫描完成: {summary}")
@@ -974,19 +1374,30 @@ class DataWidget(QWidget):
             return
         
         label_path = self.edit_path_group.get_label_dir()
-        
         label_format = LabelFormat.TXT if self.empty_txt_radio.isChecked() else LabelFormat.XML
+        cache_key = (
+            "generate_empty",
+            str(img_path),
+            str(label_path) if label_path else "",
+            label_format.value,
+        )
         
-        self._start_worker(
-            lambda: self._handler.generate_missing_labels(
+        self._start_precheck_worker(
+            title="生成空标签",
+            label_text="正在检查缺失标签...",
+            cache_key=cache_key,
+            task=lambda: self._handler.preview_generate_missing_labels(
                 img_path,
-                label_format,
                 label_dir=label_path,
                 interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
                 progress_callback=self._emit_progress,
-                message_callback=self._emit_message,
             ),
-            on_finished=lambda count: self.log_message.emit(f"已生成 {count} 个空标签文件"),
+            on_ready=lambda result: self._confirm_generate_empty_after_precheck(
+                result,
+                img_path,
+                label_path,
+                label_format,
+            ),
         )
     
     @Slot()
@@ -1005,26 +1416,30 @@ class DataWidget(QWidget):
         label_path = self.edit_path_group.get_label_dir()
         dataset_root = self._resolve_dataset_root(img_path, label_path)
         to_xml = self.txt_to_xml_radio.isChecked()
+        cache_key = (
+            "convert_format",
+            str(img_path),
+            str(label_path) if label_path else "",
+            "to_xml" if to_xml else "to_txt",
+        )
         
-        # 优先使用当前 classes.txt
-        classes = None
-        classes_txt = self.edit_path_group.get_classes_path()
-        if classes_txt and classes_txt.exists():
-            classes = self._handler.load_classes_txt(classes_txt)
-        elif self.detected_classes:
-            classes = self.detected_classes
-        
-        self._start_worker(
-            lambda: self._handler.convert_format(
+        self._start_precheck_worker(
+            title="格式互转",
+            label_text="正在检查可转换的标签文件...",
+            cache_key=cache_key,
+            task=lambda: self._handler.preview_convert_format(
                 dataset_root,
                 to_xml=to_xml,
-                classes=classes,
                 label_dir=label_path,
                 interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
                 progress_callback=self._emit_progress,
-                message_callback=self._emit_message,
             ),
-            on_finished=lambda count: self.log_message.emit(f"格式转换完成: 成功 {count} 个文件"),
+            on_ready=lambda result: self._confirm_convert_after_precheck(
+                result,
+                img_path,
+                label_path,
+                to_xml,
+            ),
         )
     
     @Slot()
@@ -1033,24 +1448,20 @@ class DataWidget(QWidget):
         # 从编辑 Tab 的 PathInputGroup 读取路径
         img_path = self.edit_path_group.get_image_dir()
         if not img_path:
-            self.log_message.emit("请先选择图片目录")
+            self._show_modify_warning("请先选择图片目录")
             return
         
         if not img_path.exists():
-            self.log_message.emit(f"图片目录不存在: {img_path}")
+            self._show_modify_warning(f"图片目录不存在:\n{img_path}")
             return
         
-        old_value = self.old_name_input.text().strip()
+        old_value = self.old_name_input.currentText().strip()
         if not old_value:
-            self.log_message.emit("请输入原类别名称或 ID")
+            self._show_modify_warning("请输入原类别名称或 ID")
             return
         
-        action = ModifyAction.REPLACE if self.replace_radio.isChecked() else ModifyAction.REMOVE
-        new_value = self.new_name_input.text().strip()
-        
-        if action == ModifyAction.REPLACE and not new_value:
-            self.log_message.emit("替换模式下必须输入新类别名称或 ID")
-            return
+        new_value = self.new_name_input.currentText().strip()
+        action = self._resolve_modify_action()
         
         # 优先使用标签目录，如果未设置则回退到图片目录
         label_path = self.edit_path_group.get_label_dir()
@@ -1059,21 +1470,54 @@ class DataWidget(QWidget):
         
         # classes.txt
         classes_txt = self.edit_path_group.get_classes_path()
+        cache_key = (
+            "modify_labels",
+            str(search_dir),
+            str(classes_txt) if classes_txt else "",
+            action.value,
+            old_value,
+            new_value,
+            self.backup_check.isChecked(),
+        )
         
-        self._start_worker(
-            lambda: self._handler.modify_labels(
+        self._start_precheck_worker(
+            title="修改标签",
+            label_text="正在检查将受影响的标签文件...",
+            cache_key=cache_key,
+            task=lambda: self._handler.preview_modify_labels(
                 search_dir,
                 action,
                 old_value,
                 new_value,
-                backup=self.backup_check.isChecked(),
                 classes_txt=classes_txt,
                 interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
                 progress_callback=self._emit_progress,
-                message_callback=self._emit_message,
             ),
-            on_finished=lambda count: self.log_message.emit(f"已修改 {count} 个标签文件"),
+            on_ready=lambda result: self._confirm_modify_after_precheck(
+                result,
+                search_dir,
+                action,
+                old_value,
+                new_value,
+                classes_txt,
+            ),
         )
+
+    def _on_generate_empty_finished(self, count: int) -> None:
+        """生成空标签完成回调"""
+        self._invalidate_edit_precheck_cache()
+        self.log_message.emit(f"已生成 {count} 个空标签文件")
+
+    def _on_convert_format_finished(self, count: int) -> None:
+        """格式转换完成回调"""
+        self._invalidate_edit_precheck_cache()
+        self.log_message.emit(f"格式转换完成: 成功 {count} 个文件")
+
+    def _on_modify_labels_finished(self, count: int) -> None:
+        """修改标签完成回调"""
+        self._invalidate_edit_precheck_cache()
+        self.log_message.emit(f"已修改 {count} 个标签文件")
+        self._show_modify_info("修改完成", f"已修改 {count} 个标签文件。")
     
     @Slot(bool)
     def _on_action_changed(self, checked: bool) -> None:
@@ -1082,6 +1526,7 @@ class DataWidget(QWidget):
         self.new_name_input.setVisible(not checked)
         self.new_name_input.setEnabled(not checked)
         self._new_name_label.setVisible(not checked)
+        self._invalidate_edit_precheck_cache()
     
     @Slot(int)
     def _on_ratio_changed(self, value: int) -> None:
@@ -1242,6 +1687,8 @@ class DataWidget(QWidget):
     def _on_cancel(self) -> None:
         """取消当前操作"""
         if self._worker and self._worker.isRunning():
+            if self._precheck_dialog:
+                self._precheck_cancelled = True
             self._worker.request_interrupt()
             self.log_message.emit("正在取消操作...")
     
@@ -1264,7 +1711,7 @@ class DataWidget(QWidget):
         self._worker.error.connect(lambda e: self.log_message.emit(f"错误: {e}"))
         
         if on_finished:
-            self._worker.finished.connect(on_finished)
+            self._worker.result_ready.connect(on_finished)
         
         self._worker.finished.connect(self._on_worker_finished)
         
@@ -1293,10 +1740,14 @@ class DataWidget(QWidget):
     def _on_worker_finished(self) -> None:
         """工作线程完成"""
         self._set_ui_busy(False)
+        worker = self._worker
+        self._worker = None
+        if worker:
+            worker.deleteLater()
     
-    def _set_ui_busy(self, busy: bool) -> None:
+    def _set_ui_busy(self, busy: bool, *, enable_cancel: bool = True) -> None:
         """设置 UI 忙碌状态"""
-        self.cancel_btn.setEnabled(busy)
+        self.cancel_btn.setEnabled(busy and enable_cancel)
         self.scan_btn.setEnabled(not busy)
         self.categorize_btn.setEnabled(not busy)
         self.split_btn.setEnabled(not busy)
@@ -1310,5 +1761,6 @@ class DataWidget(QWidget):
             self._update_edit_action_states()
         
         if not busy:
+            self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(0)
             self.status_label.setText("就绪")

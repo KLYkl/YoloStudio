@@ -312,6 +312,38 @@ class DataHandler:
             progress_callback=progress_callback,
             message_callback=message_callback,
         )
+
+    def preview_generate_missing_labels(
+        self,
+        img_dir: Path,
+        label_dir: Optional[Path] = None,
+        interrupt_check: Callable[[], bool] = lambda: False,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> dict[str, int]:
+        """预检查缺失标签数量"""
+        images = self._find_images(img_dir)
+        total_images = len(images)
+        missing_labels = 0
+        
+        for i, img_path in enumerate(images):
+            if interrupt_check():
+                break
+            
+            if label_dir and label_dir.exists():
+                label_path, _ = self._find_label_in_dir(img_path, label_dir)
+            else:
+                label_path, _ = self._find_label(img_path, img_dir.parent)
+            
+            if label_path is None:
+                missing_labels += 1
+            
+            if progress_callback:
+                progress_callback(i + 1, total_images)
+        
+        return {
+            "total_images": total_images,
+            "missing_labels": missing_labels,
+        }
     
     def _find_label_in_dir(self, img_path: Path, label_dir: Path) -> tuple[Optional[Path], Optional[LabelFormat]]:
         """
@@ -529,6 +561,56 @@ class DataHandler:
                 )
         
         return modified_count
+
+    def preview_modify_labels(
+        self,
+        search_dir: Path,
+        action: ModifyAction,
+        old_value: str,
+        new_value: str = "",
+        classes_txt: Optional[Path] = None,
+        interrupt_check: Callable[[], bool] = lambda: False,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> dict[str, int]:
+        """预检查标签修改影响范围"""
+        label_files = self.collect_label_files(search_dir)
+        total = len(label_files)
+        txt_files = 0
+        xml_files = 0
+        matched_files = 0
+        matched_annotations = 0
+        
+        self._class_mapping = {}
+        if classes_txt and classes_txt.exists():
+            self.load_classes_txt(classes_txt)
+        
+        for i, label_path in enumerate(label_files):
+            if interrupt_check():
+                break
+            
+            if label_path.suffix.lower() == ".xml":
+                xml_files += 1
+                affected = self._count_xml_matches(label_path, old_value)
+            else:
+                txt_files += 1
+                affected = self._count_txt_matches(label_path, old_value)
+            
+            if affected > 0:
+                matched_files += 1
+                matched_annotations += affected
+            
+            if progress_callback:
+                progress_callback(i + 1, total)
+        
+        return {
+            "total_label_files": total,
+            "txt_files": txt_files,
+            "xml_files": xml_files,
+            "matched_files": matched_files,
+            "matched_annotations": matched_annotations,
+            "replace_mode": int(action == ModifyAction.REPLACE),
+            "has_classes_txt": int(bool(classes_txt and classes_txt.exists())),
+        }
     
     def split_dataset(
         self,
@@ -806,6 +888,70 @@ class DataHandler:
             message_callback(f"文件已保存到: {output_dir}")
         
         return converted
+
+    def preview_convert_format(
+        self,
+        root: Path,
+        to_xml: bool = True,
+        label_dir: Optional[Path] = None,
+        interrupt_check: Callable[[], bool] = lambda: False,
+        progress_callback: Optional[Callable[[int, int], None]] = None,
+    ) -> dict[str, str | int]:
+        """预检查格式互转范围"""
+        search_dir = label_dir if label_dir and label_dir.exists() else root
+        source_suffix = ".txt" if to_xml else ".xml"
+        candidates = [
+            path for path in search_dir.rglob("*")
+            if path.is_file() and path.suffix.lower() == source_suffix
+        ]
+        total_candidates = len(candidates)
+        label_files: list[Path] = []
+        
+        for i, path in enumerate(candidates):
+            if interrupt_check():
+                break
+            
+            is_valid = (
+                self._is_txt_label_file(path)
+                if source_suffix == ".txt"
+                else self._is_xml_label_file(path)
+            )
+            if is_valid:
+                label_files.append(path)
+            
+            if progress_callback:
+                progress_callback(i + 1, total_candidates)
+        
+        return {
+            "total_labels": len(label_files),
+            "txt_files": sum(1 for path in label_files if path.suffix.lower() == ".txt"),
+            "xml_files": sum(1 for path in label_files if path.suffix.lower() == ".xml"),
+            "source_type": "TXT" if to_xml else "XML",
+            "target_type": "XML" if to_xml else "TXT",
+            "output_dir_name": "converted_labels_xml" if to_xml else "converted_labels_txt",
+        }
+
+    def collect_label_class_options(
+        self,
+        search_dir: Path,
+        classes_txt: Optional[Path] = None,
+    ) -> list[str]:
+        """收集标签中的类别选项，用于下拉框"""
+        self._class_mapping = {}
+        if classes_txt and classes_txt.exists():
+            return self.load_classes_txt(classes_txt)
+        
+        class_values: set[str] = set()
+        for label_path in self.collect_label_files(search_dir):
+            label_format = LabelFormat.XML if label_path.suffix.lower() == ".xml" else LabelFormat.TXT
+            class_values.update(self._parse_label_ids(label_path, label_format))
+        
+        numeric_values = sorted(
+            (value for value in class_values if value.isdigit()),
+            key=lambda value: int(value),
+        )
+        text_values = sorted(value for value in class_values if not value.isdigit())
+        return numeric_values + text_values
 
     def collect_label_files(
         self,
@@ -1203,6 +1349,36 @@ class DataHandler:
         
         return None
 
+    def _count_txt_matches(self, path: Path, old_value: str) -> int:
+        """统计 TXT 标签中命中的标注数量"""
+        old_id = self._resolve_class_id(old_value)
+        if old_id is None:
+            return 0
+        
+        matches = 0
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    parts = line.strip().split()
+                    if parts and int(parts[0]) == old_id:
+                        matches += 1
+        except Exception:
+            return 0
+        
+        return matches
+
+    def _count_xml_matches(self, path: Path, old_value: str) -> int:
+        """统计 XML 标签中命中的标注数量"""
+        try:
+            tree = ET.parse(path)
+            return sum(
+                1
+                for name_elem in tree.getroot().findall(".//object/name")
+                if name_elem.text == old_value
+            )
+        except Exception:
+            return 0
+
     def _is_txt_label_file(self, path: Path) -> bool:
         """判断 TXT 文件是否为有效检测标签"""
         try:
@@ -1565,13 +1741,13 @@ class DataWorker(QThread):
     Signals:
         progress(int, int): 进度更新 (current, total)
         message(str): 日志消息
-        finished(object): 任务完成，携带结果
+        result_ready(object): 任务完成，携带结果
         error(str): 错误信息
     """
     
     progress = Signal(int, int)
     message = Signal(str)
-    finished = Signal(object)
+    result_ready = Signal(object)
     error = Signal(str)
     
     def __init__(self, parent=None) -> None:
@@ -1601,6 +1777,6 @@ class DataWorker(QThread):
         
         try:
             result = self._task()
-            self.finished.emit(result)
+            self.result_ready.emit(result)
         except Exception as e:
             self.error.emit(str(e))

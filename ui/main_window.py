@@ -18,7 +18,7 @@ from __future__ import annotations
 import sys
 
 from PySide6.QtCore import Qt, Slot
-from PySide6.QtGui import QCloseEvent
+from PySide6.QtGui import QCloseEvent, QFont
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -294,6 +294,9 @@ class MainWindow(QMainWindow):
     def _update_theme_button(self) -> None:
         """更新主题按钮图标"""
         self._theme_btn.setObjectName("themeToggleBtn")
+        button_font = QFont(self.font())
+        button_font.setPointSize(12)
+        self._theme_btn.setFont(button_font)
         # 切换主题后需要刷新样式
         self._theme_btn.style().unpolish(self._theme_btn)
         self._theme_btn.style().polish(self._theme_btn)

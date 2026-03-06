@@ -6,7 +6,7 @@ styled_message_box.py - 自定义样式消息弹窗
     - 替代原生 QMessageBox，提供与项目 Catppuccin 主题一致的弹窗样式
     - 参考微软 Fluent Design / Windows 11 对话框风格
     - 自动居中到应用主窗口
-    - 提供 information / warning / critical 三种静态方法
+    - 提供 information / warning / critical / question 静态方法
 
 架构要点:
     - 继承 QDialog，完全自绘界面
@@ -16,7 +16,7 @@ styled_message_box.py - 自定义样式消息弹窗
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QPainter, QPainterPath, QBrush, QPen
 from PySide6.QtWidgets import (
     QApplication,
@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QMainWindow,
+    QProgressBar,
     QPushButton,
     QTextEdit,
     QVBoxLayout,
@@ -38,6 +39,7 @@ class StyledMessageBox(QDialog):
     INFO = "info"
     WARNING = "warning"
     CRITICAL = "critical"
+    QUESTION = "question"
 
     # 各类型对应的配置
     _TYPE_CONFIG = {
@@ -62,6 +64,13 @@ class StyledMessageBox(QDialog):
             "bg_dark": "rgba(243, 139, 168, 25)",
             "bg_light": "rgba(210, 15, 57, 20)",
         },
+        "question": {
+            "icon": "?",
+            "accent_dark": "#89dceb",
+            "accent_light": "#179299",
+            "bg_dark": "rgba(137, 220, 235, 25)",
+            "bg_light": "rgba(23, 146, 153, 20)",
+        },
     }
 
     def __init__(
@@ -71,6 +80,8 @@ class StyledMessageBox(QDialog):
         title: str,
         text: str,
         detailed_text: str = "",
+        accept_text: str = "确定",
+        reject_text: str = "",
     ) -> None:
         # 查找主窗口作为 parent，确保居中
         main_window = self._find_main_window(parent)
@@ -253,7 +264,30 @@ class StyledMessageBox(QDialog):
         footer_layout.setSpacing(10)
         footer_layout.addStretch()
 
-        ok_btn = QPushButton("确定")
+        if reject_text:
+            cancel_btn = QPushButton(reject_text)
+            cancel_btn.setFixedSize(80, 30)
+            cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            cancel_btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {btn_bg};
+                    color: {text_primary};
+                    border: 1px solid {border};
+                    border-radius: 6px;
+                    font-size: 13px;
+                    font-weight: 500;
+                }}
+                QPushButton:hover {{
+                    background-color: {btn_hover};
+                }}
+                QPushButton:pressed {{
+                    background-color: {surface};
+                }}
+            """)
+            cancel_btn.clicked.connect(self.reject)
+            footer_layout.addWidget(cancel_btn)
+
+        ok_btn = QPushButton(accept_text)
         ok_btn.setFixedSize(80, 30)
         ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         ok_btn.setStyleSheet(f"""
@@ -400,3 +434,271 @@ class StyledMessageBox(QDialog):
             detailed_text=detailed_text,
         )
         dlg.exec()
+
+    @staticmethod
+    def question(
+        parent: QWidget | None,
+        title: str,
+        text: str,
+        accept_text: str = "确定",
+        reject_text: str = "取消",
+    ) -> bool:
+        """显示确认弹窗，返回是否确认"""
+        dlg = StyledMessageBox(
+            parent,
+            StyledMessageBox.QUESTION,
+            title,
+            text,
+            accept_text=accept_text,
+            reject_text=reject_text,
+        )
+        return dlg.exec() == QDialog.DialogCode.Accepted
+
+
+class StyledProgressDialog(QDialog):
+    """自定义样式进度弹窗，与 StyledMessageBox 保持一致风格"""
+
+    canceled = Signal()
+
+    def __init__(
+        self,
+        parent: QWidget | None,
+        title: str,
+        text: str,
+        cancel_text: str = "取消",
+    ) -> None:
+        main_window = StyledMessageBox._find_main_window(parent)
+        super().__init__(main_window)
+
+        self.setWindowTitle(title)
+        self.setWindowFlags(
+            Qt.WindowType.Dialog
+            | Qt.WindowType.FramelessWindowHint
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setModal(True)
+        self.setFixedWidth(360)
+
+        config = StyledMessageBox._TYPE_CONFIG[StyledMessageBox.QUESTION]
+        is_dark = StyledMessageBox._is_dark_theme()
+        accent = config["accent_dark"] if is_dark else config["accent_light"]
+        icon_bg = config["bg_dark"] if is_dark else config["bg_light"]
+
+        if is_dark:
+            bg = "#1e1e2e"
+            surface = "#181825"
+            border = "#313244"
+            text_primary = "#cdd6f4"
+            text_secondary = "#a6adc8"
+            btn_bg = "#45475a"
+            btn_hover = "#585b70"
+        else:
+            bg = "#eff1f5"
+            surface = "#e6e9ef"
+            border = "#bcc0cc"
+            text_primary = "#4c4f69"
+            text_secondary = "#5c5f77"
+            btn_bg = "#ccd0da"
+            btn_hover = "#bcc0cc"
+
+        self._bg_color = bg
+        self._border_color = border
+        self._radius = 10
+
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+
+        main_layout = QVBoxLayout()
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+
+        content_widget = QWidget()
+        content_layout = QVBoxLayout(content_widget)
+        content_layout.setContentsMargins(24, 20, 24, 16)
+        content_layout.setSpacing(12)
+
+        header_row = QHBoxLayout()
+        header_row.setContentsMargins(0, 0, 0, 0)
+        header_row.setSpacing(10)
+
+        icon_label = QLabel("⟳")
+        icon_label.setFixedSize(26, 26)
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        icon_label.setStyleSheet(f"""
+            background-color: {icon_bg};
+            color: {accent};
+            border: 1.5px solid {accent};
+            border-radius: 13px;
+            font-size: 13px;
+            font-weight: bold;
+        """)
+        header_row.addWidget(icon_label)
+
+        title_label = QLabel(title)
+        title_label.setStyleSheet(f"""
+            color: {text_primary};
+            font-size: 15px;
+            font-weight: 600;
+            background: transparent;
+        """)
+        header_row.addWidget(title_label)
+        header_row.addStretch()
+
+        close_btn = QPushButton("✕")
+        close_btn.setObjectName("styledProgressCloseBtn")
+        close_btn.setFixedSize(30, 30)
+        close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        close_btn.setStyleSheet(f"""
+            QPushButton#styledProgressCloseBtn {{
+                background: transparent;
+                color: {text_secondary};
+                border: none;
+                border-radius: 6px;
+                font-size: 14px;
+                padding: 0;
+            }}
+            QPushButton#styledProgressCloseBtn:hover {{
+                background-color: #c42b1c;
+                color: #ffffff;
+            }}
+            QPushButton#styledProgressCloseBtn:pressed {{
+                background-color: #b22a1a;
+                color: #ffffff;
+            }}
+        """)
+        close_btn.clicked.connect(self._emit_canceled)
+        header_row.addWidget(close_btn)
+        content_layout.addLayout(header_row)
+
+        self._label = QLabel(text)
+        self._label.setWordWrap(True)
+        self._label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._label.setStyleSheet(f"""
+            color: {text_secondary};
+            font-size: 14px;
+            background: transparent;
+            padding: 4px 0;
+        """)
+        content_layout.addWidget(self._label)
+
+        self._progress_bar = QProgressBar()
+        self._progress_bar.setRange(0, 0)
+        self._progress_bar.setTextVisible(True)
+        self._progress_bar.setStyleSheet(f"""
+            QProgressBar {{
+                background-color: {surface};
+                color: {text_primary};
+                border: 1px solid {border};
+                border-radius: 6px;
+                text-align: center;
+                height: 20px;
+                padding: 1px;
+            }}
+            QProgressBar::chunk {{
+                background-color: {accent};
+                border-radius: 5px;
+            }}
+        """)
+        content_layout.addWidget(self._progress_bar)
+        main_layout.addWidget(content_widget)
+
+        footer = QWidget()
+        footer_layout = QHBoxLayout(footer)
+        footer_layout.setContentsMargins(24, 0, 24, 16)
+        footer_layout.setSpacing(10)
+        footer_layout.addStretch()
+
+        self._cancel_btn = QPushButton(cancel_text)
+        self._cancel_btn.setFixedSize(80, 30)
+        self._cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._cancel_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {btn_bg};
+                color: {text_primary};
+                border: 1px solid {border};
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                background-color: {btn_hover};
+            }}
+            QPushButton:pressed {{
+                background-color: {surface};
+            }}
+        """)
+        self._cancel_btn.clicked.connect(self._emit_canceled)
+        footer_layout.addWidget(self._cancel_btn)
+        main_layout.addWidget(footer)
+
+        root.addLayout(main_layout)
+
+    def _emit_canceled(self) -> None:
+        """发射取消信号"""
+        if self._cancel_btn.isEnabled():
+            self._cancel_btn.setEnabled(False)
+            self.canceled.emit()
+
+    def setLabelText(self, text: str) -> None:
+        """更新说明文字"""
+        self._label.setText(text)
+
+    def setRange(self, minimum: int, maximum: int) -> None:
+        """设置进度范围"""
+        self._progress_bar.setRange(minimum, maximum)
+
+    def setMaximum(self, maximum: int) -> None:
+        """设置最大值"""
+        self._progress_bar.setMaximum(maximum)
+
+    def maximum(self) -> int:
+        """获取最大值"""
+        return self._progress_bar.maximum()
+
+    def setValue(self, value: int) -> None:
+        """设置当前值"""
+        self._progress_bar.setValue(value)
+
+    def value(self) -> int:
+        """获取当前值"""
+        return self._progress_bar.value()
+
+    def paintEvent(self, event) -> None:
+        """绘制圆角背景和边框"""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        rect = self.rect().adjusted(1, 1, -1, -1)
+        path = QPainterPath()
+        path.addRoundedRect(
+            float(rect.x()),
+            float(rect.y()),
+            float(rect.width()),
+            float(rect.height()),
+            self._radius,
+            self._radius,
+        )
+
+        painter.fillPath(path, QBrush(QColor(self._bg_color)))
+        painter.setPen(QPen(QColor(self._border_color), 1))
+        painter.drawPath(path)
+        painter.end()
+
+    def showEvent(self, event) -> None:
+        """显示事件：居中弹窗到父窗口"""
+        super().showEvent(event)
+        parent = self.parent()
+        if parent:
+            parent_geo = parent.geometry()
+            self_size = self.size()
+            x = parent_geo.x() + (parent_geo.width() - self_size.width()) // 2
+            y = parent_geo.y() + (parent_geo.height() - self_size.height()) // 2
+            self.move(x, y)
+        else:
+            screen = QApplication.primaryScreen()
+            if screen:
+                geo = screen.availableGeometry()
+                self_size = self.size()
+                x = (geo.width() - self_size.width()) // 2
+                y = (geo.height() - self_size.height()) // 2
+                self.move(x, y)
