@@ -15,6 +15,8 @@ main_window.py - 主窗口框架
 
 from __future__ import annotations
 
+import sys
+
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
@@ -33,6 +35,22 @@ from PySide6.QtWidgets import (
 from config import AppConfig
 from ui.base_ui import DARK_THEME_QSS, LIGHT_THEME_QSS, PlaceholderWidget
 from utils.logger import get_logger
+
+
+def _set_windows_titlebar_dark(hwnd: int, dark: bool) -> None:
+    """通过 Windows DWM API 设置标题栏暗色/亮色模式"""
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+        DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+        value = ctypes.c_int(1 if dark else 0)
+        ctypes.windll.dwmapi.DwmSetWindowAttribute(
+            hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE,
+            ctypes.byref(value), ctypes.sizeof(value),
+        )
+    except Exception:
+        pass
 
 
 # ============================================================
@@ -74,7 +92,7 @@ class GlobalLogPanel(QWidget):
         
         # 标题
         title = QLabel("📋 系统日志")
-        title.setStyleSheet("color: #6c7086; font-weight: bold;")
+        title.setObjectName("logTitle")
         
         # 清空按钮
         self.clear_btn = QPushButton("清空")
@@ -269,37 +287,22 @@ class MainWindow(QMainWindow):
             self.setStyleSheet(DARK_THEME_QSS)
         else:
             self.setStyleSheet(LIGHT_THEME_QSS)
+        # 同步 Windows 标题栏颜色
+        if self.isVisible():
+            _set_windows_titlebar_dark(int(self.winId()), self._is_dark_theme)
     
     def _update_theme_button(self) -> None:
         """更新主题按钮图标"""
+        self._theme_btn.setObjectName("themeToggleBtn")
+        # 切换主题后需要刷新样式
+        self._theme_btn.style().unpolish(self._theme_btn)
+        self._theme_btn.style().polish(self._theme_btn)
         if self._is_dark_theme:
-            # 当前是暗色主题，显示太阳图标（点击切换到亮色）
             self._theme_btn.setText("☀️")
             self._theme_btn.setToolTip("切换到亮色主题")
-            self._theme_btn.setStyleSheet("""
-                QToolButton {
-                    background-color: #45475a;
-                    border: none;
-                    border-radius: 8px;
-                }
-                QToolButton:hover {
-                    background-color: #585b70;
-                }
-            """)
         else:
-            # 当前是亮色主题，显示月亮图标（点击切换到暗色）
             self._theme_btn.setText("🌙")
             self._theme_btn.setToolTip("切换到暗色主题")
-            self._theme_btn.setStyleSheet("""
-                QToolButton {
-                    background-color: #ccd0da;
-                    border: none;
-                    border-radius: 8px;
-                }
-                QToolButton:hover {
-                    background-color: #bcc0cc;
-                }
-            """)
     
     @Slot()
     def _toggle_theme(self) -> None:
@@ -323,9 +326,10 @@ class MainWindow(QMainWindow):
             self.global_log._update_log_height()
     
     def showEvent(self, event) -> None:
-        """窗口显示时更新主题按钮位置"""
+        """窗口显示时更新主题按钮位置和标题栏颜色"""
         super().showEvent(event)
         self._update_theme_button_position()
+        _set_windows_titlebar_dark(int(self.winId()), self._is_dark_theme)
     
     def _update_theme_button_position(self) -> None:
         """更新主题按钮位置到 Tab 栏右侧"""

@@ -17,6 +17,7 @@ data_handler.py - 数据处理核心逻辑
 
 from __future__ import annotations
 
+import os
 import random
 import shutil
 import xml.etree.ElementTree as ET
@@ -449,6 +450,16 @@ class DataHandler:
         if message_callback:
             message_callback(f"已修改 {modified_count} 个标签文件")
         
+        if backup and message_callback:
+            bak_count = sum(
+                1 for f in label_files
+                if f.with_suffix(f.suffix + ".bak").exists()
+            )
+            if bak_count > 0:
+                message_callback(
+                    f"提示: 当前目录存在 {bak_count} 个 .bak 备份文件，可手动清理"
+                )
+        
         return modified_count
     
     def split_dataset(
@@ -560,6 +571,10 @@ class DataHandler:
         """
         生成 YOLO 训练 YAML 配置文件
         
+        path 字段智能推断：
+            - 两个绝对路径 → 取公共父目录，train/val 转为相对路径
+            - 其他情况 → 使用 YAML 所在目录
+        
         Args:
             train_path: 训练集路径 (文件夹或 txt 索引)
             val_path: 验证集路径 (文件夹或 txt 索引)
@@ -571,8 +586,18 @@ class DataHandler:
             是否成功
         """
         try:
+            train_p = Path(train_path)
+            val_p = Path(val_path)
+            
+            if train_p.is_absolute() and val_p.is_absolute():
+                dataset_root = Path(os.path.commonpath([train_p, val_p]))
+                train_path = str(train_p.relative_to(dataset_root))
+                val_path = str(val_p.relative_to(dataset_root))
+            else:
+                dataset_root = output_path.parent
+            
             yaml_content = {
-                "path": str(output_path.parent),
+                "path": str(dataset_root),
                 "train": train_path,
                 "val": val_path,
                 "names": {i: name for i, name in enumerate(classes)},
@@ -585,6 +610,7 @@ class DataHandler:
             
             if message_callback:
                 message_callback(f"YAML 配置已保存: {output_path}")
+                message_callback(f"数据集根目录 (path): {dataset_root}")
             
             return True
             
@@ -1147,20 +1173,29 @@ class DataHandler:
         val_images: list[Path],
         message_callback: Optional[Callable[[str], None]],
     ) -> tuple[str, str]:
-        """索引文件模式划分"""
+        """索引文件模式划分（使用相对路径，便于数据集迁移）"""
+        root.mkdir(parents=True, exist_ok=True)
         train_txt = root / "train.txt"
         val_txt = root / "val.txt"
         
         with open(train_txt, "w", encoding="utf-8") as f:
             for img in train_images:
-                f.write(str(img.absolute()) + "\n")
+                try:
+                    rel = img.relative_to(root)
+                except ValueError:
+                    rel = img.absolute()
+                f.write(str(rel) + "\n")
         
         with open(val_txt, "w", encoding="utf-8") as f:
             for img in val_images:
-                f.write(str(img.absolute()) + "\n")
+                try:
+                    rel = img.relative_to(root)
+                except ValueError:
+                    rel = img.absolute()
+                f.write(str(rel) + "\n")
         
         if message_callback:
-            message_callback(f"已生成索引文件: {train_txt.name}, {val_txt.name}")
+            message_callback(f"已生成索引文件: {train_txt.name}, {val_txt.name} (相对路径)")
         
         return str(train_txt), str(val_txt)
     

@@ -181,20 +181,11 @@ class TrainWidget(QWidget):
         
         # 折叠按钮
         self.advanced_toggle = QToolButton()
+        self.advanced_toggle.setObjectName("advancedToggle")
         self.advanced_toggle.setText("▼ 展开高级参数")
         self.advanced_toggle.setCheckable(True)
         self.advanced_toggle.setChecked(False)
         self.advanced_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
-        self.advanced_toggle.setStyleSheet("""
-            QToolButton {
-                border: none;
-                color: #89b4fa;
-                font-weight: bold;
-            }
-            QToolButton:hover {
-                color: #b4befe;
-            }
-        """)
         advanced_outer.addWidget(self.advanced_toggle)
         
         # 可折叠内容容器
@@ -487,42 +478,12 @@ class TrainWidget(QWidget):
         self.stop_btn = QPushButton("⏹ 停止训练")
         self.stop_btn.setMinimumHeight(40)
         self.stop_btn.setEnabled(False)
-        self.stop_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f38ba8;
-                color: #1e1e2e;
-                font-weight: bold;
-                padding: 8px 20px;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: #eba0ac;
-            }
-            QPushButton:disabled {
-                background-color: #45475a;
-                color: #6c7086;
-            }
-        """)
+        self.stop_btn.setProperty("class", "danger")
         action_layout.addWidget(self.stop_btn)
         
         self.start_btn = QPushButton("▶ 开始训练")
         self.start_btn.setMinimumHeight(40)
-        self.start_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #89b4fa;
-                color: #1e1e2e;
-                font-weight: bold;
-                padding: 8px 20px;
-                border-radius: 6px;
-            }
-            QPushButton:hover {
-                background-color: #b4befe;
-            }
-            QPushButton:disabled {
-                background-color: #45475a;
-                color: #6c7086;
-            }
-        """)
+        self.start_btn.setProperty("class", "primary")
         action_layout.addWidget(self.start_btn)
         
         left_layout.addLayout(action_layout)
@@ -535,7 +496,7 @@ class TrainWidget(QWidget):
         right_layout = QVBoxLayout()
         
         terminal_label = QLabel("📺 训练输出")
-        terminal_label.setStyleSheet("font-weight: bold; color: #a6e3a1;")
+        terminal_label.setObjectName("successLabel")
         right_layout.addWidget(terminal_label)
         
         self.terminal = QTextEdit()

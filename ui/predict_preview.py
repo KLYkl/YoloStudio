@@ -45,35 +45,14 @@ class PreviewCanvas(QLabel):
     
     def _setup_ui(self) -> None:
         """设置 UI"""
-        # 黑色背景
-        self.setStyleSheet("""
-            QLabel {
-                background-color: #000000;
-                border-radius: 8px;
-            }
-        """)
-        
-        # 居中对齐
+        self.setObjectName("previewCanvas")
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        
-        # 尺寸策略
         self.setSizePolicy(
             QSizePolicy.Policy.Expanding,
             QSizePolicy.Policy.Expanding
         )
-        
-        # 最小尺寸
         self.setMinimumSize(320, 240)
-        
-        # 初始占位文本
         self.setText("📷 等待预测...")
-        self.setStyleSheet("""
-            QLabel {
-                background-color: #000000;
-                border-radius: 8px;
-                color: #6c7086;
-            }
-        """)
     
     @Slot(np.ndarray)
     def update_frame(self, frame: np.ndarray) -> None:

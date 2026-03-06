@@ -19,9 +19,17 @@ from PySide6.QtGui import QColor
 from PySide6.QtWidgets import (
     QFrame,
     QGraphicsDropShadowEffect,
+    QPushButton,
     QVBoxLayout,
     QWidget,
 )
+
+
+def set_button_class(btn: QPushButton, cls: str) -> None:
+    """Dynamically switch a button's QSS class and refresh its style."""
+    btn.setProperty("class", cls)
+    btn.style().unpolish(btn)
+    btn.style().polish(btn)
 
 
 # ============================================================
@@ -108,6 +116,59 @@ QPushButton[class="danger"] {
 
 QPushButton[class="danger"]:hover {
     background-color: #eba0ac;
+}
+
+QPushButton[class="danger"]:disabled {
+    background-color: #45475a;
+    color: #6c7086;
+}
+
+/* 成功/确认按钮 (绿色系) */
+QPushButton[class="success"] {
+    background-color: #a6e3a1;
+    color: #1e1e2e;
+}
+
+QPushButton[class="success"]:hover {
+    background-color: #94e2d5;
+}
+
+QPushButton[class="success"]:disabled {
+    background-color: #45475a;
+    color: #6c7086;
+}
+
+/* 警告/暂停按钮 (橙色系) */
+QPushButton[class="warning"] {
+    background-color: #fab387;
+    color: #1e1e2e;
+}
+
+QPushButton[class="warning"]:hover {
+    background-color: #f9e2af;
+}
+
+QPushButton[class="warning"]:disabled {
+    background-color: #45475a;
+    color: #6c7086;
+}
+
+QPushButton[class="primary"]:disabled {
+    background-color: #45475a;
+    color: #6c7086;
+}
+
+/* ========== 工具按钮 ========== */
+QToolButton {
+    background-color: #45475a;
+    color: #cdd6f4;
+    border: none;
+    border-radius: 6px;
+    padding: 4px;
+}
+
+QToolButton:hover {
+    background-color: #585b70;
 }
 
 /* ========== 输入框 ========== */
@@ -300,6 +361,19 @@ QPushButton#logPanelBtn:hover, QToolButton#logPanelBtn:hover {
     background-color: #585b70;
 }
 
+/* 主题切换按钮 */
+QToolButton#themeToggleBtn {
+    background-color: #45475a;
+    border: none;
+    border-radius: 8px;
+    padding: 0px;
+    font-size: 16px;
+}
+
+QToolButton#themeToggleBtn:hover {
+    background-color: #585b70;
+}
+
 /* ========== 终端输出 ========== */
 QTextEdit#terminalOutput {
     background-color: #11111b;
@@ -358,6 +432,164 @@ QRadioButton::indicator {
 QCheckBox::indicator:checked, QRadioButton::indicator:checked {
     border: 2px solid #89b4fa;
     background: #89b4fa;
+}
+
+/* ========== 工具提示 ========== */
+QToolTip {
+    background-color: #313244;
+    color: #cdd6f4;
+    border: 1px solid #45475a;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+/* ========== 表格 ========== */
+QTableWidget {
+    background-color: #1e1e2e;
+    alternate-background-color: #181825;
+    border: 1px solid #313244;
+    border-radius: 6px;
+    gridline-color: #313244;
+    selection-background-color: #45475a;
+    selection-color: #cdd6f4;
+}
+
+QTableWidget::item {
+    padding: 4px 8px;
+}
+
+QTableWidget::item:selected {
+    background-color: #45475a;
+}
+
+QHeaderView::section {
+    background-color: #313244;
+    color: #89b4fa;
+    border: none;
+    border-right: 1px solid #45475a;
+    border-bottom: 1px solid #45475a;
+    padding: 6px 8px;
+    font-weight: bold;
+}
+
+QHeaderView::section:hover {
+    background-color: #45475a;
+}
+
+/* ========== 分割器 ========== */
+QSplitter::handle {
+    background-color: #313244;
+    border-radius: 2px;
+}
+
+QSplitter::handle:hover {
+    background-color: #89b4fa;
+}
+
+/* ========== 预览画布 ========== */
+QLabel#previewCanvas {
+    background-color: #000000;
+    border-radius: 8px;
+    color: #6c7086;
+}
+
+/* ========== 播放控制栏 ========== */
+QFrame#playbackBar {
+    background-color: #181825;
+    border: 1px solid #313244;
+    border-radius: 6px;
+}
+
+QSlider#playbackSlider::groove:horizontal {
+    height: 4px;
+    background: #45475a;
+    border-radius: 2px;
+}
+
+QSlider#playbackSlider::handle:horizontal {
+    width: 12px;
+    height: 12px;
+    margin: -4px 0;
+    background: #cdd6f4;
+    border-radius: 6px;
+}
+
+QSlider#playbackSlider::handle:horizontal:hover {
+    background: #a6e3a1;
+}
+
+QSlider#playbackSlider::sub-page:horizontal {
+    background: #89b4fa;
+    border-radius: 2px;
+}
+
+QSlider#playbackSlider:disabled::handle:horizontal {
+    background: #6c7086;
+}
+
+QSlider#playbackSlider:disabled::sub-page:horizontal {
+    background: #45475a;
+}
+
+/* ========== 可折叠组件内部 ========== */
+QToolButton#collapsibleToggle {
+    background: transparent;
+    border: none;
+    color: #89b4fa;
+    padding: 0;
+    min-width: 16px;
+}
+
+QLabel#collapsibleTitle {
+    color: #cdd6f4;
+    font-weight: bold;
+}
+
+/* 高级参数折叠按钮 */
+QToolButton#advancedToggle {
+    border: none;
+    color: #89b4fa;
+    font-weight: bold;
+    background: transparent;
+}
+
+QToolButton#advancedToggle:hover {
+    color: #b4befe;
+}
+
+/* 日志面板标题 */
+QLabel#logTitle {
+    color: #6c7086;
+    font-weight: bold;
+}
+
+/* ========== 子级 Tab (DataWidget 内部) ========== */
+QTabWidget#subTabWidget::pane {
+    border: 1px solid #313244;
+    border-radius: 6px;
+    background-color: #1e1e2e;
+    padding: 4px;
+}
+
+QTabWidget#subTabWidget > QTabBar::tab {
+    background-color: transparent;
+    color: #a6adc8;
+    padding: 6px 14px;
+    margin-right: 2px;
+    border-bottom: 2px solid transparent;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+QTabWidget#subTabWidget > QTabBar::tab:selected {
+    color: #89b4fa;
+    border-bottom: 2px solid #89b4fa;
+    background-color: transparent;
+}
+
+QTabWidget#subTabWidget > QTabBar::tab:hover:!selected {
+    color: #cdd6f4;
+    background-color: rgba(69, 71, 90, 0.3);
 }
 
 /* 标签样式类 */
@@ -457,6 +689,46 @@ QPushButton[class="danger"] {
 
 QPushButton[class="danger"]:hover {
     background-color: #e64553;
+}
+
+QPushButton[class="danger"]:disabled {
+    background-color: #dce0e8;
+    color: #9ca0b0;
+}
+
+/* 成功/确认按钮 (绿色系) */
+QPushButton[class="success"] {
+    background-color: #40a02b;
+    color: #eff1f5;
+}
+
+QPushButton[class="success"]:hover {
+    background-color: #179299;
+}
+
+QPushButton[class="success"]:disabled {
+    background-color: #dce0e8;
+    color: #9ca0b0;
+}
+
+/* 警告/暂停按钮 (橙色系) */
+QPushButton[class="warning"] {
+    background-color: #fe640b;
+    color: #eff1f5;
+}
+
+QPushButton[class="warning"]:hover {
+    background-color: #df8e1d;
+}
+
+QPushButton[class="warning"]:disabled {
+    background-color: #dce0e8;
+    color: #9ca0b0;
+}
+
+QPushButton[class="primary"]:disabled {
+    background-color: #dce0e8;
+    color: #9ca0b0;
 }
 
 /* ========== 工具按钮 ========== */
@@ -710,12 +982,183 @@ QPushButton#logPanelBtn:hover, QToolButton#logPanelBtn:hover {
     background-color: #bcc0cc;
 }
 
+/* 主题切换按钮 */
+QToolButton#themeToggleBtn {
+    background-color: #ccd0da;
+    border: none;
+    border-radius: 8px;
+    padding: 0px;
+    font-size: 16px;
+}
+
+QToolButton#themeToggleBtn:hover {
+    background-color: #bcc0cc;
+}
+
 /* ========== 终端输出 ========== */
 QTextEdit#terminalOutput {
     background-color: #e6e9ef;
     color: #40a02b;
     border: 1px solid #bcc0cc;
     border-radius: 4px;
+}
+
+/* ========== 工具提示 ========== */
+QToolTip {
+    background-color: #e6e9ef;
+    color: #4c4f69;
+    border: 1px solid #bcc0cc;
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+
+/* ========== 表格 ========== */
+QTableWidget {
+    background-color: #eff1f5;
+    alternate-background-color: #e6e9ef;
+    border: 1px solid #bcc0cc;
+    border-radius: 6px;
+    gridline-color: #bcc0cc;
+    selection-background-color: #ccd0da;
+    selection-color: #4c4f69;
+}
+
+QTableWidget::item {
+    padding: 4px 8px;
+}
+
+QTableWidget::item:selected {
+    background-color: #ccd0da;
+}
+
+QHeaderView::section {
+    background-color: #dce0e8;
+    color: #1e66f5;
+    border: none;
+    border-right: 1px solid #bcc0cc;
+    border-bottom: 1px solid #bcc0cc;
+    padding: 6px 8px;
+    font-weight: bold;
+}
+
+QHeaderView::section:hover {
+    background-color: #ccd0da;
+}
+
+/* ========== 分割器 ========== */
+QSplitter::handle {
+    background-color: #bcc0cc;
+    border-radius: 2px;
+}
+
+QSplitter::handle:hover {
+    background-color: #1e66f5;
+}
+
+/* ========== 预览画布 ========== */
+QLabel#previewCanvas {
+    background-color: #000000;
+    border-radius: 8px;
+    color: #9ca0b0;
+}
+
+/* ========== 播放控制栏 ========== */
+QFrame#playbackBar {
+    background-color: #e6e9ef;
+    border: 1px solid #bcc0cc;
+    border-radius: 6px;
+}
+
+QSlider#playbackSlider::groove:horizontal {
+    height: 4px;
+    background: #ccd0da;
+    border-radius: 2px;
+}
+
+QSlider#playbackSlider::handle:horizontal {
+    width: 12px;
+    height: 12px;
+    margin: -4px 0;
+    background: #4c4f69;
+    border-radius: 6px;
+}
+
+QSlider#playbackSlider::handle:horizontal:hover {
+    background: #40a02b;
+}
+
+QSlider#playbackSlider::sub-page:horizontal {
+    background: #1e66f5;
+    border-radius: 2px;
+}
+
+QSlider#playbackSlider:disabled::handle:horizontal {
+    background: #9ca0b0;
+}
+
+QSlider#playbackSlider:disabled::sub-page:horizontal {
+    background: #ccd0da;
+}
+
+/* ========== 可折叠组件内部 ========== */
+QToolButton#collapsibleToggle {
+    background: transparent;
+    border: none;
+    color: #1e66f5;
+    padding: 0;
+    min-width: 16px;
+}
+
+QLabel#collapsibleTitle {
+    color: #4c4f69;
+    font-weight: bold;
+}
+
+/* 高级参数折叠按钮 */
+QToolButton#advancedToggle {
+    border: none;
+    color: #1e66f5;
+    font-weight: bold;
+    background: transparent;
+}
+
+QToolButton#advancedToggle:hover {
+    color: #7287fd;
+}
+
+/* 日志面板标题 */
+QLabel#logTitle {
+    color: #6c6f85;
+    font-weight: bold;
+}
+
+/* ========== 子级 Tab (DataWidget 内部) ========== */
+QTabWidget#subTabWidget::pane {
+    border: 1px solid #bcc0cc;
+    border-radius: 6px;
+    background-color: #eff1f5;
+    padding: 4px;
+}
+
+QTabWidget#subTabWidget > QTabBar::tab {
+    background-color: transparent;
+    color: #6c6f85;
+    padding: 6px 14px;
+    margin-right: 2px;
+    border-bottom: 2px solid transparent;
+    border-top-left-radius: 4px;
+    border-top-right-radius: 4px;
+}
+
+QTabWidget#subTabWidget > QTabBar::tab:selected {
+    color: #1e66f5;
+    border-bottom: 2px solid #1e66f5;
+    background-color: transparent;
+}
+
+QTabWidget#subTabWidget > QTabBar::tab:hover:!selected {
+    color: #4c4f69;
+    background-color: rgba(188, 192, 204, 0.3);
 }
 
 /* 标签样式类 */
@@ -808,12 +1251,7 @@ class PlaceholderWidget(QWidget):
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         label = QLabel(message)
-        label.setStyleSheet("""
-            QLabel {
-                color: #6c7086;
-                font-weight: bold;
-            }
-        """)
+        label.setObjectName("mutedLabel")
         label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         layout.addWidget(label)

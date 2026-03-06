@@ -1482,9 +1482,14 @@ class VideoBatchProcessor(QObject):
         keyframe_dir = None
         raw_keyframe_dir = None
         raw_labels_dir = None
+        raw_labels_voc_dir = None
         
         if self._output_dir:
             video_output_dir = self._output_dir / video_path.stem
+            if video_output_dir.exists():
+                from datetime import datetime as _dt
+                ts = _dt.now().strftime("%Y%m%d_%H%M%S")
+                video_output_dir = self._output_dir / f"{video_path.stem}_{ts}"
             video_output_dir.mkdir(parents=True, exist_ok=True)
             
             if self._save_video:
@@ -1500,9 +1505,11 @@ class VideoBatchProcessor(QObject):
             
             if self._save_keyframes_raw:
                 raw_keyframe_dir = video_output_dir / "keyframes" / "raw" / "images"
-                raw_labels_dir = video_output_dir / "keyframes" / "raw" / "labels"
+                raw_labels_dir = video_output_dir / "keyframes" / "raw" / "labels_yolo"
+                raw_labels_voc_dir = video_output_dir / "keyframes" / "raw" / "labels_voc"
                 raw_keyframe_dir.mkdir(parents=True, exist_ok=True)
                 raw_labels_dir.mkdir(parents=True, exist_ok=True)
+                raw_labels_voc_dir.mkdir(parents=True, exist_ok=True)
         
         # 统计数据
         stats = {
@@ -1575,14 +1582,16 @@ class VideoBatchProcessor(QObject):
                             keyframe_path = keyframe_dir / f"frame_{frame_idx:06d}.jpg"
                             cv2.imwrite(str(keyframe_path), annotated_frame)
                         
-                        # 保存原图关键帧 + YOLO 标签
+                        # 保存原图关键帧 + YOLO TXT + VOC XML 标签
                         if raw_keyframe_dir:
-                            raw_path = raw_keyframe_dir / f"frame_{frame_idx:06d}.jpg"
+                            frame_name = f"frame_{frame_idx:06d}"
+                            raw_path = raw_keyframe_dir / f"{frame_name}.jpg"
                             cv2.imwrite(str(raw_path), frame)
                             
-                            # 保存 YOLO TXT 标签
                             h_frame, w_frame = frame.shape[:2]
-                            label_path = raw_labels_dir / f"frame_{frame_idx:06d}.txt"
+                            
+                            # YOLO TXT
+                            label_path = raw_labels_dir / f"{frame_name}.txt"
                             with open(label_path, "w", encoding="utf-8") as f:
                                 for d in detections:
                                     cid = d["class_id"]
@@ -1592,6 +1601,13 @@ class VideoBatchProcessor(QObject):
                                     bw = (x2 - x1) / w_frame
                                     bh = (y2 - y1) / h_frame
                                     f.write(f"{cid} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}\n")
+                            
+                            # VOC XML
+                            if raw_labels_voc_dir:
+                                self._write_voc_xml(
+                                    raw_labels_voc_dir / f"{frame_name}.xml",
+                                    frame_name, w_frame, h_frame, detections
+                                )
                         
                         keyframe_count += 1
                 
@@ -1638,6 +1654,43 @@ class VideoBatchProcessor(QObject):
     def get_all_stats(self) -> dict[str, dict]:
         """获取所有视频的统计数据"""
         return {str(k): v for k, v in self._video_stats.items()}
+    
+    def _write_voc_xml(
+        self, xml_path: Path, image_name: str,
+        width: int, height: int, detections: list[dict]
+    ) -> None:
+        """写入 VOC XML 格式标签"""
+        xml_lines = [
+            '<?xml version="1.0" encoding="UTF-8"?>',
+            '<annotation>',
+            f'    <filename>{image_name}.jpg</filename>',
+            '    <size>',
+            f'        <width>{width}</width>',
+            f'        <height>{height}</height>',
+            '        <depth>3</depth>',
+            '    </size>',
+        ]
+        for det in detections:
+            name = det.get("class_name", "unknown")
+            xyxy = det.get("xyxy", [0, 0, 0, 0])
+            x1, y1, x2, y2 = [int(v) for v in xyxy]
+            xml_lines.extend([
+                '    <object>',
+                f'        <name>{name}</name>',
+                '        <pose>Unspecified</pose>',
+                '        <truncated>0</truncated>',
+                '        <difficult>0</difficult>',
+                '        <bndbox>',
+                f'            <xmin>{x1}</xmin>',
+                f'            <ymin>{y1}</ymin>',
+                f'            <xmax>{x2}</xmax>',
+                f'            <ymax>{y2}</ymax>',
+                '        </bndbox>',
+                '    </object>',
+            ])
+        xml_lines.append('</annotation>')
+        with open(xml_path, "w", encoding="utf-8") as f:
+            f.write("\n".join(xml_lines))
     
     def generate_batch_report(self) -> Path | None:
         """

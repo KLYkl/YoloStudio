@@ -94,26 +94,13 @@ class CollapsibleGroupBox(QWidget):
         
         # 折叠按钮
         self._toggle_btn = QToolButton()
+        self._toggle_btn.setObjectName("collapsibleToggle")
         self._toggle_btn.setText("▼")
-        self._toggle_btn.setStyleSheet("""
-            QToolButton {
-                background: transparent;
-                border: none;
-                color: #89b4fa;
-                padding: 0;
-                min-width: 16px;
-            }
-        """)
         self._toggle_btn.clicked.connect(self.toggle)
         
         # 标题标签
         self._title_label = QLabel(title)
-        self._title_label.setStyleSheet("""
-            QLabel {
-                color: #cdd6f4;
-                font-weight: bold;
-            }
-        """)
+        self._title_label.setObjectName("collapsibleTitle")
         
         header_layout.addWidget(self._toggle_btn)
         header_layout.addWidget(self._title_label)
@@ -126,12 +113,7 @@ class CollapsibleGroupBox(QWidget):
         
         # ========== 内容区域 ==========
         self._content_area = QScrollArea()
-        self._content_area.setStyleSheet("""
-            QScrollArea {
-                background-color: transparent;
-                border: none;
-            }
-        """)
+        self._content_area.setFrameShape(QFrame.Shape.NoFrame)
         self._content_area.setWidgetResizable(True)
         self._content_area.setSizePolicy(
             QSizePolicy.Policy.Expanding,

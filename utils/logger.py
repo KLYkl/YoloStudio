@@ -16,7 +16,9 @@ logger.py - 信号驱动的日志管理器
 from __future__ import annotations
 
 import logging
+import logging.handlers
 import sys
+from pathlib import Path
 from typing import Optional, TextIO
 
 from PySide6.QtCore import QObject, Signal
@@ -73,6 +75,19 @@ class LogManager(QObject):
         console_handler.setLevel(logging.DEBUG)
         console_handler.setFormatter(self._formatter)
         self._logger.addHandler(console_handler)
+        
+        # 添加文件 Handler (按大小轮转，保存到程序目录/logs/)
+        log_dir = Path(__file__).resolve().parent.parent / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        file_handler = logging.handlers.RotatingFileHandler(
+            log_dir / "yolostudio.log",
+            maxBytes=5 * 1024 * 1024,  # 5 MB
+            backupCount=3,
+            encoding="utf-8",
+        )
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(self._formatter)
+        self._logger.addHandler(file_handler)
         
         # 添加 Signal Handler (用于 GUI)
         signal_handler = SignalHandler(self)

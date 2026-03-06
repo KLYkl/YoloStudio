@@ -94,30 +94,8 @@ class DataWidget(QWidget):
         self._connect_signals()
     
     def _apply_styles(self) -> None:
-        """应用高可见性样式"""
-        self.setStyleSheet("""
-            /* RadioButton 选中高可见 */
-            QRadioButton::indicator:checked {
-                background-color: #0078D7;
-                border: 2px solid white;
-                width: 14px;
-                height: 14px;
-                border-radius: 8px;
-            }
-            QRadioButton::indicator:unchecked {
-                border: 2px solid #999;
-                width: 14px;
-                height: 14px;
-                border-radius: 8px;
-            }
-            /* 输入框焦点状态 */
-            QLineEdit:focus {
-                border: 2px solid #0078D7;
-            }
-            QPlainTextEdit:focus {
-                border: 2px solid #0078D7;
-            }
-        """)
+        """应用语义化样式 (颜色由全局 QSS 主题控制)"""
+        pass
     
     # ============================================================
     # UI 构建
@@ -131,6 +109,7 @@ class DataWidget(QWidget):
         
         # Tab 内容区
         self.tab_widget = QTabWidget()
+        self.tab_widget.setObjectName("subTabWidget")
         self.tab_widget.addTab(self._create_stats_tab(), "📊 统计")
         self.tab_widget.addTab(self._create_edit_tab(), "✏️ 编辑")
         self.tab_widget.addTab(self._create_split_tab(), "📂 划分")
@@ -191,17 +170,7 @@ class DataWidget(QWidget):
             "• 空标签 → _empty/\n"
             "• 无标签 → _no_label/"
         )
-        self.categorize_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #fab387;
-                color: #1e1e2e;
-                font-weight: bold;
-                padding: 5px 15px;
-            }
-            QPushButton:hover {
-                background-color: #f9e2af;
-            }
-        """)
+        self.categorize_btn.setProperty("class", "warning")
         btn_layout.addWidget(self.categorize_btn)
         
         layout.addLayout(btn_layout)
@@ -290,17 +259,7 @@ class DataWidget(QWidget):
         self.convert_btn = QPushButton("🔄 执行转换")
         self.convert_btn.setMinimumHeight(32)
         self.convert_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.convert_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #a6e3a1;
-                color: #1e1e2e;
-                font-weight: bold;
-                padding: 5px 15px;
-            }
-            QPushButton:hover {
-                background-color: #94e2d5;
-            }
-        """)
+        self.convert_btn.setProperty("class", "success")
         convert_btn_layout.addWidget(self.convert_btn)
         convert_layout.addLayout(convert_btn_layout)
         
@@ -490,17 +449,7 @@ class DataWidget(QWidget):
         btn_row.addStretch()
         self.split_btn = QPushButton("🚀 开始划分")
         self.split_btn.setMinimumHeight(35)
-        self.split_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #89b4fa;
-                color: #1e1e2e;
-                font-weight: bold;
-                padding: 8px 16px;
-            }
-            QPushButton:hover {
-                background-color: #b4befe;
-            }
-        """)
+        self.split_btn.setProperty("class", "primary")
         btn_row.addWidget(self.split_btn)
         output_layout.addLayout(btn_row)
         
@@ -611,17 +560,7 @@ class DataWidget(QWidget):
         self.save_yaml_btn = QPushButton("💾 保存 YAML 配置")
         self.save_yaml_btn.setMinimumHeight(40)
         self.save_yaml_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.save_yaml_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #a6e3a1;
-                color: #1e1e2e;
-                font-weight: bold;
-                padding: 10px 20px;
-            }
-            QPushButton:hover {
-                background-color: #94e2d5;
-            }
-        """)
+        self.save_yaml_btn.setProperty("class", "success")
         btn_layout.addWidget(self.save_yaml_btn)
         main_layout.addLayout(btn_layout)
         
@@ -641,7 +580,7 @@ class DataWidget(QWidget):
         # 状态文本
         self.status_label = QLabel("就绪")
         self.status_label.setFixedWidth(100)
-        self.status_label.setStyleSheet("color: #6c7086;")
+        self.status_label.setObjectName("mutedLabel")
         
         # 取消按钮
         self.cancel_btn = QPushButton("取消")

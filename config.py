@@ -16,6 +16,7 @@ config.py - 全局配置管理器 (单例模式)
 from __future__ import annotations
 
 import json
+import shutil
 import threading
 from pathlib import Path
 from typing import Any, Optional
@@ -93,9 +94,19 @@ class AppConfig:
                     with open(self.CONFIG_FILE, "r", encoding="utf-8") as f:
                         self._data = json.load(f)
                 except (json.JSONDecodeError, IOError) as e:
-                    # 配置文件损坏，使用默认值
-                    print(f"[警告] 配置文件加载失败，使用默认配置: {e}")
-                    self._data = self._defaults.copy()
+                    print(f"[警告] 配置文件损坏: {e}")
+                    backup = self.CONFIG_FILE.with_suffix(".json.bak")
+                    if backup.exists():
+                        try:
+                            with open(backup, "r", encoding="utf-8") as f:
+                                self._data = json.load(f)
+                            print("[警告] 已从备份文件恢复配置")
+                        except (json.JSONDecodeError, IOError):
+                            self._data = self._defaults.copy()
+                            print("[警告] 备份也已损坏，使用默认配置")
+                    else:
+                        self._data = self._defaults.copy()
+                        print("[警告] 无备份可用，使用默认配置")
             else:
                 # 首次运行，初始化默认配置
                 self._data = self._defaults.copy()
@@ -111,6 +122,9 @@ class AppConfig:
     def _save_internal(self) -> None:
         """内部保存方法 (不加锁，由调用者负责加锁)"""
         try:
+            if self.CONFIG_FILE.exists():
+                backup = self.CONFIG_FILE.with_suffix(".json.bak")
+                shutil.copy2(self.CONFIG_FILE, backup)
             with open(self.CONFIG_FILE, "w", encoding="utf-8") as f:
                 json.dump(self._data, f, ensure_ascii=False, indent=2)
         except IOError as e:

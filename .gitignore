@@ -36,6 +36,7 @@ Desktop.ini
 
 # Project specific
 assets/
+logs/
 *.lnk
 runs/
 weights/

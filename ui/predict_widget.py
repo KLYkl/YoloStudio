@@ -54,6 +54,7 @@ from core.predict_handler import (
     VideoBatchProcessor,
     SaveCondition
 )
+from ui.base_ui import set_button_class
 from ui.focus_widgets import FocusSlider
 from ui.image_result_browser import ImageResultBrowser, ImageProgressBar
 from ui.predict_preview import PreviewCanvas
@@ -129,22 +130,35 @@ class PredictWidget(QWidget):
         """构建 UI 布局"""
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(10, 10, 10, 10)
-        main_layout.setSpacing(10)
+        main_layout.setSpacing(0)
+        
+        # 使用 QSplitter 替代固定宽度，允许用户拖拽调整面板大小
+        self._splitter = QSplitter(Qt.Orientation.Horizontal)
+        self._splitter.setHandleWidth(6)
+        self._splitter.setChildrenCollapsible(False)
         
         # 左侧: 配置面板
         self._settings_panel = self._create_settings_panel()
-        main_layout.addWidget(self._settings_panel)
+        self._splitter.addWidget(self._settings_panel)
         
         # 右侧: 视窗区域
         viewport = self._create_viewport()
-        main_layout.addWidget(viewport, 1)
+        self._splitter.addWidget(viewport)
+        
+        # 初始比例: 面板 260px, 视窗区域获取剩余空间
+        self._splitter.setSizes([self.PANEL_WIDTH, 800])
+        self._splitter.setStretchFactor(0, 0)
+        self._splitter.setStretchFactor(1, 1)
+        
+        main_layout.addWidget(self._splitter)
     
     def _create_settings_panel(self) -> QWidget:
         """创建左侧配置面板 (带滚动条)"""
         # 外层容器
         panel = QFrame()
         panel.setObjectName("settingsPanel")
-        panel.setFixedWidth(self.PANEL_WIDTH)
+        panel.setMinimumWidth(200)
+        panel.setMaximumWidth(400)
         
         panel_layout = QVBoxLayout(panel)
         panel_layout.setContentsMargins(0, 0, 0, 0)
@@ -643,37 +657,11 @@ class PredictWidget(QWidget):
         
         # 进度条
         self._progress_slider = QSlider(Qt.Orientation.Horizontal)
+        self._progress_slider.setObjectName("playbackSlider")
         self._progress_slider.setRange(0, 100)
         self._progress_slider.setValue(0)
         self._progress_slider.setEnabled(False)
         self._progress_slider.setFixedHeight(16)
-        self._progress_slider.setStyleSheet("""
-            QSlider::groove:horizontal {
-                height: 4px;
-                background: #45475a;
-                border-radius: 2px;
-            }
-            QSlider::handle:horizontal {
-                width: 12px;
-                height: 12px;
-                margin: -4px 0;
-                background: #cdd6f4;
-                border-radius: 6px;
-            }
-            QSlider::handle:horizontal:hover {
-                background: #a6e3a1;
-            }
-            QSlider::sub-page:horizontal {
-                background: #89b4fa;
-                border-radius: 2px;
-            }
-            QSlider:disabled::handle:horizontal {
-                background: #6c7086;
-            }
-            QSlider:disabled::sub-page:horizontal {
-                background: #45475a;
-            }
-        """)
         layout.addWidget(self._progress_slider, 1)
         
         # 时间标签
@@ -726,32 +714,12 @@ class PredictWidget(QWidget):
         
         self._start_btn = QPushButton("▶ 开始")
         self._start_btn.setFixedSize(80, 32)
-        self._start_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #a6e3a1;
-                color: #1e1e2e;
-                border: none;
-                border-radius: 6px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #94e2d5; }
-            QPushButton:disabled { background-color: #45475a; color: #6c7086; }
-        """)
+        self._start_btn.setProperty("class", "success")
         
         self._stop_btn = QPushButton("⏹ 停止")
         self._stop_btn.setFixedSize(80, 32)
         self._stop_btn.setEnabled(False)
-        self._stop_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #f38ba8;
-                color: #1e1e2e;
-                border: none;
-                border-radius: 6px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #eba0ac; }
-            QPushButton:disabled { background-color: #45475a; color: #6c7086; }
-        """)
+        self._stop_btn.setProperty("class", "danger")
         
         layout.addWidget(self._start_btn)
         layout.addWidget(self._stop_btn)
@@ -821,24 +789,8 @@ class PredictWidget(QWidget):
         self._video_batch_processor.error_occurred.connect(self._on_error)
     
     def _apply_styles(self) -> None:
-        """应用样式"""
-        # RadioButton 和 CheckBox 的文字颜色继承自全局 QSS
-        # 这里只自定义 indicator 样式
-        radio_style = """
-            QRadioButton { spacing: 6px; }
-            QRadioButton::indicator { width: 14px; height: 14px; }
-        """
-        for rb in [self._radio_image, self._radio_video, self._radio_camera, self._radio_screen]:
-            rb.setStyleSheet(radio_style)
-        
-        checkbox_style = """
-            QCheckBox { spacing: 6px; }
-            QCheckBox::indicator { width: 16px; height: 16px; }
-        """
-        for cb in [self._save_video_check, self._save_keyframe_annotated_check, 
-                   self._save_keyframe_raw_check, self._save_report_check, 
-                   self._high_conf_check, self._rtsp_check]:
-            cb.setStyleSheet(checkbox_style)
+        """应用语义化样式 (颜色由全局 QSS 主题控制)"""
+        pass
     
     @Slot(int)
     def _on_source_type_changed(self, id: int) -> None:
@@ -999,16 +951,7 @@ class PredictWidget(QWidget):
             if self._image_processor.is_paused:
                 self._image_processor.resume()
                 self._start_btn.setText("⏸ 暂停")
-                self._start_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #fab387;
-                        color: #1e1e2e;
-                        border: none;
-                        border-radius: 6px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover { background-color: #f9e2af; }
-                """)
+                set_button_class(self._start_btn, "warning")
                 self._image_progress_bar.update_progress(
                     self._image_processor.processed_count, 
                     self._image_processor.image_count, 
@@ -1017,16 +960,7 @@ class PredictWidget(QWidget):
             else:
                 self._image_processor.pause()
                 self._start_btn.setText("▶ 继续")
-                self._start_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #a6e3a1;
-                        color: #1e1e2e;
-                        border: none;
-                        border-radius: 6px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover { background-color: #94e2d5; }
-                """)
+                set_button_class(self._start_btn, "success")
                 self._image_progress_bar.update_progress(
                     self._image_processor.processed_count, 
                     self._image_processor.image_count, 
@@ -1038,32 +972,12 @@ class PredictWidget(QWidget):
         if self._predict_manager.is_running:
             if self._predict_manager.is_paused:
                 self._predict_manager.resume()
-                # 立即更新按钮为「暂停」
                 self._start_btn.setText("⏸ 暂停")
-                self._start_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #fab387;
-                        color: #1e1e2e;
-                        border: none;
-                        border-radius: 6px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover { background-color: #f9e2af; }
-                """)
+                set_button_class(self._start_btn, "warning")
             else:
                 self._predict_manager.pause()
-                # 立即更新按钮为「继续」
                 self._start_btn.setText("▶ 继续")
-                self._start_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #a6e3a1;
-                        color: #1e1e2e;
-                        border: none;
-                        border-radius: 6px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover { background-color: #94e2d5; }
-                """)
+                set_button_class(self._start_btn, "success")
             return
         
         # 否则，启动预测
@@ -1170,17 +1084,7 @@ class PredictWidget(QWidget):
                 self._start_btn.setEnabled(False)
             else:
                 self._start_btn.setText("⏸ 暂停")
-                self._start_btn.setStyleSheet("""
-                    QPushButton {
-                        background-color: #fab387;
-                        color: #1e1e2e;
-                        border: none;
-                        border-radius: 6px;
-                        font-weight: bold;
-                    }
-                    QPushButton:hover { background-color: #f9e2af; }
-                    QPushButton:disabled { background-color: #45475a; color: #6c7086; }
-                """)
+                set_button_class(self._start_btn, "warning")
         else:
             QMessageBox.critical(self, "错误", "启动预测失败")
     
@@ -1229,17 +1133,7 @@ class PredictWidget(QWidget):
         # 重置开始按钮为初始状态
         self._start_btn.setEnabled(True)
         self._start_btn.setText("▶ 开始")
-        self._start_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #a6e3a1;
-                color: #1e1e2e;
-                border: none;
-                border-radius: 6px;
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: #94e2d5; }
-            QPushButton:disabled { background-color: #45475a; color: #6c7086; }
-        """)
+        set_button_class(self._start_btn, "success")
         self._stop_btn.setEnabled(False)
         
         # 重置停止标志
@@ -1300,14 +1194,11 @@ class PredictWidget(QWidget):
     def _toggle_panel(self) -> None:
         """切换配置面板显示/隐藏"""
         if self._is_panel_collapsed:
-            # 展开面板
             self._settings_panel.setVisible(True)
-            self._toggle_btn.setText("☰")
+            self._splitter.setSizes([self.PANEL_WIDTH, self._splitter.width() - self.PANEL_WIDTH])
             self._toggle_btn.setToolTip("折叠设置面板")
         else:
-            # 折叠面板
             self._settings_panel.setVisible(False)
-            self._toggle_btn.setText("☰")
             self._toggle_btn.setToolTip("展开设置面板")
         self._is_panel_collapsed = not self._is_panel_collapsed
     
@@ -1376,49 +1267,16 @@ class PredictWidget(QWidget):
         
         if state == "playing":
             self._start_btn.setText("⏸ 暂停")
-            self._start_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #fab387;
-                    color: #1e1e2e;
-                    border: none;
-                    border-radius: 6px;
-                    font-weight: bold;
-                }
-                QPushButton:hover { background-color: #f9e2af; }
-                QPushButton:disabled { background-color: #45475a; color: #6c7086; }
-            """)
+            set_button_class(self._start_btn, "warning")
         elif state == "paused":
             self._start_btn.setText("▶ 继续")
-            self._start_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #a6e3a1;
-                    color: #1e1e2e;
-                    border: none;
-                    border-radius: 6px;
-                    font-weight: bold;
-                }
-                QPushButton:hover { background-color: #94e2d5; }
-                QPushButton:disabled { background-color: #45475a; color: #6c7086; }
-            """)
+            set_button_class(self._start_btn, "success")
         elif state == "idle":
-            # 停止或完成时，重置按钮为初始的"开始"状态
-            # 注意：如果 _is_stopping 已经在 _on_stop 中处理过，这里就不需要重复设置
-            # 但无论如何都确保按钮状态正确
             self._start_btn.setEnabled(True)
             self._start_btn.setText("▶ 开始")
             self._stop_btn.setEnabled(False)
-            self._is_stopping = False  # 重置停止标志
-            self._start_btn.setStyleSheet("""
-                QPushButton {
-                    background-color: #a6e3a1;
-                    color: #1e1e2e;
-                    border: none;
-                    border-radius: 6px;
-                    font-weight: bold;
-                }
-                QPushButton:hover { background-color: #94e2d5; }
-                QPushButton:disabled { background-color: #45475a; color: #6c7086; }
-            """)
+            self._is_stopping = False
+            set_button_class(self._start_btn, "success")
     
     @Slot(int, int)
     def _on_progress_updated(self, current: int, total: int) -> None:
