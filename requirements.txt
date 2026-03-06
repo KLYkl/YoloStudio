@@ -1,0 +1,24 @@
+# YoloStudio 依赖清单
+# ============================================
+# 安装命令: pip install -r requirements.txt
+
+# ========== 核心依赖 ==========
+PySide6>=6.6.0          # Qt for Python GUI 框架
+
+# ========== AI 核心 ==========
+ultralytics>=8.1.0      # YOLOv8/v11 官方库
+torch>=2.0.0            # PyTorch 深度学习框架
+torchvision>=0.15.0     # PyTorch 视觉工具库
+
+# ========== 图像处理 ==========
+opencv-python>=4.8.0    # OpenCV 图像处理
+Pillow>=10.0.0          # PIL 图像库
+
+# ========== 系统工具 ==========
+psutil>=5.9.0           # 系统资源监控
+PyYAML>=6.0             # YAML 配置文件解析
+
+# ========== 开发依赖 (可选) ==========
+# pytest>=7.0.0         # 单元测试框架
+# black>=23.0.0         # 代码格式化
+# mypy>=1.0.0           # 类型检查
