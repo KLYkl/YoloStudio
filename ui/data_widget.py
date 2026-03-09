@@ -631,15 +631,21 @@ class DataWidget(QWidget):
     
     def _create_yaml_tab(self) -> QWidget:
         """
-        创建 YAML 生成 Tab (左右分栏布局)
+        创建 YAML 配置面板 (统一 GroupBox)
         
-        左侧: 路径配置 (Train/Val/Output)
-        右侧: 类别列表 (可编辑)
+        内部左右分栏:
+            左侧: 路径配置 (Train/Val/Output)
+            右侧: 类别列表 (可编辑)
+        底部: 保存按钮
         """
         tab = QWidget()
         main_layout = QVBoxLayout(tab)
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(10)
+        
+        # ========== 统一 GroupBox ==========
+        yaml_group = QGroupBox("YAML 配置")
+        yaml_layout = QVBoxLayout(yaml_group)
         
         # ========== 左右分栏布局 ==========
         content_layout = QHBoxLayout()
@@ -692,13 +698,12 @@ class DataWidget(QWidget):
         
         self.classes_edit = QPlainTextEdit()
         self.classes_edit.setPlaceholderText("扫描后自动填充，也可手动编辑...\n例如:\nexcavator\nbulldozer\ncrane")
-        # 允许垂直扩展
         self.classes_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout.addWidget(self.classes_edit)
         
         content_layout.addWidget(right_group, 2)  # Flex 2
         
-        main_layout.addLayout(content_layout, 1)  # 拉伸填充
+        yaml_layout.addLayout(content_layout, 1)  # 拉伸填充
         
         # ========== 保存按钮 (右对齐) ==========
         btn_layout = QHBoxLayout()
@@ -708,7 +713,9 @@ class DataWidget(QWidget):
         self.save_yaml_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.save_yaml_btn.setProperty("class", "success")
         btn_layout.addWidget(self.save_yaml_btn)
-        main_layout.addLayout(btn_layout)
+        yaml_layout.addLayout(btn_layout)
+        
+        main_layout.addWidget(yaml_group, 1)  # 拉伸填充
         
         return tab
     
