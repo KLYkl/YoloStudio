@@ -15,6 +15,7 @@ train_handler.py - 模型训练核心逻辑
 
 from __future__ import annotations
 
+import locale
 import os
 import shlex
 import sys
@@ -22,6 +23,29 @@ from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import QObject, QProcess, Signal
+
+
+def _decode_subprocess_output(data: bytes | str | None) -> str:
+    """Decode command output without relying on the process locale."""
+    if data is None:
+        return ""
+    if isinstance(data, str):
+        return data
+
+    encodings: list[str] = ["utf-8"]
+    preferred = locale.getpreferredencoding(False)
+    if preferred and preferred.lower() not in {enc.lower() for enc in encodings}:
+        encodings.append(preferred)
+    if sys.platform == "win32" and "gbk" not in {enc.lower() for enc in encodings}:
+        encodings.append("gbk")
+
+    for encoding in encodings:
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+
+    return data.decode("utf-8", errors="replace")
 
 
 class TrainManager(QObject):
@@ -74,13 +98,14 @@ class TrainManager(QObject):
             result = subprocess.run(
                 ["conda", "env", "list"],
                 capture_output=True,
-                text=True,
+                text=False,
                 timeout=10,
                 shell=(sys.platform == "win32"),
             )
             
             if result.returncode == 0:
-                for line in result.stdout.strip().split("\n"):
+                stdout = _decode_subprocess_output(result.stdout)
+                for line in stdout.strip().splitlines():
                     # 跳过注释行和空行
                     line = line.strip()
                     if not line or line.startswith("#"):
