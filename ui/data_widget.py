@@ -22,7 +22,7 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 
-from PySide6.QtCore import Qt, Signal, Slot, QMetaObject, Q_ARG
+from PySide6.QtCore import Qt, Signal, Slot
 from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
@@ -46,7 +46,6 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -94,8 +93,8 @@ class DataWidget(QWidget):
         self._pending_precheck_title = ""
         
         # Tab 间共享状态
-        self.detected_classes: list[str] = []  # Tab1 -> Tab4
-        self.split_paths: dict = {}             # Tab3 -> Tab4
+        self.detected_classes: list[str] = []  # Stats -> YAML panel
+        self.split_paths: dict = {}             # Split -> YAML panel
         self._stats_overview_labels: dict[str, QLabel] = {}
         
         # 当前扫描结果
@@ -128,7 +127,6 @@ class DataWidget(QWidget):
         self.tab_widget.addTab(self._create_stats_tab(), "📊 统计")
         self.tab_widget.addTab(self._create_edit_tab(), "✏️ 编辑")
         self.tab_widget.addTab(self._create_split_tab(), "📂 划分")
-        self.tab_widget.addTab(self._create_yaml_tab(), "📄 YAML")
         main_layout.addWidget(self.tab_widget, 1)  # 拉伸因子 = 1
         
         # 进度条区
@@ -387,7 +385,8 @@ class DataWidget(QWidget):
         gen_btn_layout = QHBoxLayout()
         gen_btn_layout.addStretch()
         self.gen_empty_btn = QPushButton("📝 生成空标签")
-        self.gen_empty_btn.setMinimumHeight(32)
+        self.gen_empty_btn.setMinimumHeight(35)
+        self.gen_empty_btn.setMinimumWidth(120)
         self.gen_empty_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.gen_empty_btn.setEnabled(False)
         gen_btn_layout.addWidget(self.gen_empty_btn)
@@ -415,7 +414,8 @@ class DataWidget(QWidget):
         convert_btn_layout = QHBoxLayout()
         convert_btn_layout.addStretch()
         self.convert_btn = QPushButton("🔄 执行转换")
-        self.convert_btn.setMinimumHeight(32)
+        self.convert_btn.setMinimumHeight(35)
+        self.convert_btn.setMinimumWidth(120)
         self.convert_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.convert_btn.setProperty("class", "success")
         self.convert_btn.setEnabled(False)
@@ -475,6 +475,7 @@ class DataWidget(QWidget):
         btn_layout2.addStretch()
         self.modify_btn = QPushButton("⚡ 执行修改")
         self.modify_btn.setMinimumHeight(35)
+        self.modify_btn.setMinimumWidth(120)
         self.modify_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.modify_btn.setEnabled(False)
         btn_layout2.addWidget(self.modify_btn)
@@ -621,26 +622,8 @@ class DataWidget(QWidget):
         left_scroll.setWidget(left_column)
         content_layout.addWidget(left_scroll, 1)  # Flex 1
         
-        # ========== 右侧: 执行详情 (Flex 2) ==========
-        right_group = QGroupBox("执行详情")
-        right_layout = QVBoxLayout(right_group)
-        
-        self.split_log = QTextEdit()
-        self.split_log.setReadOnly(True)
-        self.split_log.setObjectName("terminalOutput")
-        self.split_log.setPlaceholderText("执行日志将在此显示...")
-        right_layout.addWidget(self.split_log)
-        
-        # 清空日志按钮
-        clear_row = QHBoxLayout()
-        clear_row.addStretch()
-        clear_log_btn = QPushButton("清空")
-        clear_log_btn.setFixedWidth(60)
-        clear_log_btn.clicked.connect(self.split_log.clear)
-        clear_row.addWidget(clear_log_btn)
-        right_layout.addLayout(clear_row)
-        
-        content_layout.addWidget(right_group, 2)  # Flex 2
+        # YAML panel embedded beside split controls
+        content_layout.addWidget(self._create_yaml_tab(), 2)  # Flex 2
         
         tab_layout.addLayout(content_layout, 1)  # 拉伸填充
         
@@ -655,6 +638,7 @@ class DataWidget(QWidget):
         """
         tab = QWidget()
         main_layout = QVBoxLayout(tab)
+        main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(10)
         
         # ========== 左右分栏布局 ==========
@@ -792,7 +776,7 @@ class DataWidget(QWidget):
         self.output_browse_btn.clicked.connect(self._on_browse_output_dir)
         self.split_btn.clicked.connect(self._on_split)
         
-        # Tab 4 - YAML (所有浏览按钮)
+        # YAML panel browse actions
         self.train_browse_btn.clicked.connect(self._on_browse_train)
         self.val_browse_btn.clicked.connect(self._on_browse_val)
         self.yaml_browse_btn.clicked.connect(self._on_browse_yaml)
@@ -1310,7 +1294,7 @@ class DataWidget(QWidget):
             f"空标签: {result.empty_labels}"
         )
         
-        # 更新共享状态 -> Tab 4
+        # Shared state -> YAML panel
         self.detected_classes = result.classes
         self.classes_edit.setPlainText("\n".join(result.classes))
         self._refresh_edit_class_options()
@@ -1583,24 +1567,12 @@ class DataWidget(QWidget):
         ignore_orphans = self.ignore_orphans_check.isChecked()
         clear_output = self.clear_output_check.isChecked()
         
-        # 清空 split_log 准备新的日志
-        self.split_log.clear()
-        
-        # 创建只发送到本地 split_log 的回调 (文件操作日志)
-        def split_log_callback(msg: str):
-            # 判断是系统消息还是文件操作
-            if "→" in msg or "⇢" in msg:
-                # 文件操作 -> 只发送到本地面板
-                QMetaObject.invokeMethod(
-                    self.split_log, "append", Qt.ConnectionType.QueuedConnection, Q_ARG(str, msg)
-                )
-            else:
-                # 系统消息 -> 发送到全局日志 + 本地面板
-                self._emit_message(msg)
-                QMetaObject.invokeMethod(
-                    self.split_log, "append", Qt.ConnectionType.QueuedConnection, Q_ARG(str, f"[系统] {msg}")
-                )
-        
+        # Keep split feedback concise and suppress per-file details.
+        def split_message_callback(msg: str) -> None:
+            if "images/train" in msg or "images/val" in msg:
+                return
+            self._emit_message(msg)
+
         self._start_worker(
             lambda: self._handler.split_dataset(
                 img_path,
@@ -1613,7 +1585,7 @@ class DataWidget(QWidget):
                 clear_output=clear_output,
                 interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
                 progress_callback=self._emit_progress,
-                message_callback=split_log_callback,
+                message_callback=split_message_callback,
             ),
             on_finished=self._on_split_finished,
         )
@@ -1625,14 +1597,14 @@ class DataWidget(QWidget):
             "val": result.val_path,
         }
         
-        # 自动填充 Tab 4
+        # Auto-fill YAML panel
         self.train_path_input.setText(result.train_path)
         self.val_path_input.setText(result.val_path)
         
-        # 自动设置 YAML 输出路径 (从划分 Tab 的图片目录读取)
-        img_path = self.split_path_group.get_image_dir()
-        if img_path:
-            self.yaml_output_input.setText(str(img_path / "data.yaml"))
+        # Default YAML output lives next to the split dataset.
+        output_dir = self.output_dir_input.text().strip()
+        if output_dir:
+            self.yaml_output_input.setText(str(Path(output_dir) / "data.yaml"))
         
         self.log_message.emit(
             f"划分完成: 训练集 {result.train_count} 张, 验证集 {result.val_count} 张"
