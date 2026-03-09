@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Optional
 
 from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
@@ -41,7 +42,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.train_handler import TrainManager
-from core.thread_pool import run_in_thread
+from core.thread_pool import Worker, run_in_thread
 from ui.focus_widgets import FocusComboBox, FocusDoubleSpinBox, FocusSpinBox
 
 
@@ -66,6 +67,7 @@ class TrainWidget(QWidget):
         
         # 训练管理器
         self._manager = TrainManager(self)
+        self._scan_worker: Optional[Worker] = None
         
         # 初始化 UI
         self._setup_ui()
@@ -568,36 +570,56 @@ class TrainWidget(QWidget):
     
     @Slot()
     def _scan_envs(self) -> None:
-        """扫描 Conda 环境（后台执行）"""
-        # 禁用按钮防止重复点击
+        """Scan Conda environments in the background."""
+        # Disable the button to avoid duplicate scans.
         self.scan_env_btn.setEnabled(False)
         self.scan_env_btn.setText("扫描中...")
         self.python_combo.clear()
         self.python_combo.addItem("正在扫描环境...")
         
         def do_scan():
-            """后台执行扫描"""
+            """Run the environment scan on a worker thread."""
             return self._manager.detect_conda_envs()
-        
-        def on_finished(envs):
-            """扫描完成回调"""
-            self.python_combo.clear()
-            for env_name, python_path in envs:
-                # 显示环境名，但存储完整路径作为 userData
-                self.python_combo.addItem(env_name, userData=python_path)
-            self.log_message.emit(f"扫描到 {len(envs)} 个 Python 环境")
-            self.scan_env_btn.setEnabled(True)
-            self.scan_env_btn.setText("扫描")
-        
-        def on_error(err_info):
-            """扫描失败回调"""
-            self.python_combo.clear()
-            self.log_message.emit(f"环境扫描失败: {err_info[1]}")
-            self.scan_env_btn.setEnabled(True)
-            self.scan_env_btn.setText("扫描")
-        
-        run_in_thread(do_scan, on_finished=on_finished, on_error=on_error)
-    
+
+        worker = run_in_thread(
+            do_scan,
+            on_finished=lambda envs: self._handle_env_scan_finished(worker, envs),
+            on_error=lambda err_info: self._handle_env_scan_error(worker, err_info),
+        )
+        self._scan_worker = worker
+
+    def _handle_env_scan_finished(self, worker: Worker, envs) -> None:
+        """Apply scan results if this worker is still current."""
+        if self._scan_worker is not worker:
+            return
+
+        self._scan_worker = None
+        self.python_combo.clear()
+        for env_name, python_path in envs:
+            # Show the environment name and keep the python path in userData.
+            self.python_combo.addItem(env_name, userData=python_path)
+        self.log_message.emit(f"扫描到 {len(envs)} 个 Python 环境")
+        self.scan_env_btn.setEnabled(True)
+        self.scan_env_btn.setText("扫描")
+
+    def _handle_env_scan_error(self, worker: Worker, err_info) -> None:
+        """Ignore late errors from outdated scan workers."""
+        if self._scan_worker is not worker:
+            return
+
+        self._scan_worker = None
+        self.python_combo.clear()
+        self.log_message.emit(f"环境扫描失败: {err_info[1]}")
+        self.scan_env_btn.setEnabled(True)
+        self.scan_env_btn.setText("扫描")
+
+    def closeEvent(self, event: QCloseEvent) -> None:
+        """Detach scan callbacks when the widget is closing."""
+        if self._scan_worker is not None:
+            self._scan_worker.cancel()
+            self._scan_worker = None
+        super().closeEvent(event)
+
     @Slot()
     def _browse_model(self) -> None:
         """浏览模型文件"""

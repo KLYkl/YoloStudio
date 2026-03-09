@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 import random
 import shutil
+import tempfile
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from enum import Enum, auto
@@ -154,28 +155,32 @@ class DataHandler:
         """初始化数据处理器"""
         self._class_mapping: dict[int, str] = {}  # TXT 类别 ID -> 名称映射
     
-    def load_classes_txt(self, classes_file: Path) -> list[str]:
-        """
-        加载 classes.txt 文件
-        
-        Args:
-            classes_file: classes.txt 文件路径
-        
-        Returns:
-            类别名称列表 (按行顺序)
-        """
+    def _read_classes_txt(self, classes_file: Path) -> tuple[list[str], dict[int, str]]:
+        """?? classes.txt????????? ID??????"""
         if not classes_file.exists():
-            return []
-        
+            return [], {}
+
         classes = []
         with open(classes_file, "r", encoding="utf-8") as f:
             for line in f:
                 name = line.strip()
                 if name:
                     classes.append(name)
+
+        return classes, {i: name for i, name in enumerate(classes)}
+
+    def load_classes_txt(self, classes_file: Path) -> list[str]:
+        """
+        ?? classes.txt ??
         
-        # 构建映射
-        self._class_mapping = {i: name for i, name in enumerate(classes)}
+        Args:
+            classes_file: classes.txt ????
+        
+        Returns:
+            ?????? (????)
+        """
+        classes, class_mapping = self._read_classes_txt(classes_file)
+        self._class_mapping = class_mapping
         return classes
     
     def scan_dataset(
@@ -202,13 +207,13 @@ class DataHandler:
             ScanResult: 扫描结果
         """
         result = ScanResult()
-        self._class_mapping = {}
+        class_mapping: dict[int, str] = {}
         
         # 加载类别映射
         if classes_txt and classes_txt.exists():
-            self.load_classes_txt(classes_txt)
+            _, class_mapping = self._read_classes_txt(classes_txt)
             if message_callback:
-                message_callback(f"已加载类别文件: {len(self._class_mapping)} 个类别")
+                message_callback(f"已加载类别文件: {len(class_mapping)} 个类别")
         
         # 收集所有图片文件
         images = self._find_images(img_dir)
@@ -242,7 +247,7 @@ class DataHandler:
                 result.label_format = label_format
                 
                 # 解析标签内容
-                classes_in_file = self._parse_label(label_path, label_format)
+                classes_in_file = self._parse_label(label_path, label_format, class_mapping=class_mapping)
                 
                 if not classes_in_file:
                     result.empty_labels += 1
@@ -257,7 +262,6 @@ class DataHandler:
         result.classes = sorted(result.class_stats.keys())
         
         return result
-
     def generate_missing_labels(
         self,
         img_dir: Path,
@@ -304,10 +308,14 @@ class DataHandler:
                 f"找到 {len(scan_result.missing_labels)} 张缺失标签图片，开始生成空标签"
             )
         
+        target_output_dir = output_dir
+        if target_output_dir is None and label_dir and label_dir.exists():
+            target_output_dir = label_dir
+
         return self.generate_empty_labels(
             scan_result.missing_labels,
             label_format,
-            output_dir=output_dir,
+            output_dir=target_output_dir,
             interrupt_check=interrupt_check,
             progress_callback=progress_callback,
             message_callback=message_callback,
@@ -408,6 +416,12 @@ class DataHandler:
             else:
                 # 查找或创建同级 labels 目录
                 label_path = self._get_label_output_path(img_path, ext)
+
+            # Another process may create the file after the scan; skip overwrite.
+            if label_path.exists():
+                if progress_callback:
+                    progress_callback(i + 1, total)
+                continue
             
             # 确保目录存在
             label_path.parent.mkdir(parents=True, exist_ok=True)
@@ -481,6 +495,8 @@ class DataHandler:
         new_value: str = "",
         backup: bool = True,
         classes_txt: Optional[Path] = None,
+        image_dir: Optional[Path] = None,
+        label_dir: Optional[Path] = None,
         interrupt_check: Callable[[], bool] = lambda: False,
         progress_callback: Optional[Callable[[int, int], None]] = None,
         message_callback: Optional[Callable[[str], None]] = None,
@@ -502,7 +518,7 @@ class DataHandler:
         Returns:
             修改的文件数量
         """
-        label_files = self.collect_label_files(search_dir)
+        label_files = self._collect_modify_label_files(search_dir, image_dir=image_dir, label_dir=label_dir)
         modified_count = 0
         total = len(label_files)
         backup_count = 0
@@ -513,9 +529,9 @@ class DataHandler:
             return 0
         
         # 加载类别映射 (TXT 替换需要)
-        self._class_mapping = {}
+        class_mapping: dict[int, str] = {}
         if classes_txt and classes_txt.exists():
-            self.load_classes_txt(classes_txt)
+            _, class_mapping = self._read_classes_txt(classes_txt)
         
         for i, label_path in enumerate(label_files):
             if interrupt_check():
@@ -531,20 +547,25 @@ class DataHandler:
                 modified, tree = self._prepare_modified_xml(label_path, action, old_value, new_value)
                 if modified and tree is not None:
                     if backup:
-                        backup_path = label_path.with_suffix(label_path.suffix + ".bak")
+                        backup_path = self._get_unique_backup_path(label_path)
                         shutil.copy2(label_path, backup_path)
                         backup_count += 1
                     ET.indent(tree, space="    ")
-                    tree.write(label_path, encoding="utf-8", xml_declaration=True)
+                    self._write_xml_tree_atomic(label_path, tree)
             else:
-                modified, new_lines = self._prepare_modified_txt(label_path, action, old_value, new_value)
+                modified, new_lines = self._prepare_modified_txt(
+                    label_path,
+                    action,
+                    old_value,
+                    new_value,
+                    class_mapping=class_mapping,
+                )
                 if modified and new_lines is not None:
                     if backup:
-                        backup_path = label_path.with_suffix(label_path.suffix + ".bak")
+                        backup_path = self._get_unique_backup_path(label_path)
                         shutil.copy2(label_path, backup_path)
                         backup_count += 1
-                    with open(label_path, "w", encoding="utf-8") as f:
-                        f.writelines(new_lines)
+                    self._write_lines_atomic(label_path, new_lines)
             
             if modified:
                 modified_count += 1
@@ -561,7 +582,6 @@ class DataHandler:
                 )
         
         return modified_count
-
     def preview_modify_labels(
         self,
         search_dir: Path,
@@ -569,20 +589,22 @@ class DataHandler:
         old_value: str,
         new_value: str = "",
         classes_txt: Optional[Path] = None,
+        image_dir: Optional[Path] = None,
+        label_dir: Optional[Path] = None,
         interrupt_check: Callable[[], bool] = lambda: False,
         progress_callback: Optional[Callable[[int, int], None]] = None,
     ) -> dict[str, int]:
         """预检查标签修改影响范围"""
-        label_files = self.collect_label_files(search_dir)
+        label_files = self._collect_modify_label_files(search_dir, image_dir=image_dir, label_dir=label_dir)
         total = len(label_files)
         txt_files = 0
         xml_files = 0
         matched_files = 0
         matched_annotations = 0
         
-        self._class_mapping = {}
+        class_mapping: dict[int, str] = {}
         if classes_txt and classes_txt.exists():
-            self.load_classes_txt(classes_txt)
+            _, class_mapping = self._read_classes_txt(classes_txt)
         
         for i, label_path in enumerate(label_files):
             if interrupt_check():
@@ -593,7 +615,7 @@ class DataHandler:
                 affected = self._count_xml_matches(label_path, old_value)
             else:
                 txt_files += 1
-                affected = self._count_txt_matches(label_path, old_value)
+                affected = self._count_txt_matches(label_path, old_value, class_mapping=class_mapping)
             
             if affected > 0:
                 matched_files += 1
@@ -775,6 +797,7 @@ class DataHandler:
         to_xml: bool = True,
         classes: Optional[list[str]] = None,
         label_dir: Optional[Path] = None,
+        image_dir: Optional[Path] = None,
         interrupt_check: Callable[[], bool] = lambda: False,
         progress_callback: Optional[Callable[[int, int], None]] = None,
         message_callback: Optional[Callable[[str], None]] = None,
@@ -866,7 +889,14 @@ class DataHandler:
                 
                 if to_xml:
                     # TXT → XML
-                    success = self._convert_txt_to_xml(label_path, id_to_class, root, output_path)
+                    success = self._convert_txt_to_xml(
+                        label_path,
+                        id_to_class,
+                        root,
+                        output_path,
+                        image_dir=image_dir,
+                        label_dir=label_dir,
+                    )
                 else:
                     # XML → TXT
                     success = self._convert_xml_to_txt(label_path, class_to_id, output_path)
@@ -937,14 +967,14 @@ class DataHandler:
         classes_txt: Optional[Path] = None,
     ) -> list[str]:
         """收集标签中的类别选项，用于下拉框"""
-        self._class_mapping = {}
         if classes_txt and classes_txt.exists():
-            return self.load_classes_txt(classes_txt)
+            classes, _ = self._read_classes_txt(classes_txt)
+            return classes
         
         class_values: set[str] = set()
         for label_path in self.collect_label_files(search_dir):
             label_format = LabelFormat.XML if label_path.suffix.lower() == ".xml" else LabelFormat.TXT
-            class_values.update(self._parse_label_ids(label_path, label_format))
+            class_values.update(self._parse_label_ids(label_path, label_format, class_mapping={}))
         
         numeric_values = sorted(
             (value for value in class_values if value.isdigit()),
@@ -952,7 +982,6 @@ class DataHandler:
         )
         text_values = sorted(value for value in class_values if not value.isdigit())
         return numeric_values + text_values
-
     def collect_label_files(
         self,
         root: Path,
@@ -979,11 +1008,59 @@ class DataHandler:
                 label_files.append(path)
         
         return sorted(label_files)
+
+    def _collect_modify_label_files(
+        self,
+        search_dir: Path,
+        image_dir: Optional[Path] = None,
+        label_dir: Optional[Path] = None,
+    ) -> list[Path]:
+        """Collect the label files that should be modified for the current scope."""
+        if image_dir and image_dir.exists() and not (label_dir and label_dir.exists()):
+            return self.collect_image_label_files(image_dir)
+
+        return self.collect_label_files(search_dir)
+
+    def collect_image_label_files(
+        self,
+        img_dir: Path,
+        label_dir: Optional[Path] = None,
+    ) -> list[Path]:
+        """Collect label files matched to images to avoid touching derived directories."""
+        if not img_dir.exists():
+            return []
+
+        label_files: list[Path] = []
+        seen: set[Path] = set()
+        for img_path in self._find_images(img_dir):
+            if label_dir and label_dir.exists():
+                label_path, _ = self._find_label_in_dir(img_path, label_dir)
+            else:
+                label_path, _ = self._find_label(img_path, img_dir.parent)
+
+            if label_path and label_path.exists() and label_path not in seen:
+                seen.add(label_path)
+                label_files.append(label_path)
+
+        return sorted(label_files)
     
-    def _convert_txt_to_xml(self, txt_path: Path, id_to_class: dict, root: Path, output_path: Path) -> bool:
+    def _convert_txt_to_xml(
+        self,
+        txt_path: Path,
+        id_to_class: dict,
+        root: Path,
+        output_path: Path,
+        image_dir: Optional[Path] = None,
+        label_dir: Optional[Path] = None,
+    ) -> bool:
         """将 TXT 标签转换为 XML"""
         # 查找对应的图片
-        img_path = self._find_image_for_label(txt_path, root)
+        img_path = self._find_image_for_label(
+            txt_path,
+            root,
+            image_dir=image_dir,
+            label_dir=label_dir,
+        )
         if not img_path or not img_path.exists():
             return False
         
@@ -1108,7 +1185,13 @@ class DataHandler:
         
         return True
     
-    def _find_image_for_label(self, label_path: Path, root: Path) -> Optional[Path]:
+    def _find_image_for_label(
+        self,
+        label_path: Path,
+        root: Path,
+        image_dir: Optional[Path] = None,
+        label_dir: Optional[Path] = None,
+    ) -> Optional[Path]:
         """根据标签文件查找对应的图片"""
         stem = label_path.stem
         
@@ -1119,6 +1202,19 @@ class DataHandler:
                 return img_path
         
         # 2. 目录映射 (labels → images, Annotations → JPEGImages)
+        # 2. ?????? (????????????)
+        if image_dir and label_dir:
+            try:
+                rel_path = label_path.relative_to(label_dir)
+                img_parent = image_dir / rel_path.parent
+                for ext in IMAGE_EXTENSIONS:
+                    img_path = img_parent / (stem + ext)
+                    if img_path.exists():
+                        return img_path
+            except ValueError:
+                pass
+
+        # 3. Heuristic directory mapping for common dataset layouts.
         dir_mappings = [
             ("labels", "images"),
             ("annotations", "jpegimages"),
@@ -1205,9 +1301,15 @@ class DataHandler:
         
         return None, None
     
-    def _parse_label(self, label_path: Path, label_format: LabelFormat) -> list[str]:
-        """解析标签文件，返回类别列表"""
+    def _parse_label(
+        self,
+        label_path: Path,
+        label_format: LabelFormat,
+        class_mapping: Optional[dict[int, str]] = None,
+    ) -> list[str]:
+        """?????????????"""
         classes = []
+        mapping = class_mapping or {}
         
         try:
             if label_format == LabelFormat.TXT:
@@ -1216,8 +1318,8 @@ class DataHandler:
                         parts = line.strip().split()
                         if parts:
                             class_id = int(parts[0])
-                            # 无 classes.txt 时直接使用数字字符串，无前缀
-                            class_name = self._class_mapping.get(class_id, str(class_id))
+                            # ? classes.txt ??????????????
+                            class_name = mapping.get(class_id, str(class_id))
                             classes.append(class_name)
             else:
                 tree = ET.parse(label_path)
@@ -1295,12 +1397,13 @@ class DataHandler:
         action: ModifyAction,
         old_value: str,
         new_value: str,
+        class_mapping: Optional[dict[int, str]] = None,
     ) -> tuple[bool, Optional[list[str]]]:
-        """构建修改后的 TXT 标签内容"""
+        """?????? TXT ????"""
         try:
-            # 将类别名转换为 ID
-            old_id = self._resolve_class_id(old_value)
-            new_id = self._resolve_class_id(new_value) if action == ModifyAction.REPLACE else None
+            # ??????? ID
+            old_id = self._resolve_class_id(old_value, class_mapping=class_mapping)
+            new_id = self._resolve_class_id(new_value, class_mapping=class_mapping) if action == ModifyAction.REPLACE else None
             
             if old_id is None:
                 return False, None
@@ -1325,7 +1428,7 @@ class DataHandler:
                         modified = True
                     elif action == ModifyAction.REMOVE:
                         modified = True
-                        continue  # 跳过此行
+                        continue  # ????
                 else:
                     new_lines.append(line)
             
@@ -1333,9 +1436,9 @@ class DataHandler:
             
         except Exception:
             return False, None
-
-    def _resolve_class_id(self, value: str) -> Optional[int]:
-        """将类别名称或字符串 ID 转为整数 ID"""
+    
+    def _resolve_class_id(self, value: str, class_mapping: Optional[dict[int, str]] = None) -> Optional[int]:
+        """????????? ID ???? ID"""
         normalized = value.strip()
         if not normalized:
             return None
@@ -1343,15 +1446,20 @@ class DataHandler:
         if normalized.isdigit():
             return int(normalized)
         
-        for id_, name in self._class_mapping.items():
+        for id_, name in (class_mapping or {}).items():
             if name == normalized:
                 return id_
         
         return None
-
-    def _count_txt_matches(self, path: Path, old_value: str) -> int:
-        """统计 TXT 标签中命中的标注数量"""
-        old_id = self._resolve_class_id(old_value)
+    
+    def _count_txt_matches(
+        self,
+        path: Path,
+        old_value: str,
+        class_mapping: Optional[dict[int, str]] = None,
+    ) -> int:
+        """?? TXT ??????????"""
+        old_id = self._resolve_class_id(old_value, class_mapping=class_mapping)
         if old_id is None:
             return 0
         
@@ -1366,6 +1474,57 @@ class DataHandler:
             return 0
         
         return matches
+    
+    def _get_unique_backup_path(self, label_path: Path) -> Path:
+        """Return a non-conflicting backup path for the given label file."""
+        backup_path = label_path.with_suffix(label_path.suffix + ".bak")
+        if not backup_path.exists():
+            return backup_path
+
+        counter = 1
+        while True:
+            candidate = label_path.with_suffix(label_path.suffix + f".bak.{counter}")
+            if not candidate.exists():
+                return candidate
+            counter += 1
+
+    def _write_lines_atomic(self, label_path: Path, lines: list[str]) -> None:
+        """Write label text atomically to avoid partial file corruption."""
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f"{label_path.name}.",
+            suffix=".tmp",
+            dir=str(label_path.parent),
+        )
+        temp_path = Path(temp_name)
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.writelines(lines)
+            os.replace(str(temp_path), str(label_path))
+        except Exception:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise
+
+    def _write_xml_tree_atomic(self, label_path: Path, tree: ET.ElementTree) -> None:
+        """Write XML labels atomically to avoid partial file corruption."""
+        fd, temp_name = tempfile.mkstemp(
+            prefix=f"{label_path.name}.",
+            suffix=".tmp",
+            dir=str(label_path.parent),
+        )
+        os.close(fd)
+        temp_path = Path(temp_name)
+        try:
+            tree.write(temp_path, encoding="utf-8", xml_declaration=True)
+            os.replace(str(temp_path), str(label_path))
+        except Exception:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+            raise
 
     def _count_xml_matches(self, path: Path, old_value: str) -> int:
         """统计 XML 标签中命中的标注数量"""
@@ -1589,10 +1748,11 @@ class DataHandler:
             分类统计 {类别名: 数量}
         """
         # 加载类别映射
+        class_mapping: dict[int, str] = {}
         if classes_txt and classes_txt.exists():
-            self.load_classes_txt(classes_txt)
+            _, class_mapping = self._read_classes_txt(classes_txt)
             if message_callback:
-                message_callback(f"已加载类别文件: {len(self._class_mapping)} 个类别")
+                message_callback(f"已加载类别文件: {len(class_mapping)} 个类别")
         
         # 默认输出目录 (如果已存在则添加数字后缀)
         if output_dir is None:
@@ -1643,7 +1803,7 @@ class DataHandler:
                 class_ids: list[str] = []
             else:
                 # 解析标签获取类别 ID (使用原始 ID，不映射名称)
-                class_ids = self._parse_label_ids(label_path, label_format)
+                class_ids = self._parse_label_ids(label_path, label_format, class_mapping=class_mapping)
                 unique_ids = sorted(set(class_ids))
                 
                 if len(unique_ids) == 0:
@@ -1699,14 +1859,20 @@ class DataHandler:
         
         return stats
     
-    def _parse_label_ids(self, label_path: Path, label_format: LabelFormat) -> list[str]:
+    def _parse_label_ids(
+        self,
+        label_path: Path,
+        label_format: LabelFormat,
+        class_mapping: Optional[dict[int, str]] = None,
+    ) -> list[str]:
         """
-        解析标签文件，返回类别标识列表 (字符串形式)
+        ??????????????? (?????)
         
-        - TXT 格式: 如果有 _class_mapping，返回映射后的名称；否则返回原始数字 ID
-        - XML 格式: 直接返回 <name> 标签内容
+        - TXT ??: ??? class_mapping?????????????????? ID
+        - XML ??: ???? <name> ????
         """
         ids: list[str] = []
+        mapping = class_mapping or {}
         
         try:
             if label_format == LabelFormat.TXT:
@@ -1715,8 +1881,7 @@ class DataHandler:
                         parts = line.strip().split()
                         if parts:
                             class_id = int(parts[0])
-                            # 如果有类别映射，使用名称；否则使用原始数字
-                            class_name = self._class_mapping.get(class_id, str(class_id))
+                            class_name = mapping.get(class_id, str(class_id))
                             ids.append(class_name)
             else:
                 tree = ET.parse(label_path)
@@ -1728,8 +1893,7 @@ class DataHandler:
             pass
         
         return ids
-
-
+    
 # ============================================================
 # 线程封装
 # ============================================================

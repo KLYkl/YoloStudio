@@ -33,6 +33,9 @@ from typing import Any, Callable, Optional, Tuple
 from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal, Slot
 
 
+_ACTIVE_WORKERS: set["Worker"] = set()
+
+
 class WorkerSignals(QObject):
     """
     Worker 专用信号容器
@@ -119,38 +122,49 @@ class Worker(QRunnable):
     
     @Slot()
     def run(self) -> None:
-        """
-        执行任务 (由 QThreadPool 调用)
-        
-        流程:
-            1. 发射 started 信号
-            2. 执行任务函数
-            3. 成功则发射 finished 信号，失败则发射 error 信号
-        """
-        self.signals.started.emit()
-        
+        """Run the worker and guard late Qt object teardown."""
+        if self._is_cancelled:
+            _ACTIVE_WORKERS.discard(self)
+            return
+
         try:
-            # 检查函数是否接受 progress_callback 参数
+            self.signals.started.emit()
+        except RuntimeError:
+            _ACTIVE_WORKERS.discard(self)
+            return
+
+        try:
             import inspect
+
             sig = inspect.signature(self.fn)
             if "progress_callback" in sig.parameters:
                 result = self.fn(
-                    *self.args, 
+                    *self.args,
                     progress_callback=self.signals.progress,
-                    **self.kwargs
+                    **self.kwargs,
                 )
             else:
                 result = self.fn(*self.args, **self.kwargs)
-            
-            # 任务成功完成
-            if not self._is_cancelled:
-                self.signals.finished.emit(result)
-                
-        except Exception as e:
-            # 捕获异常并发射错误信号
-            tb_str = traceback.format_exc()
-            self.signals.error.emit((type(e), e, tb_str))
 
+            if self._is_cancelled:
+                _ACTIVE_WORKERS.discard(self)
+                return
+
+            try:
+                self.signals.finished.emit(result)
+            except RuntimeError:
+                _ACTIVE_WORKERS.discard(self)
+
+        except Exception as e:
+            if self._is_cancelled:
+                _ACTIVE_WORKERS.discard(self)
+                return
+
+            tb_str = traceback.format_exc()
+            try:
+                self.signals.error.emit((type(e), e, tb_str))
+            except RuntimeError:
+                _ACTIVE_WORKERS.discard(self)
 
 def run_in_thread(
     fn: Callable[..., Any],
@@ -183,9 +197,16 @@ def run_in_thread(
     # 禁用自动删除，防止任务完成时信号未处理就被删除
     worker.setAutoDelete(False)
     
-    # 自动清理：任务完成或出错后安排删除 Worker
-    def cleanup():
-        worker.signals.deleteLater()
+    # Keep a strong reference until Qt processes the final callback.
+    _ACTIVE_WORKERS.add(worker)
+
+    # Keep the worker alive until Qt delivers the final callback.
+    def cleanup(*_args: Any) -> None:
+        _ACTIVE_WORKERS.discard(worker)
+        try:
+            worker.signals.deleteLater()
+        except RuntimeError:
+            pass
     worker.signals.finished.connect(cleanup, Qt.ConnectionType.QueuedConnection)
     worker.signals.error.connect(cleanup, Qt.ConnectionType.QueuedConnection)
     

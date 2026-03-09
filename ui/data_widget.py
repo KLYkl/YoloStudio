@@ -1172,6 +1172,7 @@ class DataWidget(QWidget):
                 to_xml=to_xml,
                 classes=classes,
                 label_dir=label_path,
+                image_dir=img_path,
                 interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
                 progress_callback=self._emit_progress,
                 message_callback=self._emit_message,
@@ -1187,6 +1188,8 @@ class DataWidget(QWidget):
         old_value: str,
         new_value: str,
         classes_txt: Optional[Path],
+        image_dir: Optional[Path],
+        label_dir: Optional[Path],
     ) -> None:
         """根据预检查结果确认是否执行标签修改"""
         total_label_files = preview.get("total_label_files", 0)
@@ -1227,6 +1230,8 @@ class DataWidget(QWidget):
                 new_value,
                 backup=backup_enabled,
                 classes_txt=classes_txt,
+                image_dir=image_dir,
+                label_dir=label_dir,
                 interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
                 progress_callback=self._emit_progress,
                 message_callback=self._emit_message,
@@ -1466,13 +1471,16 @@ class DataWidget(QWidget):
         # 优先使用标签目录，如果未设置则回退到图片目录
         label_path = self.edit_path_group.get_label_dir()
         dataset_root = self._resolve_dataset_root(img_path, label_path)
-        search_dir = label_path if label_path and label_path.exists() else dataset_root
+        has_explicit_label_dir = bool(label_path and label_path.exists())
+        search_dir = label_path if has_explicit_label_dir else dataset_root
+        image_scope = None if has_explicit_label_dir else img_path
         
         # classes.txt
         classes_txt = self.edit_path_group.get_classes_path()
         cache_key = (
             "modify_labels",
             str(search_dir),
+            str(image_scope) if image_scope else "",
             str(classes_txt) if classes_txt else "",
             action.value,
             old_value,
@@ -1490,6 +1498,8 @@ class DataWidget(QWidget):
                 old_value,
                 new_value,
                 classes_txt=classes_txt,
+                image_dir=image_scope,
+                label_dir=label_path,
                 interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
                 progress_callback=self._emit_progress,
             ),
@@ -1500,6 +1510,8 @@ class DataWidget(QWidget):
                 old_value,
                 new_value,
                 classes_txt,
+                image_scope,
+                label_path,
             ),
         )
 
