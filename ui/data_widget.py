@@ -46,11 +46,14 @@ from PySide6.QtWidgets import (
     QTableWidget,
     QTableWidgetItem,
     QTabWidget,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 
 from core.data_handler import (
+    AugmentConfig,
+    AugmentResult,
     DataHandler,
     DataWorker,
     LabelFormat,
@@ -59,7 +62,7 @@ from core.data_handler import (
     SplitMode,
     SplitResult,
 )
-from ui.focus_widgets import FocusSlider, FocusSpinBox
+from ui.focus_widgets import FocusDoubleSpinBox, FocusSlider, FocusSpinBox
 from ui.path_input_group import PathInputGroup
 from ui.styled_message_box import StyledMessageBox, StyledProgressDialog
 
@@ -126,6 +129,7 @@ class DataWidget(QWidget):
         self.tab_widget.setObjectName("subTabWidget")
         self.tab_widget.addTab(self._create_stats_tab(), "📊 统计")
         self.tab_widget.addTab(self._create_edit_tab(), "✏️ 编辑")
+        self.tab_widget.addTab(self._create_augment_tab(), "🧪 增强")
         self.tab_widget.addTab(self._create_split_tab(), "📂 划分")
         main_layout.addWidget(self.tab_widget, 1)  # 拉伸因子 = 1
         
@@ -481,6 +485,285 @@ class DataWidget(QWidget):
         
         return tab
     
+    def _create_augment_tab(self) -> QWidget:
+        """Build the augmentation tab."""
+        tab = QWidget()
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.setSpacing(10)
+
+        self.augment_path_group = PathInputGroup(
+            show_image_dir=True,
+            show_label_dir=True,
+            show_classes=True,
+            group_title="数据源路径",
+        )
+        tab_layout.addWidget(self.augment_path_group)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        content = QWidget()
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(12)
+
+        settings_group = QGroupBox("输出与生成")
+        settings_layout = QVBoxLayout(settings_group)
+        settings_layout.setSpacing(10)
+
+        settings_form = QFormLayout()
+        settings_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        settings_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        settings_form.setFormAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        settings_form.setHorizontalSpacing(12)
+        settings_form.setVerticalSpacing(10)
+
+        self.augment_mode_combo = QComboBox()
+        self.augment_mode_combo.addItems(["随机生成", "固定生成"])
+        settings_form.addRow("生成方式:", self.augment_mode_combo)
+
+        fixed_mode_row = QWidget()
+        fixed_mode_layout = QHBoxLayout(fixed_mode_row)
+        fixed_mode_layout.setContentsMargins(0, 0, 0, 0)
+        fixed_mode_layout.setSpacing(10)
+        self.augment_fixed_single_check = QCheckBox("单项覆盖")
+        self.augment_fixed_single_check.setChecked(True)
+        self.augment_fixed_combo_check = QCheckBox("组合增强")
+        self.augment_fixed_combo_check.setChecked(True)
+        fixed_mode_layout.addWidget(self.augment_fixed_single_check)
+        fixed_mode_layout.addWidget(self.augment_fixed_combo_check)
+        fixed_mode_layout.addStretch()
+        settings_form.addRow("固定模式:", fixed_mode_row)
+
+        output_row = QWidget()
+        output_row_layout = QHBoxLayout(output_row)
+        output_row_layout.setContentsMargins(0, 0, 0, 0)
+        output_row_layout.setSpacing(8)
+        self.augment_output_input = QLineEdit()
+        self.augment_output_input.setPlaceholderText("增强结果保存位置...")
+        output_row_layout.addWidget(self.augment_output_input, 1)
+        self.augment_output_browse_btn = QPushButton("浏览")
+        self.augment_output_browse_btn.setFixedWidth(68)
+        output_row_layout.addWidget(self.augment_output_browse_btn)
+        settings_form.addRow("输出目录:", output_row)
+
+        count_row = QWidget()
+        count_row_layout = QHBoxLayout(count_row)
+        count_row_layout.setContentsMargins(0, 0, 0, 0)
+        count_row_layout.setSpacing(8)
+        self.augment_count_spin = FocusSpinBox()
+        self.augment_count_spin.setRange(1, 20)
+        self.augment_count_spin.setValue(1)
+        self.augment_count_spin.setFixedWidth(90)
+        count_row_layout.addWidget(self.augment_count_spin)
+        self.augment_count_hint = QLabel("份")
+        count_row_layout.addWidget(self.augment_count_hint)
+        count_row_layout.addStretch()
+        settings_form.addRow("每项份数:", count_row)
+
+        seed_row = QWidget()
+        seed_row_layout = QHBoxLayout(seed_row)
+        seed_row_layout.setContentsMargins(0, 0, 0, 0)
+        seed_row_layout.setSpacing(8)
+        self.augment_seed_spin = FocusSpinBox()
+        self.augment_seed_spin.setRange(0, 99999)
+        self.augment_seed_spin.setValue(42)
+        self.augment_seed_spin.setFixedWidth(90)
+        seed_row_layout.addWidget(self.augment_seed_spin)
+        seed_row_layout.addWidget(QLabel("固定后结果可复现"))
+        seed_row_layout.addStretch()
+        settings_form.addRow("随机种子:", seed_row)
+
+        settings_layout.addLayout(settings_form)
+        self.augment_include_original_check = QCheckBox("保留原图到输出目录")
+        self.augment_include_original_check.setChecked(True)
+        settings_layout.addWidget(self.augment_include_original_check)
+
+        self.augment_mode_hint_label = QLabel()
+        self.augment_mode_hint_label.setWordWrap(True)
+        self.augment_mode_hint_label.setObjectName("mutedLabel")
+        settings_layout.addWidget(self.augment_mode_hint_label)
+        content_layout.addWidget(settings_group)
+
+        common_group = QGroupBox("常用增强")
+        common_layout = QVBoxLayout(common_group)
+        common_layout.setSpacing(10)
+
+        flip_row = QWidget()
+        flip_row_layout = QHBoxLayout(flip_row)
+        flip_row_layout.setContentsMargins(0, 0, 0, 0)
+        flip_row_layout.setSpacing(10)
+        flip_row_layout.addWidget(QLabel("翻转:"))
+        self.augment_hflip_check = QCheckBox("水平")
+        self.augment_vflip_check = QCheckBox("垂直")
+        flip_row_layout.addWidget(self.augment_hflip_check)
+        flip_row_layout.addWidget(self.augment_vflip_check)
+        flip_row_layout.addStretch()
+        common_layout.addWidget(flip_row)
+
+        rotate_row = QWidget()
+        rotate_row_layout = QHBoxLayout(rotate_row)
+        rotate_row_layout.setContentsMargins(0, 0, 0, 0)
+        rotate_row_layout.setSpacing(10)
+        self.augment_rotate_check = QCheckBox("旋转")
+        rotate_row_layout.addWidget(self.augment_rotate_check)
+        self.augment_rotate_random_radio = QRadioButton("随机")
+        self.augment_rotate_clockwise_radio = QRadioButton("顺时针")
+        self.augment_rotate_counterclockwise_radio = QRadioButton("逆时针")
+        self.augment_rotate_random_radio.setChecked(True)
+        self.augment_rotate_mode_group = QButtonGroup(self)
+        self.augment_rotate_mode_group.addButton(self.augment_rotate_random_radio)
+        self.augment_rotate_mode_group.addButton(self.augment_rotate_clockwise_radio)
+        self.augment_rotate_mode_group.addButton(self.augment_rotate_counterclockwise_radio)
+        rotate_row_layout.addWidget(self.augment_rotate_random_radio)
+        rotate_row_layout.addWidget(self.augment_rotate_clockwise_radio)
+        rotate_row_layout.addWidget(self.augment_rotate_counterclockwise_radio)
+        rotate_row_layout.addWidget(QLabel("角度"))
+        self.augment_rotate_degrees_spin = FocusDoubleSpinBox()
+        self.augment_rotate_degrees_spin.setRange(0.0, 180.0)
+        self.augment_rotate_degrees_spin.setValue(15.0)
+        self.augment_rotate_degrees_spin.setSingleStep(1.0)
+        self.augment_rotate_degrees_spin.setDecimals(1)
+        self.augment_rotate_degrees_spin.setFixedWidth(100)
+        rotate_row_layout.addWidget(self.augment_rotate_degrees_spin)
+        rotate_row_layout.addWidget(QLabel("°"))
+        rotate_row_layout.addStretch()
+        common_layout.addWidget(rotate_row)
+
+        def add_strength_row(
+            title: str,
+            check_name: str,
+            spin_name: str,
+            default_value: float,
+            *,
+            maximum: float,
+            step: float,
+            decimals: int = 2,
+            suffix_text: str = "幅度 ±",
+        ) -> None:
+            row = QWidget()
+            row_layout = QHBoxLayout(row)
+            row_layout.setContentsMargins(0, 0, 0, 0)
+            row_layout.setSpacing(10)
+            checkbox = QCheckBox(title)
+            spin = FocusDoubleSpinBox()
+            spin.setRange(0.0, maximum)
+            spin.setValue(default_value)
+            spin.setSingleStep(step)
+            spin.setDecimals(decimals)
+            spin.setFixedWidth(100)
+            setattr(self, check_name, checkbox)
+            setattr(self, spin_name, spin)
+            row_layout.addWidget(checkbox)
+            row_layout.addWidget(QLabel(suffix_text))
+            row_layout.addWidget(spin)
+            row_layout.addStretch()
+            common_layout.addWidget(row)
+
+        add_strength_row("亮度", "augment_brightness_check", "augment_brightness_spin", 0.20, maximum=1.0, step=0.05)
+        add_strength_row("对比度", "augment_contrast_check", "augment_contrast_spin", 0.25, maximum=1.0, step=0.05)
+        add_strength_row("饱和度", "augment_color_check", "augment_color_spin", 0.25, maximum=1.0, step=0.05)
+        add_strength_row("噪点", "augment_noise_check", "augment_noise_spin", 0.08, maximum=0.50, step=0.01, suffix_text="强度")
+        content_layout.addWidget(common_group)
+
+        advanced_group = QGroupBox("高级增强")
+        advanced_outer = QVBoxLayout(advanced_group)
+        advanced_outer.setSpacing(8)
+
+        self.augment_advanced_toggle = QToolButton()
+        self.augment_advanced_toggle.setObjectName("advancedToggle")
+        self.augment_advanced_toggle.setText("▼ 展开高级增强")
+        self.augment_advanced_toggle.setCheckable(True)
+        self.augment_advanced_toggle.setChecked(False)
+        self.augment_advanced_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        advanced_outer.addWidget(self.augment_advanced_toggle)
+
+        self.augment_advanced_container = QWidget()
+        advanced_layout = QVBoxLayout(self.augment_advanced_container)
+        advanced_layout.setContentsMargins(0, 0, 0, 0)
+        advanced_layout.setSpacing(8)
+
+        hue_row = QWidget()
+        hue_row_layout = QHBoxLayout(hue_row)
+        hue_row_layout.setContentsMargins(0, 0, 0, 0)
+        hue_row_layout.setSpacing(10)
+        self.augment_hue_check = QCheckBox("色相偏移")
+        self.augment_hue_spin = FocusDoubleSpinBox()
+        self.augment_hue_spin.setRange(0.0, 45.0)
+        self.augment_hue_spin.setValue(12.0)
+        self.augment_hue_spin.setSingleStep(1.0)
+        self.augment_hue_spin.setDecimals(1)
+        self.augment_hue_spin.setFixedWidth(100)
+        hue_row_layout.addWidget(self.augment_hue_check)
+        hue_row_layout.addWidget(QLabel("最大偏移"))
+        hue_row_layout.addWidget(self.augment_hue_spin)
+        hue_row_layout.addWidget(QLabel("°"))
+        hue_row_layout.addStretch()
+        advanced_layout.addWidget(hue_row)
+
+        sharpness_row = QWidget()
+        sharpness_row_layout = QHBoxLayout(sharpness_row)
+        sharpness_row_layout.setContentsMargins(0, 0, 0, 0)
+        sharpness_row_layout.setSpacing(10)
+        self.augment_sharpness_check = QCheckBox("锐度")
+        self.augment_sharpness_spin = FocusDoubleSpinBox()
+        self.augment_sharpness_spin.setRange(0.0, 1.5)
+        self.augment_sharpness_spin.setValue(0.40)
+        self.augment_sharpness_spin.setSingleStep(0.05)
+        self.augment_sharpness_spin.setDecimals(2)
+        self.augment_sharpness_spin.setFixedWidth(100)
+        sharpness_row_layout.addWidget(self.augment_sharpness_check)
+        sharpness_row_layout.addWidget(QLabel("幅度 ±"))
+        sharpness_row_layout.addWidget(self.augment_sharpness_spin)
+        sharpness_row_layout.addStretch()
+        advanced_layout.addWidget(sharpness_row)
+
+        blur_row = QWidget()
+        blur_row_layout = QHBoxLayout(blur_row)
+        blur_row_layout.setContentsMargins(0, 0, 0, 0)
+        blur_row_layout.setSpacing(10)
+        self.augment_blur_check = QCheckBox("高斯模糊")
+        self.augment_blur_spin = FocusDoubleSpinBox()
+        self.augment_blur_spin.setRange(0.0, 10.0)
+        self.augment_blur_spin.setValue(1.20)
+        self.augment_blur_spin.setSingleStep(0.1)
+        self.augment_blur_spin.setDecimals(1)
+        self.augment_blur_spin.setFixedWidth(100)
+        blur_row_layout.addWidget(self.augment_blur_check)
+        blur_row_layout.addWidget(QLabel("最大半径"))
+        blur_row_layout.addWidget(self.augment_blur_spin)
+        blur_row_layout.addStretch()
+        advanced_layout.addWidget(blur_row)
+
+        advanced_tip = QLabel(
+            "说明：固定生成会按勾选项稳定导出单项图和组合图；随机生成则按概率抽样，更适合批量扩充。"
+        )
+        advanced_tip.setWordWrap(True)
+        advanced_tip.setObjectName("mutedLabel")
+        advanced_layout.addWidget(advanced_tip)
+
+        self.augment_advanced_container.setVisible(False)
+        advanced_outer.addWidget(self.augment_advanced_container)
+        content_layout.addWidget(advanced_group)
+
+        button_row = QHBoxLayout()
+        button_row.addStretch()
+        self.augment_btn = QPushButton("🧪 开始增强")
+        self.augment_btn.setMinimumHeight(35)
+        self.augment_btn.setMinimumWidth(120)
+        self.augment_btn.setProperty("class", "primary")
+        self.augment_btn.setEnabled(False)
+        button_row.addWidget(self.augment_btn)
+        content_layout.addLayout(button_row)
+        content_layout.addStretch()
+
+        scroll.setWidget(content)
+        tab_layout.addWidget(scroll, 1)
+        self._update_augment_mode_controls()
+        return tab
+
     def _create_split_tab(self) -> QWidget:
         """
         创建划分 Tab (路径区 + 左右分栏布局)
@@ -747,19 +1030,21 @@ class DataWidget(QWidget):
     # ============================================================
     
     def _connect_signals(self) -> None:
-        """连接信号与槽"""
-        # Tab 间路径同步 (实时同步)
+        """??????"""
+        # Tab ????? (????)
         self.stats_path_group.paths_changed.connect(self._sync_paths_from_stats)
         self.edit_path_group.paths_changed.connect(self._sync_paths_from_edit)
+        self.augment_path_group.paths_changed.connect(self._sync_paths_from_augment)
         self.split_path_group.paths_changed.connect(self._sync_paths_from_split)
         self.edit_path_group.paths_changed.connect(self._update_edit_action_states)
+        self.augment_path_group.paths_changed.connect(self._update_augment_action_states)
         self.tab_widget.currentChanged.connect(self._on_sub_tab_changed)
-        
-        # Tab 1 - 统计
+
+        # Tab 1 - ??
         self.scan_btn.clicked.connect(self._on_scan)
         self.categorize_btn.clicked.connect(self._on_categorize)
-        
-        # Tab 2 - 编辑
+
+        # Tab 2 - ??
         self.gen_empty_btn.clicked.connect(self._on_generate_empty)
         self.modify_btn.clicked.connect(self._on_modify_labels)
         self.remove_radio.toggled.connect(self._on_action_changed)
@@ -771,60 +1056,113 @@ class DataWidget(QWidget):
         self.old_name_input.currentTextChanged.connect(self._invalidate_edit_precheck_cache)
         self.new_name_input.currentTextChanged.connect(self._invalidate_edit_precheck_cache)
         self.backup_check.toggled.connect(self._invalidate_edit_precheck_cache)
-        
-        # Tab 3 - 划分
+
+        # Tab 3 - ??
+        self.augment_output_browse_btn.clicked.connect(self._on_browse_augment_output_dir)
+        self.augment_btn.clicked.connect(self._on_augment)
+        self.augment_mode_combo.currentIndexChanged.connect(self._on_augment_mode_changed)
+        self.augment_fixed_single_check.toggled.connect(self._update_augment_action_states)
+        self.augment_fixed_combo_check.toggled.connect(self._update_augment_action_states)
+        self.augment_advanced_toggle.toggled.connect(self._toggle_augment_advanced)
+        self.augment_hflip_check.toggled.connect(self._update_augment_action_states)
+        self.augment_vflip_check.toggled.connect(self._update_augment_action_states)
+        self.augment_rotate_check.toggled.connect(self._update_augment_action_states)
+        self.augment_rotate_random_radio.toggled.connect(self._update_augment_action_states)
+        self.augment_rotate_clockwise_radio.toggled.connect(self._update_augment_action_states)
+        self.augment_rotate_counterclockwise_radio.toggled.connect(self._update_augment_action_states)
+        self.augment_rotate_degrees_spin.valueChanged.connect(self._update_augment_action_states)
+        self.augment_brightness_check.toggled.connect(self._update_augment_action_states)
+        self.augment_brightness_spin.valueChanged.connect(self._update_augment_action_states)
+        self.augment_contrast_check.toggled.connect(self._update_augment_action_states)
+        self.augment_contrast_spin.valueChanged.connect(self._update_augment_action_states)
+        self.augment_color_check.toggled.connect(self._update_augment_action_states)
+        self.augment_color_spin.valueChanged.connect(self._update_augment_action_states)
+        self.augment_noise_check.toggled.connect(self._update_augment_action_states)
+        self.augment_noise_spin.valueChanged.connect(self._update_augment_action_states)
+        self.augment_hue_check.toggled.connect(self._update_augment_action_states)
+        self.augment_hue_spin.valueChanged.connect(self._update_augment_action_states)
+        self.augment_sharpness_check.toggled.connect(self._update_augment_action_states)
+        self.augment_sharpness_spin.valueChanged.connect(self._update_augment_action_states)
+        self.augment_blur_check.toggled.connect(self._update_augment_action_states)
+        self.augment_blur_spin.valueChanged.connect(self._update_augment_action_states)
+
+        # Tab 4 - ??
         self.ratio_slider.valueChanged.connect(self._on_ratio_changed)
         self.output_browse_btn.clicked.connect(self._on_browse_output_dir)
         self.split_btn.clicked.connect(self._on_split)
-        
+
         # YAML panel browse actions
         self.train_browse_btn.clicked.connect(self._on_browse_train)
         self.val_browse_btn.clicked.connect(self._on_browse_val)
         self.yaml_browse_btn.clicked.connect(self._on_browse_yaml)
         self.save_yaml_btn.clicked.connect(self._on_save_yaml)
-        
-        # 取消按钮
+
+        # ????
         self.cancel_btn.clicked.connect(self._on_cancel)
-        
+
         self._refresh_edit_class_options()
         self._update_edit_action_states()
-    
-    # ============================================================
-    # 路径同步
-    # ============================================================
-    
+        self._update_augment_action_states()
+
     def _sync_paths_from_stats(self) -> None:
-        """从统计 Tab 同步路径到其他 Tab"""
+        """??? Tab ??????? Tab"""
         paths = self.stats_path_group.get_all_paths()
+        self.edit_path_group.set_all_paths(paths, emit_signal=False)
+        self.augment_path_group.set_all_paths(paths, emit_signal=False)
+        self.split_path_group.set_all_paths(paths, emit_signal=False)
+        self._invalidate_edit_precheck_cache()
+        self._refresh_edit_class_options()
+        self._update_edit_action_states()
+        self._update_augment_action_states()
+        self._update_default_output_paths(paths.get("image_dir", ""))
+
+    def _sync_paths_from_edit(self) -> None:
+        """??? Tab ??????? Tab"""
+        paths = self.edit_path_group.get_all_paths()
+        self.stats_path_group.set_all_paths(paths, emit_signal=False)
+        self.augment_path_group.set_all_paths(paths, emit_signal=False)
+        self.split_path_group.set_all_paths(paths, emit_signal=False)
+        self._invalidate_edit_precheck_cache()
+        self._refresh_edit_class_options()
+        self._update_edit_action_states()
+        self._update_augment_action_states()
+        self._update_default_output_paths(paths.get("image_dir", ""))
+
+    def _sync_paths_from_augment(self) -> None:
+        """??? Tab ??????? Tab"""
+        paths = self.augment_path_group.get_all_paths()
+        self.stats_path_group.set_all_paths(paths, emit_signal=False)
         self.edit_path_group.set_all_paths(paths, emit_signal=False)
         self.split_path_group.set_all_paths(paths, emit_signal=False)
         self._invalidate_edit_precheck_cache()
         self._refresh_edit_class_options()
         self._update_edit_action_states()
-        # 自动设置输出目录
-        if paths.get("image_dir"):
-            img_path = Path(paths["image_dir"])
-            if img_path.exists():
-                default_output = img_path.parent / f"{img_path.name}_split"
-                self.output_dir_input.setText(str(default_output))
-    
-    def _sync_paths_from_edit(self) -> None:
-        """从编辑 Tab 同步路径到其他 Tab"""
-        paths = self.edit_path_group.get_all_paths()
-        self.stats_path_group.set_all_paths(paths, emit_signal=False)
-        self.split_path_group.set_all_paths(paths, emit_signal=False)
-        self._invalidate_edit_precheck_cache()
-        self._refresh_edit_class_options()
-        self._update_edit_action_states()
-    
+        self._update_augment_action_states()
+        self._update_default_output_paths(paths.get("image_dir", ""))
+
     def _sync_paths_from_split(self) -> None:
-        """从划分 Tab 同步路径到其他 Tab"""
+        """??? Tab ??????? Tab"""
         paths = self.split_path_group.get_all_paths()
         self.stats_path_group.set_all_paths(paths, emit_signal=False)
         self.edit_path_group.set_all_paths(paths, emit_signal=False)
+        self.augment_path_group.set_all_paths(paths, emit_signal=False)
         self._invalidate_edit_precheck_cache()
         self._refresh_edit_class_options()
         self._update_edit_action_states()
+        self._update_augment_action_states()
+        self._update_default_output_paths(paths.get("image_dir", ""))
+
+    def _update_default_output_paths(self, image_dir: str) -> None:
+        """??????????/????????"""
+        if not image_dir:
+            return
+
+        img_path = Path(image_dir)
+        if not img_path.exists():
+            return
+
+        self.output_dir_input.setText(str(img_path.parent / f"{img_path.name}_split"))
+        self.augment_output_input.setText(str(img_path.parent / f"{img_path.name}_augmented"))
 
     def _resolve_dataset_root(
         self,
@@ -841,20 +1179,131 @@ class DataWidget(QWidget):
         return image_dir
 
     def _update_edit_action_states(self) -> None:
-        """根据当前路径和任务状态更新编辑按钮可用性"""
+        """????????????????????"""
         img_path = self.edit_path_group.get_image_dir()
         has_image_dir = bool(img_path and img_path.exists())
         is_busy = bool(self._worker and self._worker.isRunning())
         enabled = has_image_dir and not is_busy
-        
+
         self.gen_empty_btn.setEnabled(enabled)
         self.convert_btn.setEnabled(enabled)
         self.modify_btn.setEnabled(enabled)
 
+    def _update_augment_mode_controls(self) -> None:
+        """Refresh mode-specific augmentation controls."""
+        is_fixed_mode = self.augment_mode_combo.currentIndex() == 1
+        self.augment_fixed_single_check.setEnabled(is_fixed_mode)
+        self.augment_fixed_combo_check.setEnabled(is_fixed_mode)
+        self.augment_count_hint.setText("份 / 每个方案" if is_fixed_mode else "份 / 每次随机采样")
+        self.augment_mode_hint_label.setText(
+            "固定生成：按勾选项稳定输出单项图和组合图，适合稀缺类别补样。"
+            if is_fixed_mode
+            else "随机生成：按启用项随机采样，更适合快速扩充数据量。"
+        )
+
+    def _update_augment_action_states(self) -> None:
+        """Refresh button and control states for augmentation."""
+        img_path = self.augment_path_group.get_image_dir()
+        has_image_dir = bool(img_path and img_path.exists())
+        is_busy = bool(self._worker and self._worker.isRunning())
+        is_fixed_mode = self.augment_mode_combo.currentIndex() == 1
+
+        self._update_augment_mode_controls()
+
+        rotate_enabled = self.augment_rotate_check.isChecked()
+        self.augment_rotate_random_radio.setEnabled(rotate_enabled)
+        self.augment_rotate_clockwise_radio.setEnabled(rotate_enabled)
+        self.augment_rotate_counterclockwise_radio.setEnabled(rotate_enabled)
+        self.augment_rotate_degrees_spin.setEnabled(rotate_enabled)
+
+        toggle_pairs = (
+            (self.augment_brightness_check, self.augment_brightness_spin),
+            (self.augment_contrast_check, self.augment_contrast_spin),
+            (self.augment_color_check, self.augment_color_spin),
+            (self.augment_noise_check, self.augment_noise_spin),
+            (self.augment_hue_check, self.augment_hue_spin),
+            (self.augment_sharpness_check, self.augment_sharpness_spin),
+            (self.augment_blur_check, self.augment_blur_spin),
+        )
+        for checkbox, spin in toggle_pairs:
+            spin.setEnabled(checkbox.isChecked())
+
+        enabled_operations = [
+            self.augment_hflip_check.isChecked(),
+            self.augment_vflip_check.isChecked(),
+            rotate_enabled and self.augment_rotate_degrees_spin.value() > 0,
+            self.augment_brightness_check.isChecked() and self.augment_brightness_spin.value() > 0,
+            self.augment_contrast_check.isChecked() and self.augment_contrast_spin.value() > 0,
+            self.augment_color_check.isChecked() and self.augment_color_spin.value() > 0,
+            self.augment_noise_check.isChecked() and self.augment_noise_spin.value() > 0,
+            self.augment_hue_check.isChecked() and self.augment_hue_spin.value() > 0,
+            self.augment_sharpness_check.isChecked() and self.augment_sharpness_spin.value() > 0,
+            self.augment_blur_check.isChecked() and self.augment_blur_spin.value() > 0,
+        ]
+        has_operation = any(enabled_operations)
+        has_recipe_strategy = True
+        if is_fixed_mode:
+            has_recipe_strategy = (
+                self.augment_fixed_single_check.isChecked()
+                or self.augment_fixed_combo_check.isChecked()
+            )
+        self.augment_btn.setEnabled(
+            has_image_dir and has_operation and has_recipe_strategy and not is_busy
+        )
+
+    def _resolve_augment_config(self) -> AugmentConfig:
+        """Read the augmentation form into a backend config object."""
+        if self.augment_rotate_clockwise_radio.isChecked():
+            rotate_mode = "clockwise"
+        elif self.augment_rotate_counterclockwise_radio.isChecked():
+            rotate_mode = "counterclockwise"
+        else:
+            rotate_mode = "random"
+
+        return AugmentConfig(
+            copies_per_image=self.augment_count_spin.value(),
+            include_original=self.augment_include_original_check.isChecked(),
+            seed=self.augment_seed_spin.value(),
+            mode="fixed" if self.augment_mode_combo.currentIndex() == 1 else "random",
+            fixed_include_individual=self.augment_fixed_single_check.isChecked(),
+            fixed_include_combo=self.augment_fixed_combo_check.isChecked(),
+            enable_horizontal_flip=self.augment_hflip_check.isChecked(),
+            enable_vertical_flip=self.augment_vflip_check.isChecked(),
+            enable_rotate=self.augment_rotate_check.isChecked(),
+            rotate_mode=rotate_mode,
+            rotate_degrees=self.augment_rotate_degrees_spin.value(),
+            enable_brightness=self.augment_brightness_check.isChecked(),
+            brightness_strength=self.augment_brightness_spin.value(),
+            enable_contrast=self.augment_contrast_check.isChecked(),
+            contrast_strength=self.augment_contrast_spin.value(),
+            enable_color=self.augment_color_check.isChecked(),
+            color_strength=self.augment_color_spin.value(),
+            enable_noise=self.augment_noise_check.isChecked(),
+            noise_strength=self.augment_noise_spin.value(),
+            enable_hue=self.augment_hue_check.isChecked(),
+            hue_degrees=self.augment_hue_spin.value(),
+            enable_sharpness=self.augment_sharpness_check.isChecked(),
+            sharpness_strength=self.augment_sharpness_spin.value(),
+            enable_blur=self.augment_blur_check.isChecked(),
+            blur_radius=self.augment_blur_spin.value(),
+        )
+
+    @Slot(int)
+    def _on_augment_mode_changed(self, index: int) -> None:
+        """React to random/fixed mode changes."""
+        self._update_augment_action_states()
+
+    @Slot(bool)
+    def _toggle_augment_advanced(self, checked: bool) -> None:
+        """Show or hide advanced augmentation controls."""
+        self.augment_advanced_container.setVisible(checked)
+        self.augment_advanced_toggle.setText("▲ 收起高级增强" if checked else "▼ 展开高级增强")
+
     @Slot(int)
     def _on_sub_tab_changed(self, index: int) -> None:
-        """子页切换后刷新可用状态"""
+        """???????????"""
         self._update_edit_action_states()
+        self._update_augment_action_states()
 
     def _apply_edit_class_options(self, options: list[str]) -> None:
         """应用修改标签下拉选项并保留当前输入"""
@@ -1229,6 +1678,13 @@ class DataWidget(QWidget):
     # ============================================================
     
     @Slot()
+    def _on_browse_augment_output_dir(self) -> None:
+        """????????"""
+        path = QFileDialog.getExistingDirectory(self, "选择增强输出目录")
+        if path:
+            self.augment_output_input.setText(path)
+
+    @Slot()
     def _on_browse_output_dir(self) -> None:
         """选择输出目录"""
         path = QFileDialog.getExistingDirectory(self, "选择输出目录")
@@ -1531,6 +1987,43 @@ class DataWidget(QWidget):
         self.ratio_label.setText(f"训练: {value}% | 验证: {100 - value}%")
     
     @Slot()
+    def _on_augment(self) -> None:
+        """???????????"""
+        img_path = self.augment_path_group.get_image_dir()
+        if not img_path:
+            self.log_message.emit("请先选择图片目录")
+            return
+
+        if not img_path.exists():
+            self.log_message.emit(f"图片目录不存在: {img_path}")
+            return
+
+        config = self._resolve_augment_config()
+        if not config.has_any_operation():
+            self.log_message.emit("请至少启用一种增强方式")
+            return
+
+        label_path = self.augment_path_group.get_label_dir()
+        classes_txt = self.augment_path_group.get_classes_path()
+        output_dir = self.augment_output_input.text().strip()
+        output_path = Path(output_dir) if output_dir else img_path.parent / f"{img_path.name}_augmented"
+        self.augment_output_input.setText(str(output_path))
+
+        self._start_worker(
+            lambda: self._handler.augment_dataset(
+                img_path,
+                config,
+                label_dir=label_path,
+                output_dir=output_path,
+                classes_txt=classes_txt,
+                interrupt_check=self._worker.is_interrupted if self._worker else lambda: False,
+                progress_callback=self._emit_progress,
+                message_callback=self._emit_message,
+            ),
+            on_finished=self._on_augment_finished,
+        )
+
+    @Slot()
     def _on_split(self) -> None:
         """开始划分数据集"""
         # 从划分 Tab 的 PathInputGroup 读取路径
@@ -1591,6 +2084,14 @@ class DataWidget(QWidget):
             on_finished=self._on_split_finished,
         )
     
+    def _on_augment_finished(self, result: AugmentResult) -> None:
+        """????????"""
+        self.augment_output_input.setText(result.output_dir)
+        total_outputs = result.copied_originals + result.augmented_images
+        self.log_message.emit(
+            f"数据增强完成: 输出 {total_outputs} 张图片，标签 {result.label_files_written} 个"
+        )
+
     def _on_split_finished(self, result: SplitResult) -> None:
         """划分完成回调"""
         self.split_paths = {
@@ -1731,21 +2232,24 @@ class DataWidget(QWidget):
             worker.deleteLater()
     
     def _set_ui_busy(self, busy: bool, *, enable_cancel: bool = True) -> None:
-        """设置 UI 忙碌状态"""
+        """?? UI ????"""
         self.cancel_btn.setEnabled(busy and enable_cancel)
         self.scan_btn.setEnabled(not busy)
         self.categorize_btn.setEnabled(not busy)
+        self.augment_btn.setEnabled(not busy)
         self.split_btn.setEnabled(not busy)
         self.save_yaml_btn.setEnabled(not busy)
-        
+
         if busy:
             self.gen_empty_btn.setEnabled(False)
             self.convert_btn.setEnabled(False)
             self.modify_btn.setEnabled(False)
+            self.augment_btn.setEnabled(False)
         else:
             self._update_edit_action_states()
-        
+            self._update_augment_action_states()
+
         if not busy:
             self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(0)
-            self.status_label.setText("就绪")
+            self.status_label.setText("??")

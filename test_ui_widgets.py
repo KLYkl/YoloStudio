@@ -20,7 +20,7 @@ def test_data_widget():
     widget = DataWidget()
     
     # 捕获每个标签页
-    tab_names = ["统计", "编辑", "划分"]
+    tab_names = ["??", "??", "??", "??"]
     paths = []
     
     for i, tab_name in enumerate(tab_names):
