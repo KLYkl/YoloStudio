@@ -162,7 +162,11 @@ class DataWidget(QWidget):
         content_layout = QHBoxLayout()
         content_layout.setSpacing(15)
         
-        # 统计表格
+        # ========== 左侧: 类别统计 GroupBox ==========
+        stats_group = QGroupBox("类别统计")
+        stats_group_layout = QVBoxLayout(stats_group)
+        stats_group_layout.setContentsMargins(8, 8, 8, 8)
+        
         self.stats_table = QTableWidget()
         self.stats_table.setColumnCount(3)
         self.stats_table.setHorizontalHeaderLabels(["类别名称", "数量", "占比"])
@@ -171,30 +175,19 @@ class DataWidget(QWidget):
         self.stats_table.setAlternatingRowColors(True)
         self.stats_table.verticalHeader().setVisible(False)
         self.stats_table.setShowGrid(False)
-        content_layout.addWidget(self.stats_table, 3)
+        stats_group_layout.addWidget(self.stats_table)
         
-        # 右侧概览 (无边框面板)
-        overview_panel = QFrame()
-        overview_panel.setObjectName("statsOverviewPanel")
-        overview_panel.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        overview_panel.setMinimumWidth(310)
-        overview_panel.setMaximumWidth(350)
+        content_layout.addWidget(stats_group, 3)
         
-        overview_outer = QVBoxLayout(overview_panel)
-        overview_outer.setContentsMargins(0, 0, 0, 0)
-        overview_outer.setSpacing(10)
+        # ========== 右侧: 数据概览 GroupBox ==========
+        overview_group = QGroupBox("数据概览")
+        overview_group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        overview_group.setMinimumWidth(310)
+        overview_group.setMaximumWidth(350)
         
-        # 概览标题
-        overview_title = QLabel("📊 数据概览")
-        overview_title.setObjectName("accentLabel")
-        overview_title.setStyleSheet("font-size: 14px; padding: 4px 0;")
-        overview_outer.addWidget(overview_title)
-        
-        # 分隔线
-        sep = QFrame()
-        sep.setFrameShape(QFrame.Shape.HLine)
-        sep.setObjectName("statsOverviewSep")
-        overview_outer.addWidget(sep)
+        overview_outer = QVBoxLayout(overview_group)
+        overview_outer.setContentsMargins(8, 8, 8, 8)
+        overview_outer.setSpacing(8)
         
         # 卡片网格
         overview_grid = QGridLayout()
@@ -219,7 +212,7 @@ class DataWidget(QWidget):
         overview_outer.addLayout(overview_grid)
         overview_outer.addStretch()
         
-        content_layout.addWidget(overview_panel, 1)
+        content_layout.addWidget(overview_group, 1)
         layout.addLayout(content_layout, 1)
         
         # 按钮区域 (底部)
@@ -361,9 +354,10 @@ class DataWidget(QWidget):
         content_layout = QHBoxLayout()
         content_layout.setSpacing(15)
         
-        # ========== 左列: 两个 GroupBox 垂直堆叠 ==========
-        left_column = QVBoxLayout()
-        left_column.setSpacing(10)
+        # ========== 左列: 标签工具 GroupBox ==========
+        left_group = QGroupBox("标签工具")
+        left_group_layout = QVBoxLayout(left_group)
+        left_group_layout.setSpacing(10)
         
         # ---- GroupBox 1: 生成空标签 ----
         gen_group = QGroupBox("生成空标签")
@@ -392,7 +386,7 @@ class DataWidget(QWidget):
         gen_btn_layout.addWidget(self.gen_empty_btn)
         gen_layout.addLayout(gen_btn_layout)
         
-        left_column.addWidget(gen_group)
+        left_group_layout.addWidget(gen_group)
         
         # ---- GroupBox 2: 格式互转 ----
         convert_group = QGroupBox("格式互转")
@@ -422,9 +416,9 @@ class DataWidget(QWidget):
         convert_btn_layout.addWidget(self.convert_btn)
         convert_layout.addLayout(convert_btn_layout)
         
-        left_column.addWidget(convert_group)
+        left_group_layout.addWidget(convert_group)
         
-        content_layout.addLayout(left_column, 1)  # Flex 1
+        content_layout.addWidget(left_group, 1)  # Flex 1
         
         # ========== 右列: 修改/删除标签 (撑满高度) ==========
         right_group = QGroupBox("修改/删除标签")
@@ -513,16 +507,17 @@ class DataWidget(QWidget):
         content_layout = QHBoxLayout()
         content_layout.setSpacing(15)
         
-        # ========== 左侧: 控制区 (Flex 1) ==========
+        # ========== 左侧: 划分工具 (Flex 1) ==========
         # 使用 QScrollArea 防止内容挤压
         left_scroll = QScrollArea()
         left_scroll.setWidgetResizable(True)
         left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         left_scroll.setFrameShape(QFrame.Shape.NoFrame)
         
-        left_column = QWidget()
-        left_layout = QVBoxLayout(left_column)
-        left_layout.setContentsMargins(0, 0, 0, 0)
+        # 外层大 GroupBox
+        left_group = QGroupBox("划分工具")
+        left_group_layout = QVBoxLayout(left_group)
+        left_group_layout.setSpacing(10)
         
         # --- Group 1: 划分参数 ---
         param_group = QGroupBox("划分参数")
@@ -561,7 +556,7 @@ class DataWidget(QWidget):
         self.ignore_orphans_check.setToolTip("跳过没有对应标签文件的图片")
         param_layout.addWidget(self.ignore_orphans_check)
         
-        left_layout.addWidget(param_group)
+        left_group_layout.addWidget(param_group)
         
         # --- Group 2: 输出策略 ---
         output_group = QGroupBox("输出策略")
@@ -616,10 +611,9 @@ class DataWidget(QWidget):
         btn_row.addWidget(self.split_btn)
         output_layout.addLayout(btn_row)
         
-        left_layout.addWidget(output_group)
-        left_layout.addStretch()
+        left_group_layout.addWidget(output_group)
         
-        left_scroll.setWidget(left_column)
+        left_scroll.setWidget(left_group)
         content_layout.addWidget(left_scroll, 1)  # Flex 1
         
         # YAML panel embedded beside split controls
