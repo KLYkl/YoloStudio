@@ -339,11 +339,22 @@ class DataWidget(QWidget):
             左侧: 两个垂直堆叠的 GroupBox
                 - 生成空标签
                 - 格式互转
-            右侧: 修改/删除标签 (高度撑满)
+            右侧: 修改/删除标签
         """
         tab = QWidget()
         tab_layout = QVBoxLayout(tab)
-        tab_layout.setSpacing(10)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        tab_layout.setSpacing(0)
+        
+        # 用 QScrollArea 包裹所有内容，防止日志面板展开时被压缩
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        
+        scroll_content = QWidget()
+        scroll_layout = QVBoxLayout(scroll_content)
+        scroll_layout.setSpacing(10)
         
         # 路径输入组
         self.edit_path_group = PathInputGroup(
@@ -352,7 +363,7 @@ class DataWidget(QWidget):
             show_classes=True,
             group_title="数据源路径",
         )
-        tab_layout.addWidget(self.edit_path_group)
+        scroll_layout.addWidget(self.edit_path_group)
         
         # 下方内容区 (水平布局)
         content_layout = QHBoxLayout()
@@ -377,7 +388,6 @@ class DataWidget(QWidget):
         
         gen_layout.addWidget(self.empty_txt_radio)
         gen_layout.addWidget(self.empty_xml_radio)
-        gen_layout.addStretch()
         
         # 操作按钮 (右对齐)
         gen_btn_layout = QHBoxLayout()
@@ -406,7 +416,6 @@ class DataWidget(QWidget):
         
         convert_layout.addWidget(self.txt_to_xml_radio)
         convert_layout.addWidget(self.xml_to_txt_radio)
-        convert_layout.addStretch()
         
         # 操作按钮 (右对齐)
         convert_btn_layout = QHBoxLayout()
@@ -421,10 +430,11 @@ class DataWidget(QWidget):
         convert_layout.addLayout(convert_btn_layout)
         
         left_group_layout.addWidget(convert_group)
+        left_group_layout.addStretch()  # 将内容推到顶部
         
         content_layout.addWidget(left_group, 1)  # Flex 1
         
-        # ========== 右列: 修改/删除标签 (撑满高度) ==========
+        # ========== 右列: 修改/删除标签 ==========
         right_group = QGroupBox("修改/删除标签")
         right_layout = QVBoxLayout(right_group)
         
@@ -466,7 +476,7 @@ class DataWidget(QWidget):
         self.backup_check = QCheckBox("修改前备份原文件 (.bak)")
         self.backup_check.setChecked(True)
         right_layout.addWidget(self.backup_check)
-        right_layout.addStretch()
+        right_layout.addStretch()  # 将按钮推到底部
         
         # 操作按钮 (右对齐)
         btn_layout2 = QHBoxLayout()
@@ -481,7 +491,11 @@ class DataWidget(QWidget):
         
         content_layout.addWidget(right_group, 1)  # Flex 1
         
-        tab_layout.addLayout(content_layout, 1)  # 拉伸填充
+        scroll_layout.addLayout(content_layout, 1)  # 拉伸填充
+        
+        # 将内容装入滚动区域
+        scroll_area.setWidget(scroll_content)
+        tab_layout.addWidget(scroll_area)
         
         return tab
     
