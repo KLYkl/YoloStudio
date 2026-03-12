@@ -1,0 +1,395 @@
+"""
+_image_batch.py - ImageBatchProcessor: 图片批量处理器
+============================================
+"""
+
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Any, Optional
+
+import cv2
+import numpy as np
+
+from PySide6.QtCore import QObject, Signal
+
+from core.predict_handler._models import SaveCondition
+from utils.logger import get_logger
+
+
+class ImageBatchProcessor(QObject):
+    """
+    图片批量处理器
+
+    专门用于图片模式的推理处理，支持：
+    - 批量处理多张图片
+    - 按条件保存结果
+    - 翻页浏览已处理的图片
+
+    Signals:
+        progress_updated(int, int): (当前索引, 总数)
+        image_processed(str, list): (图片路径, 检测结果)
+        batch_finished(): 批量处理完成
+        error_occurred(str): 错误消息
+        current_changed(int, int): (当前索引, 已处理总数)
+    """
+
+    progress_updated = Signal(int, int)
+    image_processed = Signal(str, list)
+    batch_finished = Signal()
+    error_occurred = Signal(str)
+    current_changed = Signal(int, int)
+
+    # 支持的图片格式
+    IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif"}
+
+    def __init__(self, parent: Optional[QObject] = None) -> None:
+        super().__init__(parent)
+
+        self._model: Any = None
+        self._conf: float = 0.5
+        self._iou: float = 0.45
+        self._high_conf_threshold: float = 0.7
+
+        # 图片列表
+        self._image_list: list[Path] = []
+
+        # 已处理的图片列表 (按顺序保存)
+        self._processed_list: list[Path] = []
+
+        # 检测结果缓存 {image_path: detections}
+        self._results_cache: dict[Path, list[dict]] = {}
+
+        # 当前浏览索引
+        self._current_index: int = -1
+
+        # 停止和暂停标志
+        self._stop_requested: bool = False
+        self._pause_requested: bool = False
+        self._is_paused: bool = False
+
+        # 保存条件
+        self._save_condition: SaveCondition = SaveCondition.ALL
+
+        self._logger = get_logger()
+
+    def set_model(self, model: Any) -> None:
+        """设置 YOLO 模型实例"""
+        self._model = model
+
+    def update_params(
+        self,
+        conf: float,
+        iou: float,
+        high_conf_threshold: float = 0.7
+    ) -> None:
+        """更新推理参数"""
+        self._conf = conf
+        self._iou = iou
+        self._high_conf_threshold = high_conf_threshold
+
+    def load_images(self, source: str | Path | list[str] | list[Path]) -> int:
+        """加载图片列表"""
+        self._image_list.clear()
+        self._processed_list.clear()
+        self._results_cache.clear()
+        self._current_index = -1
+
+        if isinstance(source, (str, Path)):
+            source_path = Path(source)
+            if source_path.is_dir():
+                for ext in self.IMAGE_EXTENSIONS:
+                    self._image_list.extend(source_path.glob(f"*{ext}"))
+                seen = set()
+                unique_list = []
+                for p in self._image_list:
+                    key = p.resolve()
+                    if key not in seen:
+                        seen.add(key)
+                        unique_list.append(p)
+                unique_list.sort(key=lambda p: p.name.lower())
+                self._image_list = unique_list
+            elif source_path.is_file() and source_path.suffix.lower() in self.IMAGE_EXTENSIONS:
+                self._image_list.append(source_path)
+        elif isinstance(source, list):
+            for p in source:
+                path = Path(p)
+                if path.is_file() and path.suffix.lower() in self.IMAGE_EXTENSIONS:
+                    self._image_list.append(path)
+
+        self._logger.info(f"图片加载完成: {len(self._image_list)} 张")
+        return len(self._image_list)
+
+    @property
+    def image_count(self) -> int:
+        """图片总数"""
+        return len(self._image_list)
+
+    @property
+    def processed_count(self) -> int:
+        """已处理数量"""
+        return len(self._processed_list)
+
+    @property
+    def current_index(self) -> int:
+        """当前浏览索引"""
+        return self._current_index
+
+    @property
+    def is_single_image(self) -> bool:
+        """是否为单张图片模式"""
+        return len(self._image_list) == 1
+
+    def should_save(self, detections: list[dict]) -> bool:
+        """根据保存条件判断是否保存该图片"""
+        if self._save_condition == SaveCondition.ALL:
+            return True
+        elif self._save_condition == SaveCondition.WITH_DETECTIONS:
+            return len(detections) > 0
+        elif self._save_condition == SaveCondition.WITHOUT_DETECTIONS:
+            return len(detections) == 0
+        elif self._save_condition == SaveCondition.HIGH_CONFIDENCE:
+            return any(d.get("confidence", 0) >= self._high_conf_threshold for d in detections)
+        return False
+
+    def process_single(self, index: int = 0) -> tuple[np.ndarray, np.ndarray, list[dict]] | None:
+        """处理单张图片"""
+        if self._model is None:
+            self.error_occurred.emit("模型未加载")
+            return None
+
+        if index < 0 or index >= len(self._image_list):
+            self.error_occurred.emit(f"索引越界: {index}")
+            return None
+
+        image_path = self._image_list[index]
+
+        original = cv2.imread(str(image_path))
+        if original is None:
+            self.error_occurred.emit(f"无法读取图片: {image_path}")
+            return None
+
+        annotated, detections = self._run_inference(original)
+
+        self._results_cache[image_path] = detections
+
+        if image_path not in self._processed_list:
+            self._processed_list.append(image_path)
+            self._current_index = len(self._processed_list) - 1
+
+        self.image_processed.emit(str(image_path), detections)
+        self.current_changed.emit(self._current_index, len(self._processed_list))
+
+        return original, annotated, detections
+
+    def process_all(self, save_condition: SaveCondition = SaveCondition.ALL) -> None:
+        """批量处理所有图片"""
+        if self._model is None:
+            self.error_occurred.emit("模型未加载")
+            return
+
+        self._save_condition = save_condition
+        self._stop_requested = False
+        self._processed_list.clear()
+        self._results_cache.clear()
+        self._current_index = -1
+
+        total = len(self._image_list)
+
+        for i, image_path in enumerate(self._image_list):
+            if self._stop_requested:
+                self._logger.info("批量处理被用户中止")
+                break
+
+            while self._pause_requested:
+                self._is_paused = True
+                import time
+                time.sleep(0.1)
+                if self._stop_requested:
+                    break
+            self._is_paused = False
+
+            original = cv2.imread(str(image_path))
+            if original is None:
+                self._logger.warning(f"无法读取图片: {image_path}")
+                continue
+
+            annotated, detections = self._run_inference(original)
+
+            self._results_cache[image_path] = detections
+
+            if self.should_save(detections):
+                self._processed_list.append(image_path)
+
+            self.progress_updated.emit(i + 1, total)
+            self.image_processed.emit(str(image_path), detections)
+
+        if self._processed_list:
+            self._current_index = 0
+            self.current_changed.emit(0, len(self._processed_list))
+
+        self.batch_finished.emit()
+        self._logger.info(f"批量处理完成: {len(self._processed_list)} / {total} 张已保存")
+
+    def stop(self) -> None:
+        """停止批量处理"""
+        self._stop_requested = True
+        self._pause_requested = False
+
+    def pause(self) -> None:
+        """暂停批量处理"""
+        self._pause_requested = True
+
+    def resume(self) -> None:
+        """继续批量处理"""
+        self._pause_requested = False
+
+    @property
+    def is_paused(self) -> bool:
+        """是否处于暂停状态"""
+        return self._is_paused
+
+    def get_result(
+        self,
+        index: int
+    ) -> tuple[np.ndarray, np.ndarray, list[dict]] | None:
+        """获取已处理图片的结果 (用于翻页浏览)"""
+        if index < 0 or index >= len(self._processed_list):
+            return None
+
+        image_path = self._processed_list[index]
+
+        original = cv2.imread(str(image_path))
+        if original is None:
+            return None
+
+        detections = self._results_cache.get(image_path, [])
+
+        annotated = self._draw_detections(original, detections)
+
+        self._current_index = index
+        self.current_changed.emit(index, len(self._processed_list))
+
+        return original, annotated, detections
+
+    def next(self) -> int:
+        """翻到下一张"""
+        if self._current_index < len(self._processed_list) - 1:
+            self._current_index += 1
+            self.current_changed.emit(self._current_index, len(self._processed_list))
+            return self._current_index
+        return -1
+
+    def prev(self) -> int:
+        """翻到上一张"""
+        if self._current_index > 0:
+            self._current_index -= 1
+            self.current_changed.emit(self._current_index, len(self._processed_list))
+            return self._current_index
+        return -1
+
+    def get_current_image_path(self) -> Path | None:
+        """获取当前图片路径"""
+        if 0 <= self._current_index < len(self._processed_list):
+            return self._processed_list[self._current_index]
+        return None
+
+    def get_image_list(self) -> list[Path]:
+        """获取图片列表"""
+        return self._image_list.copy()
+
+    def get_processed_list(self) -> list[Path]:
+        """获取已处理图片列表"""
+        return self._processed_list.copy()
+
+    def get_detected_list(self) -> list[Path]:
+        """获取有检测结果的图片列表"""
+        return [p for p in self._processed_list if self._results_cache.get(p)]
+
+    def get_empty_list(self) -> list[Path]:
+        """获取无检测结果的图片列表"""
+        return [p for p in self._image_list if not self._results_cache.get(p, None) or len(self._results_cache.get(p, [])) == 0]
+
+    def _run_inference(self, frame: np.ndarray) -> tuple[np.ndarray, list[dict]]:
+        """执行单帧推理"""
+        results = self._model(frame, conf=self._conf, iou=self._iou, verbose=False)
+
+        annotated_frame = results[0].plot()
+
+        detections = []
+        boxes = results[0].boxes
+
+        if boxes is not None and len(boxes) > 0:
+            h, w = frame.shape[:2]
+
+            for i in range(len(boxes)):
+                xyxy = boxes.xyxy[i].cpu().numpy()
+                x1, y1, x2, y2 = xyxy
+
+                x_center = (x1 + x2) / 2 / w
+                y_center = (y1 + y2) / 2 / h
+                box_w = (x2 - x1) / w
+                box_h = (y2 - y1) / h
+
+                class_id = int(boxes.cls[i].cpu().numpy())
+                confidence = float(boxes.conf[i].cpu().numpy())
+                class_name = self._model.names.get(class_id, str(class_id))
+
+                detections.append({
+                    "class_id": class_id,
+                    "class_name": class_name,
+                    "confidence": confidence,
+                    "bbox": [x_center, y_center, box_w, box_h],
+                    "xyxy": [float(x1), float(y1), float(x2), float(y2)],
+                })
+
+        return annotated_frame, detections
+
+    def _draw_detections(
+        self,
+        frame: np.ndarray,
+        detections: list[dict]
+    ) -> np.ndarray:
+        """绘制检测结果"""
+        annotated = frame.copy()
+
+        colors = [
+            (255, 56, 56), (255, 157, 151), (255, 112, 31), (255, 178, 29),
+            (207, 210, 49), (72, 249, 10), (146, 204, 23), (61, 219, 134),
+            (26, 147, 52), (0, 212, 187), (44, 153, 168), (0, 194, 255),
+            (52, 69, 147), (100, 115, 255), (0, 24, 236), (132, 56, 255),
+            (82, 0, 133), (203, 56, 255), (255, 149, 200), (255, 55, 199),
+        ]
+
+        for det in detections:
+            x1, y1, x2, y2 = [int(v) for v in det["xyxy"]]
+            class_name = det["class_name"]
+            confidence = det["confidence"]
+            class_id = det["class_id"]
+
+            color = colors[class_id % len(colors)]
+
+            cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
+
+            label = f"{class_name} {confidence:.2f}"
+            (label_w, label_h), baseline = cv2.getTextSize(
+                label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
+            )
+            cv2.rectangle(
+                annotated,
+                (x1, y1 - label_h - baseline - 4),
+                (x1 + label_w, y1),
+                color,
+                -1
+            )
+            cv2.putText(
+                annotated,
+                label,
+                (x1, y1 - baseline - 2),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                (255, 255, 255),
+                1
+            )
+
+        return annotated

@@ -2,7 +2,7 @@ import shutil
 import uuid
 from pathlib import Path
 
-import core.data_handler as data_handler_module
+import core.data_handler._modify as _modify_module
 from core.data_handler import DataHandler, ModifyAction
 
 
@@ -38,19 +38,19 @@ def test_atomic_text_write_preserves_original_file_on_replace_failure() -> None:
         label_path.write_text("original\n", encoding="utf-8")
 
         handler = DataHandler()
-        original_replace = data_handler_module.os.replace
+        original_replace = _modify_module.os.replace
 
         def failing_replace(src: str, dst: str) -> None:
             raise OSError("replace failed")
 
-        data_handler_module.os.replace = failing_replace
+        _modify_module.os.replace = failing_replace
         try:
             try:
                 handler._write_lines_atomic(label_path, ["changed\n"])
             except OSError:
                 pass
         finally:
-            data_handler_module.os.replace = original_replace
+            _modify_module.os.replace = original_replace
 
         assert label_path.read_text(encoding="utf-8") == "original\n"
         assert list(labels_dir.glob("*.tmp")) == []
