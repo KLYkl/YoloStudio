@@ -504,6 +504,7 @@ class DataWidget(QWidget):
         tab = QWidget()
         tab_layout = QVBoxLayout(tab)
         tab_layout.setSpacing(10)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
 
         self.augment_path_group = PathInputGroup(
             show_image_dir=True,
@@ -762,7 +763,12 @@ class DataWidget(QWidget):
         advanced_outer.addWidget(self.augment_advanced_container)
         content_layout.addWidget(advanced_group)
 
+        scroll.setWidget(content)
+        tab_layout.addWidget(scroll, 1)
+
+        # 固定底栏: 开始增强按钮 (始终可见, 不随滚动)
         button_row = QHBoxLayout()
+        button_row.setContentsMargins(10, 5, 10, 5)
         button_row.addStretch()
         self.augment_btn = QPushButton("🧪 开始增强")
         self.augment_btn.setMinimumHeight(35)
@@ -770,11 +776,8 @@ class DataWidget(QWidget):
         self.augment_btn.setProperty("class", "primary")
         self.augment_btn.setEnabled(False)
         button_row.addWidget(self.augment_btn)
-        content_layout.addLayout(button_row)
-        content_layout.addStretch()
+        tab_layout.addLayout(button_row)
 
-        scroll.setWidget(content)
-        tab_layout.addWidget(scroll, 1)
         self._update_augment_mode_controls()
         return tab
 
@@ -820,10 +823,8 @@ class DataWidget(QWidget):
         param_group = QGroupBox("划分参数")
         param_layout = QVBoxLayout(param_group)
         
-        # 比例滑块
-        param_layout.addWidget(QLabel("划分比例:"))
-        
         ratio_row = QHBoxLayout()
+        ratio_row.addWidget(QLabel("划分比例:"))
         self.ratio_slider = FocusSlider(Qt.Orientation.Horizontal)
         self.ratio_slider.setRange(50, 95)
         self.ratio_slider.setValue(80)
