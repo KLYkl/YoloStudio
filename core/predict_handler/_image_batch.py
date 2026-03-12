@@ -13,7 +13,10 @@ import numpy as np
 
 from PySide6.QtCore import QObject, Signal
 
+from core.predict_handler._inference_utils import run_inference, draw_detections
 from core.predict_handler._models import SaveCondition
+from utils.constants import IMAGE_EXTENSIONS
+from utils.file_utils import discover_files
 from utils.logger import get_logger
 
 
@@ -40,8 +43,7 @@ class ImageBatchProcessor(QObject):
     error_occurred = Signal(str)
     current_changed = Signal(int, int)
 
-    # 支持的图片格式
-    IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tiff", ".tif"}
+
 
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
@@ -95,27 +97,7 @@ class ImageBatchProcessor(QObject):
         self._results_cache.clear()
         self._current_index = -1
 
-        if isinstance(source, (str, Path)):
-            source_path = Path(source)
-            if source_path.is_dir():
-                for ext in self.IMAGE_EXTENSIONS:
-                    self._image_list.extend(source_path.glob(f"*{ext}"))
-                seen = set()
-                unique_list = []
-                for p in self._image_list:
-                    key = p.resolve()
-                    if key not in seen:
-                        seen.add(key)
-                        unique_list.append(p)
-                unique_list.sort(key=lambda p: p.name.lower())
-                self._image_list = unique_list
-            elif source_path.is_file() and source_path.suffix.lower() in self.IMAGE_EXTENSIONS:
-                self._image_list.append(source_path)
-        elif isinstance(source, list):
-            for p in source:
-                path = Path(p)
-                if path.is_file() and path.suffix.lower() in self.IMAGE_EXTENSIONS:
-                    self._image_list.append(path)
+        self._image_list = discover_files(source, IMAGE_EXTENSIONS)
 
         self._logger.info(f"图片加载完成: {len(self._image_list)} 张")
         return len(self._image_list)
@@ -169,7 +151,7 @@ class ImageBatchProcessor(QObject):
             self.error_occurred.emit(f"无法读取图片: {image_path}")
             return None
 
-        annotated, detections = self._run_inference(original)
+        annotated, detections = run_inference(self._model, original, self._conf, self._iou)
 
         self._results_cache[image_path] = detections
 
@@ -214,7 +196,7 @@ class ImageBatchProcessor(QObject):
                 self._logger.warning(f"无法读取图片: {image_path}")
                 continue
 
-            annotated, detections = self._run_inference(original)
+            annotated, detections = run_inference(self._model, original, self._conf, self._iou)
 
             self._results_cache[image_path] = detections
 
@@ -265,7 +247,7 @@ class ImageBatchProcessor(QObject):
 
         detections = self._results_cache.get(image_path, [])
 
-        annotated = self._draw_detections(original, detections)
+        annotated = draw_detections(original, detections)
 
         self._current_index = index
         self.current_changed.emit(index, len(self._processed_list))
@@ -310,86 +292,4 @@ class ImageBatchProcessor(QObject):
         """获取无检测结果的图片列表"""
         return [p for p in self._image_list if not self._results_cache.get(p, None) or len(self._results_cache.get(p, [])) == 0]
 
-    def _run_inference(self, frame: np.ndarray) -> tuple[np.ndarray, list[dict]]:
-        """执行单帧推理"""
-        results = self._model(frame, conf=self._conf, iou=self._iou, verbose=False)
 
-        annotated_frame = results[0].plot()
-
-        detections = []
-        boxes = results[0].boxes
-
-        if boxes is not None and len(boxes) > 0:
-            h, w = frame.shape[:2]
-
-            for i in range(len(boxes)):
-                xyxy = boxes.xyxy[i].cpu().numpy()
-                x1, y1, x2, y2 = xyxy
-
-                x_center = (x1 + x2) / 2 / w
-                y_center = (y1 + y2) / 2 / h
-                box_w = (x2 - x1) / w
-                box_h = (y2 - y1) / h
-
-                class_id = int(boxes.cls[i].cpu().numpy())
-                confidence = float(boxes.conf[i].cpu().numpy())
-                class_name = self._model.names.get(class_id, str(class_id))
-
-                detections.append({
-                    "class_id": class_id,
-                    "class_name": class_name,
-                    "confidence": confidence,
-                    "bbox": [x_center, y_center, box_w, box_h],
-                    "xyxy": [float(x1), float(y1), float(x2), float(y2)],
-                })
-
-        return annotated_frame, detections
-
-    def _draw_detections(
-        self,
-        frame: np.ndarray,
-        detections: list[dict]
-    ) -> np.ndarray:
-        """绘制检测结果"""
-        annotated = frame.copy()
-
-        colors = [
-            (255, 56, 56), (255, 157, 151), (255, 112, 31), (255, 178, 29),
-            (207, 210, 49), (72, 249, 10), (146, 204, 23), (61, 219, 134),
-            (26, 147, 52), (0, 212, 187), (44, 153, 168), (0, 194, 255),
-            (52, 69, 147), (100, 115, 255), (0, 24, 236), (132, 56, 255),
-            (82, 0, 133), (203, 56, 255), (255, 149, 200), (255, 55, 199),
-        ]
-
-        for det in detections:
-            x1, y1, x2, y2 = [int(v) for v in det["xyxy"]]
-            class_name = det["class_name"]
-            confidence = det["confidence"]
-            class_id = det["class_id"]
-
-            color = colors[class_id % len(colors)]
-
-            cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
-
-            label = f"{class_name} {confidence:.2f}"
-            (label_w, label_h), baseline = cv2.getTextSize(
-                label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
-            )
-            cv2.rectangle(
-                annotated,
-                (x1, y1 - label_h - baseline - 4),
-                (x1 + label_w, y1),
-                color,
-                -1
-            )
-            cv2.putText(
-                annotated,
-                label,
-                (x1, y1 - baseline - 2),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (255, 255, 255),
-                1
-            )
-
-        return annotated

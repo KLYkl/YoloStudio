@@ -15,6 +15,10 @@ import cv2
 
 from PySide6.QtCore import QObject, Signal
 
+from core.predict_handler._inference_utils import run_inference
+from utils.constants import VIDEO_EXTENSIONS
+from utils.file_utils import discover_files
+from utils.label_writer import write_voc_xml, write_yolo_txt_from_xyxy
 from utils.logger import get_logger
 
 
@@ -45,8 +49,7 @@ class VideoBatchProcessor(QObject):
     batch_finished = Signal()
     error_occurred = Signal(str)
 
-    # 支持的视频格式
-    VIDEO_EXTENSIONS = {".mp4", ".avi", ".mkv", ".mov", ".wmv", ".flv", ".webm"}
+
 
     def __init__(self, parent: Optional[QObject] = None) -> None:
         super().__init__(parent)
@@ -119,27 +122,7 @@ class VideoBatchProcessor(QObject):
         self._video_stats.clear()
         self._current_index = -1
 
-        if isinstance(source, (str, Path)):
-            source_path = Path(source)
-            if source_path.is_dir():
-                for ext in self.VIDEO_EXTENSIONS:
-                    self._video_list.extend(source_path.glob(f"*{ext}"))
-                seen = set()
-                unique_list = []
-                for p in self._video_list:
-                    key = p.resolve()
-                    if key not in seen:
-                        seen.add(key)
-                        unique_list.append(p)
-                unique_list.sort(key=lambda p: p.name.lower())
-                self._video_list = unique_list
-            elif source_path.is_file() and source_path.suffix.lower() in self.VIDEO_EXTENSIONS:
-                self._video_list.append(source_path)
-        elif isinstance(source, list):
-            for p in source:
-                path = Path(p)
-                if path.is_file() and path.suffix.lower() in self.VIDEO_EXTENSIONS:
-                    self._video_list.append(path)
+        self._video_list = discover_files(source, VIDEO_EXTENSIONS)
 
         self._logger.info(f"视频加载完成: {len(self._video_list)} 个")
         return len(self._video_list)
@@ -280,26 +263,11 @@ class VideoBatchProcessor(QObject):
                 if not ret:
                     break
 
-                results = self._model(frame, conf=self._conf, iou=self._iou, verbose=False)
-                annotated_frame = results[0].plot()
+                annotated_frame, detections = run_inference(
+                    self._model, frame, self._conf, self._iou, include_bbox=False
+                )
 
-                boxes = results[0].boxes
-                detections = []
-
-                if boxes is not None and len(boxes) > 0:
-                    for j in range(len(boxes)):
-                        xyxy = boxes.xyxy[j].cpu().numpy()
-                        class_id = int(boxes.cls[j].cpu().numpy())
-                        confidence = float(boxes.conf[j].cpu().numpy())
-                        class_name = self._model.names.get(class_id, str(class_id))
-
-                        detections.append({
-                            "class_id": class_id,
-                            "class_name": class_name,
-                            "confidence": confidence,
-                            "xyxy": [float(x) for x in xyxy],
-                        })
-
+                if detections:
                     stats["detection_count/检测数量"] += len(detections)
 
                 if video_writer:
@@ -327,19 +295,13 @@ class VideoBatchProcessor(QObject):
 
                             # YOLO TXT
                             label_path = raw_labels_dir / f"{frame_name}.txt"
-                            with open(label_path, "w", encoding="utf-8") as f:
-                                for d in detections:
-                                    cid = d["class_id"]
-                                    x1, y1, x2, y2 = d["xyxy"]
-                                    xc = (x1 + x2) / 2 / w_frame
-                                    yc = (y1 + y2) / 2 / h_frame
-                                    bw = (x2 - x1) / w_frame
-                                    bh = (y2 - y1) / h_frame
-                                    f.write(f"{cid} {xc:.6f} {yc:.6f} {bw:.6f} {bh:.6f}\n")
+                            write_yolo_txt_from_xyxy(
+                                label_path, detections, w_frame, h_frame
+                            )
 
                             # VOC XML
                             if raw_labels_voc_dir:
-                                self._write_voc_xml(
+                                write_voc_xml(
                                     raw_labels_voc_dir / f"{frame_name}.xml",
                                     frame_name, w_frame, h_frame, detections
                                 )
@@ -387,42 +349,8 @@ class VideoBatchProcessor(QObject):
         """获取所有视频的统计数据"""
         return {str(k): v for k, v in self._video_stats.items()}
 
-    def _write_voc_xml(
-        self, xml_path: Path, image_name: str,
-        width: int, height: int, detections: list[dict]
-    ) -> None:
-        """写入 VOC XML 格式标签"""
-        xml_lines = [
-            '<?xml version="1.0" encoding="UTF-8"?>',
-            '<annotation>',
-            f'    <filename>{image_name}.jpg</filename>',
-            '    <size>',
-            f'        <width>{width}</width>',
-            f'        <height>{height}</height>',
-            '        <depth>3</depth>',
-            '    </size>',
-        ]
-        for det in detections:
-            name = det.get("class_name", "unknown")
-            xyxy = det.get("xyxy", [0, 0, 0, 0])
-            x1, y1, x2, y2 = [int(v) for v in xyxy]
-            xml_lines.extend([
-                '    <object>',
-                f'        <name>{name}</name>',
-                '        <pose>Unspecified</pose>',
-                '        <truncated>0</truncated>',
-                '        <difficult>0</difficult>',
-                '        <bndbox>',
-                f'            <xmin>{x1}</xmin>',
-                f'            <ymin>{y1}</ymin>',
-                f'            <xmax>{x2}</xmax>',
-                f'            <ymax>{y2}</ymax>',
-                '        </bndbox>',
-                '    </object>',
-            ])
-        xml_lines.append('</annotation>')
-        with open(xml_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(xml_lines))
+
+
 
     def generate_batch_report(self) -> Path | None:
         """生成批量处理汇总报告"""

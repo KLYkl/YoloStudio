@@ -22,6 +22,8 @@ except ImportError:
 
 from PySide6.QtCore import QObject, Signal, Slot
 
+from core.predict_handler._inference_utils import run_inference, draw_detections
+
 from core.predict_handler._models import InputSourceType, PlaybackState
 from utils.logger import get_logger
 
@@ -199,7 +201,7 @@ class PredictWorker(QObject):
         with self._params_lock:
             conf, iou = self._conf, self._iou
 
-        annotated_frame, detections = self._run_inference(frame, conf, iou)
+        annotated_frame, detections = run_inference(self._model, frame, conf, iou)
         self.frame_ready.emit(annotated_frame, frame, detections)
 
         self.stats_updated.emit({
@@ -256,12 +258,12 @@ class PredictWorker(QObject):
                         if ret:
                             if target in self._detection_cache:
                                 detections = self._detection_cache[target]
-                                annotated_frame = self._draw_cached_detections(frame, detections)
+                                annotated_frame = draw_detections(frame, detections)
                                 self._logger.debug(f"缓存命中: 帧 {target}")
                             else:
                                 with self._params_lock:
                                     conf, iou = self._conf, self._iou
-                                annotated_frame, detections = self._run_inference(frame, conf, iou)
+                                annotated_frame, detections = run_inference(self._model, frame, conf, iou)
                                 self._detection_cache[target] = detections
                             self.frame_ready.emit(annotated_frame, frame, detections)
                             self.progress_updated.emit(self._current_frame, self._total_frames)
@@ -285,7 +287,7 @@ class PredictWorker(QObject):
                                 if ret:
                                     with self._params_lock:
                                         conf, iou = self._conf, self._iou
-                                    annotated_frame, detections = self._run_inference(frame, conf, iou)
+                                    annotated_frame, detections = run_inference(self._model, frame, conf, iou)
                                     self._detection_cache[self._current_frame] = detections
                                     self.frame_ready.emit(annotated_frame, frame, detections)
                                     self.progress_updated.emit(self._current_frame, self._total_frames)
@@ -307,7 +309,7 @@ class PredictWorker(QObject):
                 with self._params_lock:
                     conf, iou = self._conf, self._iou
 
-                annotated_frame, detections = self._run_inference(frame, conf, iou)
+                annotated_frame, detections = run_inference(self._model, frame, conf, iou)
 
                 if is_video_file:
                     self._detection_cache[self._current_frame] = detections
@@ -374,7 +376,7 @@ class PredictWorker(QObject):
                     with self._params_lock:
                         conf, iou = self._conf, self._iou
 
-                    annotated_frame, detections = self._run_inference(frame, conf, iou)
+                    annotated_frame, detections = run_inference(self._model, frame, conf, iou)
 
                     frame_count += 1
                     fps_frame_count += 1
@@ -400,95 +402,4 @@ class PredictWorker(QObject):
             self._playback_state = PlaybackState.IDLE
             self.state_changed.emit(PlaybackState.IDLE.value)
 
-    def _run_inference(
-        self,
-        frame: np.ndarray,
-        conf: float,
-        iou: float
-    ) -> tuple[np.ndarray, list[dict]]:
-        """执行单帧推理"""
-        results = self._model(frame, conf=conf, iou=iou, verbose=False)
 
-        annotated_frame = results[0].plot()
-
-        detections = []
-        boxes = results[0].boxes
-
-        if boxes is not None and len(boxes) > 0:
-            h, w = frame.shape[:2]
-
-            for i in range(len(boxes)):
-                xyxy = boxes.xyxy[i].cpu().numpy()
-                x1, y1, x2, y2 = xyxy
-
-                x_center = (x1 + x2) / 2 / w
-                y_center = (y1 + y2) / 2 / h
-                box_w = (x2 - x1) / w
-                box_h = (y2 - y1) / h
-
-                class_id = int(boxes.cls[i].cpu().numpy())
-                confidence = float(boxes.conf[i].cpu().numpy())
-                class_name = self._model.names.get(class_id, str(class_id))
-
-                detections.append({
-                    "class_id": class_id,
-                    "class_name": class_name,
-                    "confidence": confidence,
-                    "bbox": [x_center, y_center, box_w, box_h],
-                    "xyxy": [x1, y1, x2, y2],
-                })
-
-        return annotated_frame, detections
-
-    def _draw_cached_detections(
-        self,
-        frame: np.ndarray,
-        detections: list[dict]
-    ) -> np.ndarray:
-        """从缓存的检测结果绘制边界框"""
-        annotated = frame.copy()
-
-        for det in detections:
-            x1, y1, x2, y2 = [int(v) for v in det["xyxy"]]
-            class_name = det["class_name"]
-            confidence = det["confidence"]
-            class_id = det["class_id"]
-
-            color = self._get_class_color(class_id)
-
-            cv2.rectangle(annotated, (x1, y1), (x2, y2), color, 2)
-
-            label = f"{class_name} {confidence:.2f}"
-            (label_w, label_h), baseline = cv2.getTextSize(
-                label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1
-            )
-            cv2.rectangle(
-                annotated,
-                (x1, y1 - label_h - baseline - 4),
-                (x1 + label_w, y1),
-                color,
-                -1
-            )
-
-            cv2.putText(
-                annotated,
-                label,
-                (x1, y1 - baseline - 2),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                (255, 255, 255),
-                1
-            )
-
-        return annotated
-
-    def _get_class_color(self, class_id: int) -> tuple[int, int, int]:
-        """获取类别对应的颜色"""
-        colors = [
-            (255, 56, 56), (255, 157, 151), (255, 112, 31), (255, 178, 29),
-            (207, 210, 49), (72, 249, 10), (146, 204, 23), (61, 219, 134),
-            (26, 147, 52), (0, 212, 187), (44, 153, 168), (0, 194, 255),
-            (52, 69, 147), (100, 115, 255), (0, 24, 236), (132, 56, 255),
-            (82, 0, 133), (203, 56, 255), (255, 149, 200), (255, 55, 199),
-        ]
-        return colors[class_id % len(colors)]

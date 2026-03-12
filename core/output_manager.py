@@ -24,33 +24,9 @@ import numpy as np
 
 from PySide6.QtCore import QObject, Signal
 
+from utils.file_utils import get_unique_dir
+from utils.label_writer import write_voc_xml, write_yolo_txt
 
-def _get_unique_dir(base_path: Path) -> Path:
-    """
-    获取唯一的目录路径，如果目录已存在则添加数字后缀
-    
-    例如:
-        - my_dir -> my_dir (如果不存在)
-        - my_dir -> my_dir(1) (如果 my_dir 已存在)
-    
-    Args:
-        base_path: 基础目录路径
-    
-    Returns:
-        唯一的目录路径
-    """
-    if not base_path.exists():
-        return base_path
-    
-    parent = base_path.parent
-    name = base_path.name
-    
-    counter = 1
-    while True:
-        new_path = parent / f"{name}({counter})"
-        if not new_path.exists():
-            return new_path
-        counter += 1
 
 class OutputManager(QObject):
     """
@@ -96,7 +72,7 @@ class OutputManager(QObject):
             path = Path(output_dir)
             # 仅当 allow_existing=False 且目录已存在时，才添加数字后缀
             if not allow_existing:
-                path = _get_unique_dir(path)
+                path = get_unique_dir(path)
             self._output_dir = path
             self._output_dir.mkdir(parents=True, exist_ok=True)
             return True
@@ -234,16 +210,11 @@ class OutputManager(QObject):
                 
                 # 保存 YOLO TXT 格式标签
                 yolo_label_path = labels_yolo_dir / f"{base_name}.txt"
-                with open(yolo_label_path, "w", encoding="utf-8") as f:
-                    for det in detections:
-                        class_id = det.get("class_id", 0)
-                        bbox = det.get("bbox", [0.5, 0.5, 0.1, 0.1])
-                        line = f"{class_id} {bbox[0]:.6f} {bbox[1]:.6f} {bbox[2]:.6f} {bbox[3]:.6f}\n"
-                        f.write(line)
+                write_yolo_txt(yolo_label_path, detections)
                 
                 # 保存 VOC XML 格式标签
                 voc_label_path = labels_voc_dir / f"{base_name}.xml"
-                self._write_voc_xml(voc_label_path, base_name, w, h, detections)
+                write_voc_xml(voc_label_path, base_name, w, h, detections)
                 
                 self.file_saved.emit(str(raw_path))
             
@@ -408,8 +379,10 @@ class OutputManager(QObject):
             
             # 生成标签文件
             if save_labels and detections:
-                self._save_yolo_txt(image_name, detections)
-                self._save_voc_xml(image_name, detections, image_size)
+                txt_path = self._output_dir / "labels_txt" / f"{image_name}.txt"
+                write_yolo_txt(txt_path, detections)
+                xml_path = self._output_dir / "labels_xml" / f"{image_name}.xml"
+                write_voc_xml(xml_path, image_name, image_size[0], image_size[1], detections)
             
             # 更新类别统计
             for det in detections:
@@ -422,123 +395,7 @@ class OutputManager(QObject):
             self.error_occurred.emit(f"保存图片结果失败: {e}")
             return False
     
-    def _save_yolo_txt(self, image_name: str, detections: list[dict]) -> None:
-        """保存 YOLO TXT 格式标签"""
-        if self._output_dir is None:
-            return
-        
-        label_path = self._output_dir / "labels_txt" / f"{image_name}.txt"
-        
-        with open(label_path, "w", encoding="utf-8") as f:
-            for det in detections:
-                class_id = det.get("class_id", 0)
-                bbox = det.get("bbox", [0.5, 0.5, 0.1, 0.1])
-                line = f"{class_id} {bbox[0]:.6f} {bbox[1]:.6f} {bbox[2]:.6f} {bbox[3]:.6f}\n"
-                f.write(line)
-    
-    def _save_voc_xml(
-        self, 
-        image_name: str, 
-        detections: list[dict],
-        image_size: tuple[int, int]
-    ) -> None:
-        """保存 VOC XML 格式标签"""
-        if self._output_dir is None:
-            return
-        
-        width, height = image_size
-        xml_path = self._output_dir / "labels_xml" / f"{image_name}.xml"
-        
-        # 构建 XML 内容
-        xml_lines = [
-            '<?xml version="1.0" encoding="UTF-8"?>',
-            '<annotation>',
-            f'    <filename>{image_name}.jpg</filename>',
-            '    <size>',
-            f'        <width>{width}</width>',
-            f'        <height>{height}</height>',
-            '        <depth>3</depth>',
-            '    </size>',
-        ]
-        
-        for det in detections:
-            class_name = det.get("class_name", "unknown")
-            xyxy = det.get("xyxy", [0, 0, 0, 0])
-            x1, y1, x2, y2 = [int(v) for v in xyxy]
-            
-            xml_lines.extend([
-                '    <object>',
-                f'        <name>{class_name}</name>',
-                '        <pose>Unspecified</pose>',
-                '        <truncated>0</truncated>',
-                '        <difficult>0</difficult>',
-                '        <bndbox>',
-                f'            <xmin>{x1}</xmin>',
-                f'            <ymin>{y1}</ymin>',
-                f'            <xmax>{x2}</xmax>',
-                f'            <ymax>{y2}</ymax>',
-                '        </bndbox>',
-                '    </object>',
-            ])
-        
-        xml_lines.append('</annotation>')
-        
-        with open(xml_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(xml_lines))
-    
-    def _write_voc_xml(
-        self,
-        xml_path: Path,
-        image_name: str,
-        width: int,
-        height: int,
-        detections: list[dict]
-    ) -> None:
-        """
-        写入 VOC XML 格式标签到指定路径
-        
-        Args:
-            xml_path: XML 文件路径
-            image_name: 图片文件名（不含扩展名）
-            width: 图片宽度
-            height: 图片高度
-            detections: 检测结果列表
-        """
-        xml_lines = [
-            '<?xml version="1.0" encoding="UTF-8"?>',
-            '<annotation>',
-            f'    <filename>{image_name}.jpg</filename>',
-            '    <size>',
-            f'        <width>{width}</width>',
-            f'        <height>{height}</height>',
-            '        <depth>3</depth>',
-            '    </size>',
-        ]
-        
-        for det in detections:
-            class_name = det.get("class_name", "unknown")
-            xyxy = det.get("xyxy", [0, 0, 0, 0])
-            x1, y1, x2, y2 = [int(v) for v in xyxy]
-            
-            xml_lines.extend([
-                '    <object>',
-                f'        <name>{class_name}</name>',
-                '        <pose>Unspecified</pose>',
-                '        <truncated>0</truncated>',
-                '        <difficult>0</difficult>',
-                '        <bndbox>',
-                f'            <xmin>{x1}</xmin>',
-                f'            <ymin>{y1}</ymin>',
-                f'            <xmax>{x2}</xmax>',
-                f'            <ymax>{y2}</ymax>',
-                '        </bndbox>',
-                '    </object>',
-            ])
-        
-        xml_lines.append('</annotation>')
-        
-        with open(xml_path, "w", encoding="utf-8") as f:
-            f.write("\n".join(xml_lines))
+
     
     def save_path_list(
         self,

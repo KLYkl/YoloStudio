@@ -12,50 +12,10 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Optional
 
-
-# ============================================================
-# 常量定义
-# ============================================================
-
-# 支持的图片格式
-IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
-
-# 支持的标签格式
-LABEL_EXTENSIONS = {".txt", ".xml"}
+from utils.constants import IMAGE_EXTENSIONS, LABEL_EXTENSIONS  # noqa: F401
+from utils.file_utils import get_unique_dir as _get_unique_dir  # noqa: F401
 
 
-# ============================================================
-# 辅助函数
-# ============================================================
-
-def _get_unique_dir(base_path: Path) -> Path:
-    """
-    获取唯一的目录路径，如果目录已存在则添加数字后缀
-
-    例如:
-        - my_dir -> my_dir (如果不存在)
-        - my_dir -> my_dir(1) (如果 my_dir 已存在)
-        - my_dir -> my_dir(2) (如果 my_dir 和 my_dir(1) 都已存在)
-
-    Args:
-        base_path: 基础目录路径
-
-    Returns:
-        唯一的目录路径
-    """
-    if not base_path.exists():
-        return base_path
-
-    # 目录已存在，添加数字后缀
-    parent = base_path.parent
-    name = base_path.name
-
-    counter = 1
-    while True:
-        new_path = parent / f"{name}({counter})"
-        if not new_path.exists():
-            return new_path
-        counter += 1
 
 
 # ============================================================
