@@ -360,5 +360,7 @@ class MainWindow(QMainWindow):
         
         self.log_manager.info("YoloStudio 正在关闭...")
         
+        # 显式关闭子模块，触发各自的 closeEvent 清理
+        self.train_widget.close()
+        
         event.accept()
-
