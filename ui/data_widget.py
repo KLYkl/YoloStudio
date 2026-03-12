@@ -1044,8 +1044,8 @@ class DataWidget(QWidget):
     # ============================================================
     
     def _connect_signals(self) -> None:
-        """??????"""
-        # Tab ????? (????)
+        """连接所有信号与槽"""
+        # Tab 间路径同步 (任一修改同步全部)
         self.stats_path_group.paths_changed.connect(self._sync_paths_from_stats)
         self.edit_path_group.paths_changed.connect(self._sync_paths_from_edit)
         self.augment_path_group.paths_changed.connect(self._sync_paths_from_augment)
@@ -1054,11 +1054,11 @@ class DataWidget(QWidget):
         self.augment_path_group.paths_changed.connect(self._update_augment_action_states)
         self.tab_widget.currentChanged.connect(self._on_sub_tab_changed)
 
-        # Tab 1 - ??
+        # Tab 1 - 统计
         self.scan_btn.clicked.connect(self._on_scan)
         self.categorize_btn.clicked.connect(self._on_categorize)
 
-        # Tab 2 - ??
+        # Tab 2 - 编辑
         self.gen_empty_btn.clicked.connect(self._on_generate_empty)
         self.modify_btn.clicked.connect(self._on_modify_labels)
         self.remove_radio.toggled.connect(self._on_action_changed)
@@ -1071,7 +1071,7 @@ class DataWidget(QWidget):
         self.new_name_input.currentTextChanged.connect(self._invalidate_edit_precheck_cache)
         self.backup_check.toggled.connect(self._invalidate_edit_precheck_cache)
 
-        # Tab 3 - ??
+        # Tab 3 - 增强
         self.augment_output_browse_btn.clicked.connect(self._on_browse_augment_output_dir)
         self.augment_btn.clicked.connect(self._on_augment)
         self.augment_mode_combo.currentIndexChanged.connect(self._on_augment_mode_changed)
@@ -1100,7 +1100,7 @@ class DataWidget(QWidget):
         self.augment_blur_check.toggled.connect(self._update_augment_action_states)
         self.augment_blur_spin.valueChanged.connect(self._update_augment_action_states)
 
-        # Tab 4 - ??
+        # Tab 4 - 划分
         self.ratio_slider.valueChanged.connect(self._on_ratio_changed)
         self.output_browse_btn.clicked.connect(self._on_browse_output_dir)
         self.split_btn.clicked.connect(self._on_split)
@@ -1111,7 +1111,7 @@ class DataWidget(QWidget):
         self.yaml_browse_btn.clicked.connect(self._on_browse_yaml)
         self.save_yaml_btn.clicked.connect(self._on_save_yaml)
 
-        # ????
+        # 取消按钮
         self.cancel_btn.clicked.connect(self._on_cancel)
 
         self._refresh_edit_class_options()

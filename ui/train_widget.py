@@ -84,6 +84,13 @@ class TrainWidget(QWidget):
         main_layout.setContentsMargins(10, 10, 10, 10)
         
         # ========== 左侧: 配置面板 ==========
+        # 外层容器: 滚动区 + 固定底栏 (命令预览 + 按钮始终可见)
+        left_panel = QWidget()
+        left_panel_layout = QVBoxLayout(left_panel)
+        left_panel_layout.setContentsMargins(0, 0, 0, 0)
+        left_panel_layout.setSpacing(8)
+        
+        # 滚动区域 (参数配置)
         left_scroll = QScrollArea()
         left_scroll.setWidgetResizable(True)
         left_scroll.setFrameShape(QFrame.Shape.NoFrame)
@@ -461,8 +468,12 @@ class TrainWidget(QWidget):
         advanced_outer.addWidget(self.advanced_container)
         
         left_layout.addWidget(advanced_group)
+        left_layout.addStretch()
         
-        # --- Group 5: 命令预览 ---
+        left_scroll.setWidget(left_container)
+        left_panel_layout.addWidget(left_scroll, 1)  # 滚动区域占满剩余空间
+        
+        # --- 固定底栏: 命令预览 + 操作按钮 (始终可见, 不随滚动) ---
         cmd_group = QGroupBox("命令预览 (可编辑)")
         cmd_layout = QVBoxLayout(cmd_group)
         
@@ -471,9 +482,8 @@ class TrainWidget(QWidget):
         self.command_preview.setPlaceholderText("训练命令将在这里生成...")
         cmd_layout.addWidget(self.command_preview)
         
-        left_layout.addWidget(cmd_group)
+        left_panel_layout.addWidget(cmd_group)
         
-        # --- Group 6: 操作按钮 ---
         action_layout = QHBoxLayout()
         action_layout.addStretch()
         
@@ -488,11 +498,9 @@ class TrainWidget(QWidget):
         self.start_btn.setProperty("class", "primary")
         action_layout.addWidget(self.start_btn)
         
-        left_layout.addLayout(action_layout)
-        left_layout.addStretch()
+        left_panel_layout.addLayout(action_layout)
         
-        left_scroll.setWidget(left_container)
-        main_layout.addWidget(left_scroll, 1)
+        main_layout.addWidget(left_panel, 1)
         
         # ========== 右侧: 终端监视器 ==========
         right_layout = QVBoxLayout()
