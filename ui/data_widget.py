@@ -430,9 +430,8 @@ class DataWidget(QWidget):
         convert_layout.addLayout(convert_btn_layout)
         
         left_group_layout.addWidget(convert_group)
-        left_group_layout.addStretch()  # 将内容推到顶部
         
-        content_layout.addWidget(left_group, 1)  # Flex 1
+        content_layout.addWidget(left_group, 1, Qt.AlignmentFlag.AlignTop)  # Flex 1, 顶部对齐
         
         # ========== 右列: 修改/删除标签 ==========
         right_group = QGroupBox("修改/删除标签")
@@ -476,7 +475,7 @@ class DataWidget(QWidget):
         self.backup_check = QCheckBox("修改前备份原文件 (.bak)")
         self.backup_check.setChecked(True)
         right_layout.addWidget(self.backup_check)
-        right_layout.addStretch()  # 将按钮推到底部
+
         
         # 操作按钮 (右对齐)
         btn_layout2 = QHBoxLayout()
@@ -489,9 +488,10 @@ class DataWidget(QWidget):
         btn_layout2.addWidget(self.modify_btn)
         right_layout.addLayout(btn_layout2)
         
-        content_layout.addWidget(right_group, 1)  # Flex 1
+        content_layout.addWidget(right_group, 1, Qt.AlignmentFlag.AlignTop)  # Flex 1, 顶部对齐
         
-        scroll_layout.addLayout(content_layout, 1)  # 拉伸填充
+        scroll_layout.addLayout(content_layout, 0)  # 不拉伸，自然高度
+        scroll_layout.addStretch(1)  # 剩余空间推到底部
         
         # 将内容装入滚动区域
         scroll_area.setWidget(scroll_content)
