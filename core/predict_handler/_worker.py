@@ -63,9 +63,10 @@ class PredictWorker(QObject):
         self._iou: float = 0.45
         self._params_lock = Lock()
 
-        # 控制标志
+        # 控制标志 (受 _state_lock 保护)
         self._running: bool = False
         self._stop_requested: bool = False
+        self._state_lock = Lock()
 
         # 暂停控制 (使用 Event 而非 bool，线程安全)
         self._pause_event = Event()
@@ -114,22 +115,29 @@ class PredictWorker(QObject):
 
     def stop(self) -> None:
         """请求停止推理"""
-        self._stop_requested = True
+        with self._state_lock:
+            self._stop_requested = True
         self._pause_event.set()
 
     def pause(self) -> None:
         """请求暂停推理"""
-        if self._running and self._playback_state == PlaybackState.PLAYING:
-            self._pause_event.clear()
-            self._playback_state = PlaybackState.PAUSED
+        with self._state_lock:
+            if self._running and self._playback_state == PlaybackState.PLAYING:
+                self._pause_event.clear()
+                self._playback_state = PlaybackState.PAUSED
+        # 信号发射放在锁外，避免死锁
+        if self._playback_state == PlaybackState.PAUSED:
             self.state_changed.emit(PlaybackState.PAUSED.value)
             self._logger.info("推理已暂停")
 
     def resume(self) -> None:
         """请求恢复推理"""
-        if self._running and self._playback_state == PlaybackState.PAUSED:
-            self._pause_event.set()
-            self._playback_state = PlaybackState.PLAYING
+        with self._state_lock:
+            if self._running and self._playback_state == PlaybackState.PAUSED:
+                self._pause_event.set()
+                self._playback_state = PlaybackState.PLAYING
+        # 信号发射放在锁外，避免死锁
+        if self._playback_state == PlaybackState.PLAYING:
             self.state_changed.emit(PlaybackState.PLAYING.value)
             self._logger.info("推理已恢复")
 
@@ -138,7 +146,8 @@ class PredictWorker(QObject):
         if self._source_type != InputSourceType.VIDEO:
             return
 
-        was_paused = self._playback_state == PlaybackState.PAUSED
+        with self._state_lock:
+            was_paused = self._playback_state == PlaybackState.PAUSED
         self._logger.debug(f"Seek 请求: 帧 {frame_index}, 暂停状态: {was_paused}")
 
         with self._seek_lock:
@@ -151,7 +160,8 @@ class PredictWorker(QObject):
     @property
     def is_paused(self) -> bool:
         """当前是否暂停"""
-        return self._playback_state == PlaybackState.PAUSED
+        with self._state_lock:
+            return self._playback_state == PlaybackState.PAUSED
 
     @property
     def total_frames(self) -> int:
@@ -171,8 +181,9 @@ class PredictWorker(QObject):
             self.finished.emit()
             return
 
-        self._running = True
-        self._stop_requested = False
+        with self._state_lock:
+            self._running = True
+            self._stop_requested = False
         self._detection_cache.clear()
 
         try:
@@ -185,7 +196,8 @@ class PredictWorker(QObject):
         except Exception as e:
             self.error_occurred.emit(f"推理错误: {e}")
         finally:
-            self._running = False
+            with self._state_lock:
+                self._running = False
             self.finished.emit()
 
     def _process_image(self) -> None:

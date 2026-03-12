@@ -101,8 +101,8 @@ class Worker(QRunnable):
         self.kwargs = kwargs
         self.signals = WorkerSignals()
         
-        # 自动禁用自动删除，防止任务完成后对象被立即销毁导致信号丢失
-        self.setAutoDelete(True)
+        # 禁用自动删除，防止任务完成后对象被立即销毁导致信号丢失
+        self.setAutoDelete(False)
         
         # 取消标志
         self._is_cancelled = False

@@ -9,6 +9,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
+from threading import Event
 from typing import Any, Optional
 
 import cv2
@@ -67,10 +68,10 @@ class VideoBatchProcessor(QObject):
         # 当前处理索引
         self._current_index: int = -1
 
-        # 控制标志
+        # 控制标志 (线程安全)
         self._stop_requested: bool = False
-        self._pause_requested: bool = False
-        self._is_paused: bool = False
+        self._pause_event = Event()
+        self._pause_event.set()  # 初始为 "运行" 状态
         self._is_running: bool = False
 
         # 输出配置
@@ -150,7 +151,7 @@ class VideoBatchProcessor(QObject):
     @property
     def is_paused(self) -> bool:
         """是否暂停"""
-        return self._is_paused
+        return not self._pause_event.is_set()
 
     def process_all(self) -> None:
         """批量处理所有视频 (应在 QThread 中调用)"""
@@ -164,6 +165,7 @@ class VideoBatchProcessor(QObject):
 
         self._is_running = True
         self._stop_requested = False
+        self._pause_event.set()
         self._video_stats.clear()
 
         total = len(self._video_list)
@@ -252,12 +254,10 @@ class VideoBatchProcessor(QObject):
 
         try:
             while not self._stop_requested:
-                while self._pause_requested:
-                    self._is_paused = True
-                    time.sleep(0.1)
+                # 使用 Event 等待: 暂停时阻塞, 恢复时自动继续
+                while not self._pause_event.wait(timeout=0.1):
                     if self._stop_requested:
                         break
-                self._is_paused = False
 
                 ret, frame = cap.read()
                 if not ret:
@@ -331,15 +331,15 @@ class VideoBatchProcessor(QObject):
     def stop(self) -> None:
         """停止批量处理"""
         self._stop_requested = True
-        self._pause_requested = False
+        self._pause_event.set()  # 唤醒暂停中的线程以退出
 
     def pause(self) -> None:
         """暂停批量处理"""
-        self._pause_requested = True
+        self._pause_event.clear()
 
     def resume(self) -> None:
         """继续批量处理"""
-        self._pause_requested = False
+        self._pause_event.set()
 
     def get_video_list(self) -> list[Path]:
         """获取视频列表"""

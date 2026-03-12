@@ -6,6 +6,7 @@ _image_batch.py - ImageBatchProcessor: 图片批量处理器
 from __future__ import annotations
 
 from pathlib import Path
+from threading import Event
 from typing import Any, Optional
 
 import cv2
@@ -65,10 +66,10 @@ class ImageBatchProcessor(QObject):
         # 当前浏览索引
         self._current_index: int = -1
 
-        # 停止和暂停标志
+        # 停止和暂停标志 (线程安全)
         self._stop_requested: bool = False
-        self._pause_requested: bool = False
-        self._is_paused: bool = False
+        self._pause_event = Event()
+        self._pause_event.set()  # 初始为 "运行" 状态
 
         # 保存条件
         self._save_condition: SaveCondition = SaveCondition.ALL
@@ -172,6 +173,7 @@ class ImageBatchProcessor(QObject):
 
         self._save_condition = save_condition
         self._stop_requested = False
+        self._pause_event.set()
         self._processed_list.clear()
         self._results_cache.clear()
         self._current_index = -1
@@ -183,13 +185,13 @@ class ImageBatchProcessor(QObject):
                 self._logger.info("批量处理被用户中止")
                 break
 
-            while self._pause_requested:
-                self._is_paused = True
-                import time
-                time.sleep(0.1)
+            # 使用 Event 等待: 暂停时阻塞, 恢复时自动继续
+            while not self._pause_event.wait(timeout=0.1):
                 if self._stop_requested:
                     break
-            self._is_paused = False
+
+            if self._stop_requested:
+                break
 
             original = cv2.imread(str(image_path))
             if original is None:
@@ -216,20 +218,20 @@ class ImageBatchProcessor(QObject):
     def stop(self) -> None:
         """停止批量处理"""
         self._stop_requested = True
-        self._pause_requested = False
+        self._pause_event.set()  # 唤醒暂停中的线程以退出
 
     def pause(self) -> None:
         """暂停批量处理"""
-        self._pause_requested = True
+        self._pause_event.clear()
 
     def resume(self) -> None:
         """继续批量处理"""
-        self._pause_requested = False
+        self._pause_event.set()
 
     @property
     def is_paused(self) -> bool:
         """是否处于暂停状态"""
-        return self._is_paused
+        return not self._pause_event.is_set()
 
     def get_result(
         self,
@@ -284,6 +286,10 @@ class ImageBatchProcessor(QObject):
         """获取已处理图片列表"""
         return self._processed_list.copy()
 
+    def get_detections(self, image_path: Path) -> list[dict]:
+        """获取指定图片的检测结果"""
+        return self._results_cache.get(image_path, [])
+
     def get_detected_list(self) -> list[Path]:
         """获取有检测结果的图片列表"""
         return [p for p in self._processed_list if self._results_cache.get(p)]
@@ -291,5 +297,3 @@ class ImageBatchProcessor(QObject):
     def get_empty_list(self) -> list[Path]:
         """获取无检测结果的图片列表"""
         return [p for p in self._image_list if not self._results_cache.get(p, None) or len(self._results_cache.get(p, [])) == 0]
-
-

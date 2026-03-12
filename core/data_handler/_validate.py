@@ -260,7 +260,7 @@ class ValidateMixin:
         class_values: set[str] = set()
         for label_path in self.collect_label_files(search_dir):
             label_format = LabelFormat.XML if label_path.suffix.lower() == ".xml" else LabelFormat.TXT
-            class_values.update(self._parse_label_ids(label_path, label_format, class_mapping={}))
+            class_values.update(self._parse_label(label_path, label_format, class_mapping={}))
 
         numeric_values = sorted(
             (value for value in class_values if value.isdigit()),
@@ -382,8 +382,13 @@ class ValidateMixin:
         label_format: LabelFormat,
         class_mapping: Optional[dict[int, str]] = None,
     ) -> list[str]:
-        """解析标签文件获取类别列表"""
-        classes = []
+        """
+        解析标签文件中的类别标识
+
+        - TXT 格式: 如有 class_mapping，用映射后的名称；否则用原始 ID
+        - XML 格式: 直接使用 <name> 文本 (已 strip)
+        """
+        classes: list[str] = []
         mapping = class_mapping or {}
 
         try:
@@ -400,7 +405,7 @@ class ValidateMixin:
                 root = tree.getroot()
                 for obj in root.findall(".//object/name"):
                     if obj.text:
-                        classes.append(obj.text)
+                        classes.append(obj.text.strip())
         except Exception:
             pass
 
@@ -522,40 +527,8 @@ class ValidateMixin:
 
         return root.tag.lower() == "annotation"
 
-    def _parse_label_ids(
-        self,
-        label_path: Path,
-        label_format: LabelFormat,
-        class_mapping: Optional[dict[int, str]] = None,
-    ) -> list[str]:
-        """
-        解析标签文件中的类别标识
 
-        - TXT 格式: 如有 class_mapping，用映射后的名称；否则用原始 ID
-        - XML 格式: 直接使用 <name> 文本
-        """
-        ids: list[str] = []
-        mapping = class_mapping or {}
 
-        try:
-            if label_format == LabelFormat.TXT:
-                with open(label_path, "r", encoding="utf-8") as f:
-                    for line in f:
-                        parts = line.strip().split()
-                        if parts:
-                            class_id = int(parts[0])
-                            class_name = mapping.get(class_id, str(class_id))
-                            ids.append(class_name)
-            else:
-                tree = ET.parse(label_path)
-                root = tree.getroot()
-                for obj in root.findall(".//object/name"):
-                    if obj.text:
-                        ids.append(obj.text.strip())
-        except Exception:
-            pass
-
-        return ids
 
     def validate_labels(
         self,

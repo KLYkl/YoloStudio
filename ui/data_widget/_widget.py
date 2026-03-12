@@ -348,9 +348,10 @@ class DataWidget(
             self.status_label.setText(f"{current}/{total}")
 
     def _emit_progress(self, current: int, total: int) -> None:
-        """发射进度信号 (线程安全)"""
-        if self._worker:
-            self._worker.progress.emit(current, total)
+        """发射进度信号 (需在主线程中调用)"""
+        worker = self._worker
+        if worker is not None:
+            worker.progress.emit(current, total)
 
     def _emit_message(self, message: str) -> None:
         """发射消息信号到全局日志面板"""
@@ -363,6 +364,15 @@ class DataWidget(
         worker = self._worker
         self._worker = None
         if worker:
+            # 显式断开信号连接，防止 deleteLater 延迟析构期间的信号残留
+            try:
+                worker.progress.disconnect()
+                worker.message.disconnect()
+                worker.error.disconnect()
+                worker.result_ready.disconnect()
+                worker.finished.disconnect()
+            except RuntimeError:
+                pass  # 已断开则忽略
             worker.deleteLater()
 
     def _set_ui_busy(self, busy: bool, *, enable_cancel: bool = True) -> None:

@@ -100,7 +100,7 @@ class VideoBatchMixin:
             StyledMessageBox.warning(self, "警告", "未找到视频文件")
             return
 
-        self._video_batch_processor.set_model(self._predict_manager._model)
+        self._video_batch_processor.set_model(self._predict_manager.model)
         self._video_batch_processor.update_params(
             conf=self._conf_slider.value() / 100,
             iou=self._iou_slider.value() / 100,
@@ -123,6 +123,11 @@ class VideoBatchMixin:
         self.log_message.emit(f"开始批量处理 {video_count} 个视频")
 
         from PySide6.QtCore import QThread
+
+        # BUG-7: 检查旧线程是否仍在运行
+        if hasattr(self, '_video_batch_thread') and self._video_batch_thread and self._video_batch_thread.isRunning():
+            StyledMessageBox.warning(self, "警告", "上一次批量处理尚未完成")
+            return
 
         class VideoBatchThread(QThread):
             """视频批量处理线程"""

@@ -173,8 +173,8 @@ class SlotsMixin:
         """从已加载的模型中填充类别过滤下拉框"""
         self._class_filter_combo.clear()
         self._class_filter_combo.addItem("全部")
-        if self._predict_manager._model is not None:
-            names = getattr(self._predict_manager._model, 'names', {})
+        names = self._predict_manager.model_names
+        if names:
             for class_id in sorted(names.keys()):
                 self._class_filter_combo.addItem(f"{class_id}: {names[class_id]}")
 
@@ -239,7 +239,7 @@ class SlotsMixin:
         if not model_path or not Path(model_path).exists():
             StyledMessageBox.warning(self, "警告", "请选择有效的模型文件")
             return
-        if self._predict_manager._model_path != model_path:
+        if self._predict_manager.model_path != model_path:
             self.log_message.emit(f"正在加载模型: {model_path}")
             if not self._predict_manager.load_model(model_path):
                 StyledMessageBox.critical(self, "错误", "模型加载失败")
@@ -350,26 +350,34 @@ class SlotsMixin:
         elif self._predict_manager.is_running:
             self._predict_manager.stop()
             self._fps_timer.stop()
-            if self._is_recording:
-                video_path = self._output_manager.stop_video()
-                if video_path:
-                    self.log_message.emit(f"视频已保存: {video_path}")
-                self._is_recording = False
-            if self._save_report_check.isChecked():
-                report_path = self._output_manager.generate_report()
-                if report_path:
-                    self.log_message.emit(f"报告已生成: {report_path}")
-
-            self._progress_slider.setValue(0)
-            self._progress_slider.setEnabled(False)
-            self._time_label.setText("00:00 / 00:00")
-            self._current_source_type = None
+            self._finalize_output()
             self.log_message.emit("预测已停止")
 
+        self._reset_ui_after_stop()
+
+    def _finalize_output(self) -> None:
+        """保存录制视频和报告（用户停止和自然结束都需要）"""
+        if self._is_recording:
+            video_path = self._output_manager.stop_video()
+            if video_path:
+                self.log_message.emit(f"视频已保存: {video_path}")
+            self._is_recording = False
+        if self._save_report_check.isChecked():
+            report_path = self._output_manager.generate_report()
+            if report_path:
+                self.log_message.emit(f"报告已生成: {report_path}")
+
+    def _reset_ui_after_stop(self) -> None:
+        """重置 UI 到停止状态"""
         self._start_btn.setEnabled(True)
         self._start_btn.setText("▶ 开始")
         set_button_class(self._start_btn, "success")
         self._stop_btn.setEnabled(False)
+
+        self._progress_slider.setValue(0)
+        self._progress_slider.setEnabled(False)
+        self._time_label.setText("00:00 / 00:00")
+        self._current_source_type = None
 
         self._is_stopping = False
 
@@ -419,7 +427,11 @@ class SlotsMixin:
 
     @Slot()
     def _on_prediction_finished(self) -> None:
-        self._on_stop()
+        """视频自然结束时的清理（worker 已结束，无需停止）"""
+        self._fps_timer.stop()
+        self._finalize_output()
+        self._reset_ui_after_stop()
+        self.log_message.emit("预测完成")
 
     @Slot(str)
     def _on_file_saved(self, path: str) -> None:

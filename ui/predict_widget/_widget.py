@@ -199,3 +199,28 @@ class PredictWidget(
     def _apply_styles(self) -> None:
         """应用语义化样式"""
         pass
+
+    def closeEvent(self, event) -> None:
+        """窗口关闭时清理所有线程"""
+        # 停止 PredictManager 推理线程
+        if self._predict_manager.is_running:
+            self._predict_manager.stop()
+            if self._predict_manager._thread and self._predict_manager._thread.isRunning():
+                self._predict_manager._thread.wait(3000)
+
+        # 停止图片批量处理线程
+        if self._is_batch_processing:
+            self._image_processor.stop()
+            if self._batch_thread and self._batch_thread.isRunning():
+                self._batch_thread.wait(3000)
+
+        # 停止视频批量处理线程
+        if self._video_batch_processor.is_running:
+            self._video_batch_processor.stop()
+            if self._video_batch_thread and self._video_batch_thread.isRunning():
+                self._video_batch_thread.wait(3000)
+
+        # 停止 FPS 计时器
+        self._fps_timer.stop()
+
+        super().closeEvent(event)

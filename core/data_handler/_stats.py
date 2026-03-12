@@ -150,7 +150,7 @@ class StatsMixin:
                 class_ids: list[str] = []
             else:
                 # 解析标签获取类别 ID (使用原始 ID，不映射名称)
-                class_ids = self._parse_label_ids(label_path, label_format, class_mapping=class_mapping)
+                class_ids = self._parse_label(label_path, label_format, class_mapping=class_mapping)
                 unique_ids = sorted(set(class_ids))
 
                 if len(unique_ids) == 0:

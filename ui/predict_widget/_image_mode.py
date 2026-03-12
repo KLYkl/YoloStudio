@@ -8,6 +8,7 @@ from __future__ import annotations
 from PySide6.QtCore import Qt, Slot
 
 from core.predict_handler import SaveCondition
+from core.predict_handler._inference_utils import draw_detections
 from ui.base_ui import set_button_class
 
 
@@ -86,12 +87,12 @@ class ImageModeMixin:
             self._on_error("请选择模型")
             return
 
-        if self._predict_manager._model_path != model_path:
+        if self._predict_manager.model_path != model_path:
             if not self._predict_manager.load_model(model_path):
                 return
             self._populate_class_filter()
 
-        self._image_processor.set_model(self._predict_manager._model)
+        self._image_processor.set_model(self._predict_manager.model)
 
         count = self._image_processor.load_images(source)
 
@@ -146,17 +147,23 @@ class ImageModeMixin:
 
             from PySide6.QtCore import QThread
 
+            # BUG-7: 检查旧线程是否仍在运行
+            if hasattr(self, '_batch_thread') and self._batch_thread and self._batch_thread.isRunning():
+                self._on_error("上一次批量处理尚未完成")
+                return
+
             class BatchProcessThread(QThread):
                 """批量处理线程"""
-                def __init__(self, processor, condition):
+                def __init__(self, processor, condition, finalize_fn):
                     super().__init__()
                     self._processor = processor
                     self._condition = condition
+                    self._finalize_fn = finalize_fn
 
                 def run(self):
                     self._processor.process_all(self._condition)
 
-            self._batch_thread = BatchProcessThread(self._image_processor, condition)
+            self._batch_thread = BatchProcessThread(self._image_processor, condition, self._finalize_image_output)
             self._batch_thread.start()
 
     def _finalize_image_output(self) -> None:
@@ -168,7 +175,7 @@ class ImageModeMixin:
         processor = self._image_processor
 
         for path in processor.get_processed_list():
-            detections = processor._results_cache.get(path, [])
+            detections = processor.get_detections(path)
             if not detections and not self._save_result_image_check.isChecked():
                 continue
 
@@ -177,7 +184,7 @@ class ImageModeMixin:
             if original is None:
                 continue
 
-            annotated = processor._draw_detections(original, detections)
+            annotated = draw_detections(original, detections)
 
             self._output_manager.save_image_result(
                 original=original,

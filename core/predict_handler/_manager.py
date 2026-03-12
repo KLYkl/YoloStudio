@@ -64,6 +64,23 @@ class PredictManager(QObject):
         return self._model is not None
 
     @property
+    def model_path(self) -> str | None:
+        """当前已加载的模型路径"""
+        return self._model_path
+
+    @property
+    def model(self) -> Any:
+        """当前已加载的模型实例"""
+        return self._model
+
+    @property
+    def model_names(self) -> dict:
+        """模型的类别名称映射 {class_id: name}"""
+        if self._model is not None:
+            return getattr(self._model, 'names', {})
+        return {}
+
+    @property
     def is_paused(self) -> bool:
         """当前是否暂停"""
         return self._worker is not None and self._worker.is_paused
@@ -169,16 +186,23 @@ class PredictManager(QObject):
 
     def _on_worker_finished(self) -> None:
         """Worker 结束时清理"""
-        if self._thread is not None:
-            self._thread.quit()
-            self._thread.wait()
-            self._thread.deleteLater()
-            self._thread = None
-
-        if self._worker is not None:
-            self._worker.deleteLater()
-            self._worker = None
+        # 先保留引用，等 finished 信号处理完再清理
+        thread = self._thread
+        worker = self._worker
 
         self._source_type = None
+
+        # 先发射 finished 信号，让接收者在引用还存在时处理
         self.finished.emit()
         self._logger.info("预测结束")
+
+        # 再清理线程和 worker 引用
+        if thread is not None:
+            thread.quit()
+            thread.wait()
+            thread.deleteLater()
+            self._thread = None
+
+        if worker is not None:
+            worker.deleteLater()
+            self._worker = None

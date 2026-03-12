@@ -337,7 +337,7 @@ class TrainManager(QObject):
             return
         
         data = self._process.readAllStandardOutput()
-        text = bytes(data).decode("utf-8", errors="replace")
+        text = _decode_subprocess_output(bytes(data))
         if text.strip():
             self.raw_output.emit(text)
     
@@ -347,7 +347,7 @@ class TrainManager(QObject):
             return
         
         data = self._process.readAllStandardError()
-        text = bytes(data).decode("utf-8", errors="replace")
+        text = _decode_subprocess_output(bytes(data))
         if text.strip():
             self.raw_output.emit(text)
     
