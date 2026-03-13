@@ -257,7 +257,7 @@ class PanelMixin:
         camera_layout.addWidget(self._rtsp_check)
 
         rtsp_row = QHBoxLayout()
-        rtsp_row.setSpacing(2)
+        rtsp_row.setSpacing(4)
         self._rtsp_edit = QLineEdit()
         self._rtsp_edit.setPlaceholderText("rtsp://ip:port/stream")
         self._rtsp_edit.setFixedHeight(32)
@@ -461,7 +461,7 @@ class PanelMixin:
 
         # 输出目录 (共用)
         output_row = QHBoxLayout()
-        output_row.setSpacing(2)
+        output_row.setSpacing(4)
         self._output_dir_edit = QLineEdit()
         self._output_dir_edit.setPlaceholderText("输出目录...")
         self._output_dir_edit.setFixedHeight(32)

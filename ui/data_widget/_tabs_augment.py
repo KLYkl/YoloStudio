@@ -61,8 +61,8 @@ class AugmentTabMixin:
 
         content = QWidget()
         content_layout = QVBoxLayout(content)
-        content_layout.setContentsMargins(0, 0, 0, 0)
-        content_layout.setSpacing(12)
+        content_layout.setContentsMargins(0, 4, 0, 0)
+        content_layout.setSpacing(10)
 
         settings_group = QGroupBox("输出与生成")
         settings_layout = QVBoxLayout(settings_group)

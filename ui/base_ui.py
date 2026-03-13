@@ -362,6 +362,27 @@ QFrame#statsOverviewCard:hover {
     border: 1px solid #45475a;
 }
 
+/* 统计卡片 - 指示条颜色 */
+QFrame#statsAccentBar { border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
+QFrame#statsAccentBar[accent="blue"]   { background-color: #89b4fa; }
+QFrame#statsAccentBar[accent="green"]  { background-color: #a6e3a1; }
+QFrame#statsAccentBar[accent="orange"] { background-color: #fab387; }
+QFrame#statsAccentBar[accent="yellow"] { background-color: #f9e2af; }
+QFrame#statsAccentBar[accent="purple"] { background-color: #cba6f7; }
+QFrame#statsAccentBar[accent="red"]    { background-color: #f38ba8; }
+
+/* 统计卡片 - 标题 */
+QLabel#statsCardTitle { font-size: 11px; color: #a6adc8; }
+
+/* 统计卡片 - 数值 */
+QLabel#statsCardValue { font-size: 18px; font-weight: 700; }
+QLabel#statsCardValue[accent="blue"]   { color: #89b4fa; }
+QLabel#statsCardValue[accent="green"]  { color: #a6e3a1; }
+QLabel#statsCardValue[accent="orange"] { color: #fab387; }
+QLabel#statsCardValue[accent="yellow"] { color: #f9e2af; }
+QLabel#statsCardValue[accent="purple"] { color: #cba6f7; }
+QLabel#statsCardValue[accent="red"]    { color: #f38ba8; }
+
 QFrame#statsOverviewSep {
     color: #313244;
 }
@@ -932,6 +953,10 @@ QSlider::handle:horizontal {
     border-radius: 8px;
 }
 
+QSlider::handle:horizontal:hover {
+    background-color: #2a6ff5;
+}
+
 QSlider::sub-page:horizontal {
     background-color: #1e66f5;
     border-radius: 3px;
@@ -996,6 +1021,27 @@ QFrame#statsOverviewCard:hover {
     background-color: #dce0e8;
     border: 1px solid #bcc0cc;
 }
+
+/* 统计卡片 - 指示条颜色 (亮色主题 Catppuccin Latte) */
+QFrame#statsAccentBar { border-top-left-radius: 10px; border-bottom-left-radius: 10px; }
+QFrame#statsAccentBar[accent="blue"]   { background-color: #1e66f5; }
+QFrame#statsAccentBar[accent="green"]  { background-color: #40a02b; }
+QFrame#statsAccentBar[accent="orange"] { background-color: #fe640b; }
+QFrame#statsAccentBar[accent="yellow"] { background-color: #df8e1d; }
+QFrame#statsAccentBar[accent="purple"] { background-color: #8839ef; }
+QFrame#statsAccentBar[accent="red"]    { background-color: #d20f39; }
+
+/* 统计卡片 - 标题 */
+QLabel#statsCardTitle { font-size: 11px; color: #8c8fa1; }
+
+/* 统计卡片 - 数值 */
+QLabel#statsCardValue { font-size: 18px; font-weight: 700; }
+QLabel#statsCardValue[accent="blue"]   { color: #1e66f5; }
+QLabel#statsCardValue[accent="green"]  { color: #40a02b; }
+QLabel#statsCardValue[accent="orange"] { color: #fe640b; }
+QLabel#statsCardValue[accent="yellow"] { color: #df8e1d; }
+QLabel#statsCardValue[accent="purple"] { color: #8839ef; }
+QLabel#statsCardValue[accent="red"]    { color: #d20f39; }
 
 QFrame#statsOverviewSep {
     color: #bcc0cc;

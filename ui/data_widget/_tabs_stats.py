@@ -94,19 +94,20 @@ class StatsTabMixin:
         overview_grid.setHorizontalSpacing(8)
         overview_grid.setVerticalSpacing(8)
 
+        # accent_key 用于 QSS 动态属性匹配颜色
         overview_items = [
-            ("total_images", "图片总数", "#89b4fa"),
-            ("labeled_images", "有标签图片", "#a6e3a1"),
-            ("missing_labels", "缺失标签", "#fab387"),
-            ("empty_labels", "空标签", "#f9e2af"),
-            ("class_count", "类别数", "#cba6f7"),
-            ("total_objects", "目标总数", "#89b4fa"),
-            ("missing_ratio", "缺失占比", "#f38ba8"),
-            ("empty_ratio", "空标签占比", "#f9e2af"),
+            ("total_images", "图片总数", "blue"),
+            ("labeled_images", "有标签图片", "green"),
+            ("missing_labels", "缺失标签", "orange"),
+            ("empty_labels", "空标签", "yellow"),
+            ("class_count", "类别数", "purple"),
+            ("total_objects", "目标总数", "blue"),
+            ("missing_ratio", "缺失占比", "red"),
+            ("empty_ratio", "空标签占比", "yellow"),
         ]
 
-        for index, (key, title, color) in enumerate(overview_items):
-            card = self._create_stats_overview_card(title, key, color)
+        for index, (key, title, accent_key) in enumerate(overview_items):
+            card = self._create_stats_overview_card(title, key, accent_key)
             overview_grid.addWidget(card, index // 2, index % 2)
 
         overview_outer.addLayout(overview_grid)
@@ -137,7 +138,7 @@ class StatsTabMixin:
         self.categorize_btn.setMinimumHeight(35)
         self.categorize_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.categorize_btn.setToolTip(
-            "将数据集按标签类别分类到不同文件夹:\n"
+            "将数据集按标签类别分类到不同文件夹：\n"
             "• 单一类别 → {class_id}/\n"
             "• 多类别 → _mixed/\n"
             "• 空标签 → _empty/\n"
@@ -154,8 +155,15 @@ class StatsTabMixin:
 
         return tab
 
-    def _create_stats_overview_card(self, title: str, key: str, accent_color: str = "#89b4fa") -> QFrame:
-        """创建带彩色指示条的统计概览卡片"""
+    def _create_stats_overview_card(self, title: str, key: str, accent_key: str = "blue") -> QFrame:
+        """创建带彩色指示条的统计概览卡片
+
+        Args:
+            title: 卡片标题文本
+            key: 用于后续更新值的唯一键
+            accent_key: 颜色键 (blue/green/orange/yellow/purple/red)，
+                         对应全局 QSS 中 [accent="xxx"] 选择器
+        """
         card = QFrame()
         card.setObjectName("statsOverviewCard")
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
@@ -165,14 +173,11 @@ class StatsTabMixin:
         card_layout.setContentsMargins(0, 0, 12, 0)
         card_layout.setSpacing(0)
 
-        # 左侧彩色指示条
+        # 左侧彩色指示条 — 颜色由全局 QSS [accent="xxx"] 控制
         accent_bar = QFrame()
+        accent_bar.setObjectName("statsAccentBar")
         accent_bar.setFixedWidth(4)
-        accent_bar.setStyleSheet(
-            f"background-color: {accent_color}; "
-            f"border-top-left-radius: 10px; "
-            f"border-bottom-left-radius: 10px;"
-        )
+        accent_bar.setProperty("accent", accent_key)
         card_layout.addWidget(accent_bar)
 
         # 右侧内容区
@@ -181,12 +186,12 @@ class StatsTabMixin:
         text_layout.setSpacing(4)
 
         title_label = QLabel(title)
-        title_label.setObjectName("mutedLabel")
-        title_label.setStyleSheet("font-size: 11px;")
+        title_label.setObjectName("statsCardTitle")
 
         value_label = QLabel("--")
+        value_label.setObjectName("statsCardValue")
         value_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        value_label.setStyleSheet(f"font-size: 18px; font-weight: 700; color: {accent_color};")
+        value_label.setProperty("accent", accent_key)
 
         text_layout.addWidget(title_label)
         text_layout.addWidget(value_label)
