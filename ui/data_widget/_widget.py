@@ -21,6 +21,8 @@ from PySide6.QtWidgets import (
 )
 
 from core.data_handler import DataHandler, DataWorker, ScanResult
+from ui.collapsible_box import CollapsibleGroupBox
+from ui.path_input_group import PathInputGroup
 from ui.styled_message_box import StyledProgressDialog
 
 from ui.data_widget._tabs_stats import StatsTabMixin
@@ -98,6 +100,17 @@ class DataWidget(
         main_layout.setSpacing(10)
         main_layout.setContentsMargins(10, 10, 10, 10)
 
+        # ===== 共享路径面板 (可折叠) =====
+        self._path_box = CollapsibleGroupBox("数据源", collapsed=False)
+        self.path_group = PathInputGroup(
+            show_image_dir=True,
+            show_label_dir=True,
+            show_classes=True,
+            group_title="",  # 标题由 CollapsibleGroupBox 提供
+        )
+        self._path_box.add_widget(self.path_group)
+        main_layout.addWidget(self._path_box)
+
         # Tab 内容区
         self.tab_widget = QTabWidget()
         self.tab_widget.setObjectName("subTabWidget")
@@ -145,13 +158,8 @@ class DataWidget(
 
     def _connect_signals(self) -> None:
         """连接所有信号与槽"""
-        # Tab 间路径同步 (任一修改同步全部)
-        self.stats_path_group.paths_changed.connect(self._sync_paths_from_stats)
-        self.edit_path_group.paths_changed.connect(self._sync_paths_from_edit)
-        self.augment_path_group.paths_changed.connect(self._sync_paths_from_augment)
-        self.split_path_group.paths_changed.connect(self._sync_paths_from_split)
-        self.edit_path_group.paths_changed.connect(self._update_edit_action_states)
-        self.augment_path_group.paths_changed.connect(self._update_augment_action_states)
+        # 共享路径组 → 统一回调
+        self.path_group.paths_changed.connect(self._on_paths_changed)
         self.tab_widget.currentChanged.connect(self._on_sub_tab_changed)
 
         # Tab 1 - 统计
@@ -178,7 +186,13 @@ class DataWidget(
         self.augment_mode_combo.currentIndexChanged.connect(self._on_augment_mode_changed)
         self.augment_fixed_single_check.toggled.connect(self._update_augment_action_states)
         self.augment_fixed_combo_check.toggled.connect(self._update_augment_action_states)
-        self.augment_advanced_toggle.toggled.connect(self._toggle_augment_advanced)
+        # 预设方案按钮
+        for key, btn in self._preset_buttons.items():
+            btn.clicked.connect(lambda _, k=key: self._apply_preset(k))
+        self.augment_clear_btn.clicked.connect(self._clear_all_augments)
+        # 预览按钮
+        self.augment_preview_shuffle_btn.clicked.connect(self._shuffle_preview_image)
+        # 增强项 checkbox / spin
         self.augment_hflip_check.toggled.connect(self._update_augment_action_states)
         self.augment_vflip_check.toggled.connect(self._update_augment_action_states)
         self.augment_rotate_check.toggled.connect(self._update_augment_action_states)
@@ -220,56 +234,56 @@ class DataWidget(
         self._update_augment_action_states()
 
     # ============================================================
-    # 路径同步
+    # 路径变更回调
     # ============================================================
 
-    def _sync_paths_from_stats(self) -> None:
-        """统计 Tab 路径同步到其他 Tab"""
-        paths = self.stats_path_group.get_all_paths()
-        self.edit_path_group.set_all_paths(paths, emit_signal=False)
-        self.augment_path_group.set_all_paths(paths, emit_signal=False)
-        self.split_path_group.set_all_paths(paths, emit_signal=False)
+    def _on_paths_changed(self) -> None:
+        """共享路径组变更回调 (替代原 4 个 _sync_paths_from_* 函数)"""
         self._invalidate_edit_precheck_cache()
         self._refresh_edit_class_options()
         self._update_edit_action_states()
         self._update_augment_action_states()
-        self._update_default_output_paths(paths.get("image_dir", ""))
+        self._update_path_summary()
 
-    def _sync_paths_from_edit(self) -> None:
-        """编辑 Tab 路径同步到其他 Tab"""
-        paths = self.edit_path_group.get_all_paths()
-        self.stats_path_group.set_all_paths(paths, emit_signal=False)
-        self.augment_path_group.set_all_paths(paths, emit_signal=False)
-        self.split_path_group.set_all_paths(paths, emit_signal=False)
-        self._invalidate_edit_precheck_cache()
-        self._refresh_edit_class_options()
-        self._update_edit_action_states()
-        self._update_augment_action_states()
-        self._update_default_output_paths(paths.get("image_dir", ""))
+        image_dir = self.path_group.get_all_paths().get("image_dir", "")
+        self._update_default_output_paths(image_dir)
 
-    def _sync_paths_from_augment(self) -> None:
-        """增强 Tab 路径同步到其他 Tab"""
-        paths = self.augment_path_group.get_all_paths()
-        self.stats_path_group.set_all_paths(paths, emit_signal=False)
-        self.edit_path_group.set_all_paths(paths, emit_signal=False)
-        self.split_path_group.set_all_paths(paths, emit_signal=False)
-        self._invalidate_edit_precheck_cache()
-        self._refresh_edit_class_options()
-        self._update_edit_action_states()
-        self._update_augment_action_states()
-        self._update_default_output_paths(paths.get("image_dir", ""))
+        # 增强预览: 路径变更时自动加载预览图
+        self._try_auto_load_preview()
 
-    def _sync_paths_from_split(self) -> None:
-        """划分 Tab 路径同步到其他 Tab"""
-        paths = self.split_path_group.get_all_paths()
-        self.stats_path_group.set_all_paths(paths, emit_signal=False)
-        self.edit_path_group.set_all_paths(paths, emit_signal=False)
-        self.augment_path_group.set_all_paths(paths, emit_signal=False)
-        self._invalidate_edit_precheck_cache()
-        self._refresh_edit_class_options()
-        self._update_edit_action_states()
-        self._update_augment_action_states()
-        self._update_default_output_paths(paths.get("image_dir", ""))
+    def _update_path_summary(self) -> None:
+        """更新折叠态的路径摘要文本"""
+        paths = self.path_group.get_all_paths()
+        img = paths.get("image_dir", "")
+        lbl = paths.get("label_dir", "")
+        cls = paths.get("classes", "")
+
+        parts = []
+        tooltip_parts = []
+
+        if img:
+            name = Path(img).name
+            parts.append(f"📁 {name}")
+            tooltip_parts.append(f"图片目录: {img}")
+        else:
+            parts.append("📁 未设置")
+
+        if lbl:
+            name = Path(lbl).name
+            parts.append(f"🏷️ {name}")
+            tooltip_parts.append(f"标签目录: {lbl}")
+        else:
+            parts.append("🏷️ 自动检测")
+
+        if cls:
+            name = Path(cls).name
+            parts.append(f"📋 {name}")
+            tooltip_parts.append(f"类别文件: {cls}")
+
+        self._path_box.set_summary(
+            "  ".join(parts),
+            "\n".join(tooltip_parts) if tooltip_parts else "",
+        )
 
     def _update_default_output_paths(self, image_dir: str) -> None:
         """根据图片目录推断默认输出路径"""
@@ -380,7 +394,6 @@ class DataWidget(
         self.cancel_btn.setEnabled(busy and enable_cancel)
         self.scan_btn.setEnabled(not busy)
         self.categorize_btn.setEnabled(not busy)
-        self.augment_btn.setEnabled(not busy)
         self.split_btn.setEnabled(not busy)
         self.save_yaml_btn.setEnabled(not busy)
 

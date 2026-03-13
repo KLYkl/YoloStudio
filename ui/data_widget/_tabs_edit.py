@@ -34,7 +34,6 @@ from core.data_handler import (
     ModifyAction,
     ValidateResult,
 )
-from ui.path_input_group import PathInputGroup
 from ui.styled_message_box import StyledMessageBox, StyledProgressDialog
 
 
@@ -67,14 +66,7 @@ class EditTabMixin:
         scroll_layout = QVBoxLayout(scroll_content)
         scroll_layout.setSpacing(10)
 
-        # 路径输入组
-        self.edit_path_group = PathInputGroup(
-            show_image_dir=True,
-            show_label_dir=True,
-            show_classes=True,
-            group_title="数据源路径",
-        )
-        scroll_layout.addWidget(self.edit_path_group)
+        # 路径输入组已提升到 DataWidget 外层 (self.path_group)
 
         # 下方内容区 (2×2 网格布局，确保左右对称)
         content_grid = QGridLayout()
@@ -259,7 +251,7 @@ class EditTabMixin:
 
     def _update_edit_action_states(self) -> None:
         """根据路径输入状态更新编辑按钮"""
-        img_path = self.edit_path_group.get_image_dir()
+        img_path = self.path_group.get_image_dir()
         has_image_dir = bool(img_path and img_path.exists())
         is_busy = bool(self._worker and self._worker.isRunning())
         enabled = has_image_dir and not is_busy
@@ -270,7 +262,7 @@ class EditTabMixin:
         self.validate_btn.setEnabled(enabled)
 
         # 类别 ID 检查需要 classes.txt
-        classes_path = self.edit_path_group.get_classes_path()
+        classes_path = self.path_group.get_classes_path()
         has_classes = bool(classes_path and classes_path.exists())
         self.validate_class_check.setEnabled(has_classes)
         if not has_classes:
@@ -305,7 +297,7 @@ class EditTabMixin:
 
     def _refresh_edit_class_options(self) -> None:
         """刷新修改标签下拉选项 (轻量模式)"""
-        classes_txt = self.edit_path_group.get_classes_path()
+        classes_txt = self.path_group.get_classes_path()
         if classes_txt and classes_txt.exists():
             self._apply_edit_class_options(self._handler.load_classes_txt(classes_txt))
         elif self.detected_classes:
@@ -574,7 +566,7 @@ class EditTabMixin:
             return
 
         classes = None
-        classes_txt = self.edit_path_group.get_classes_path()
+        classes_txt = self.path_group.get_classes_path()
         if classes_txt and classes_txt.exists():
             classes = self._handler.load_classes_txt(classes_txt)
         elif self.detected_classes:
@@ -659,7 +651,7 @@ class EditTabMixin:
     @Slot()
     def _on_generate_empty(self) -> None:
         """生成空标签"""
-        img_path = self.edit_path_group.get_image_dir()
+        img_path = self.path_group.get_image_dir()
         if not img_path:
             self.log_message.emit("请先选择图片目录")
             return
@@ -668,7 +660,7 @@ class EditTabMixin:
             self.log_message.emit(f"图片目录不存在: {img_path}")
             return
 
-        label_path = self.edit_path_group.get_label_dir()
+        label_path = self.path_group.get_label_dir()
         label_format = LabelFormat.TXT if self.empty_txt_radio.isChecked() else LabelFormat.XML
         cache_key = (
             "generate_empty",
@@ -698,7 +690,7 @@ class EditTabMixin:
     @Slot()
     def _on_convert_format(self) -> None:
         """执行格式转换"""
-        img_path = self.edit_path_group.get_image_dir()
+        img_path = self.path_group.get_image_dir()
         if not img_path:
             self.log_message.emit("请先选择图片目录")
             return
@@ -707,7 +699,7 @@ class EditTabMixin:
             self.log_message.emit(f"图片目录不存在: {img_path}")
             return
 
-        label_path = self.edit_path_group.get_label_dir()
+        label_path = self.path_group.get_label_dir()
         dataset_root = self._resolve_dataset_root(img_path, label_path)
         to_xml = self.txt_to_xml_radio.isChecked()
         cache_key = (
@@ -739,7 +731,7 @@ class EditTabMixin:
     @Slot()
     def _on_modify_labels(self) -> None:
         """修改标签"""
-        img_path = self.edit_path_group.get_image_dir()
+        img_path = self.path_group.get_image_dir()
         if not img_path:
             self._show_modify_warning("请先选择图片目录")
             return
@@ -756,13 +748,13 @@ class EditTabMixin:
         new_value = self.new_name_input.currentText().strip()
         action = self._resolve_modify_action()
 
-        label_path = self.edit_path_group.get_label_dir()
+        label_path = self.path_group.get_label_dir()
         dataset_root = self._resolve_dataset_root(img_path, label_path)
         has_explicit_label_dir = bool(label_path and label_path.exists())
         search_dir = label_path if has_explicit_label_dir else dataset_root
         image_scope = None if has_explicit_label_dir else img_path
 
-        classes_txt = self.edit_path_group.get_classes_path()
+        classes_txt = self.path_group.get_classes_path()
         cache_key = (
             "modify_labels",
             str(search_dir),
@@ -820,13 +812,13 @@ class EditTabMixin:
     @Slot()
     def _on_validate_labels(self) -> None:
         """启动标签校验后台任务"""
-        img_path = self.edit_path_group.get_image_dir()
+        img_path = self.path_group.get_image_dir()
         if not img_path or not img_path.exists():
             self.log_message.emit("请先选择有效的图片目录")
             return
 
-        label_path = self.edit_path_group.get_label_dir()
-        classes_txt = self.edit_path_group.get_classes_path()
+        label_path = self.path_group.get_label_dir()
+        classes_txt = self.path_group.get_classes_path()
 
         check_coords = self.validate_coords_check.isChecked()
         check_class_ids = (

@@ -102,8 +102,14 @@ class CollapsibleGroupBox(QWidget):
         self._title_label = QLabel(title)
         self._title_label.setObjectName("collapsibleTitle")
         
+        # 摘要标签 (折叠时显示路径等摘要信息)
+        self._summary_label = QLabel()
+        self._summary_label.setObjectName("mutedLabel")
+        self._summary_label.setVisible(self._collapsed)
+        
         header_layout.addWidget(self._toggle_btn)
         header_layout.addWidget(self._title_label)
+        header_layout.addWidget(self._summary_label, 1)  # 拉伸填充
         header_layout.addStretch()
         
         # 点击标题栏也能折叠
@@ -166,6 +172,17 @@ class CollapsibleGroupBox(QWidget):
         """设置标题"""
         self._title_label.setText(title)
     
+    def set_summary(self, text: str, tooltip: str = "") -> None:
+        """设置摘要文本 (折叠时在标题栏显示)
+        
+        Args:
+            text: 摘要文本 (建议保持简短)
+            tooltip: hover 时显示的完整信息
+        """
+        self._summary_label.setText(text)
+        if tooltip:
+            self._summary_label.setToolTip(tooltip)
+    
     def is_collapsed(self) -> bool:
         """返回当前是否折叠"""
         return self._collapsed
@@ -199,8 +216,9 @@ class CollapsibleGroupBox(QWidget):
                 content_height if not collapsed else 0
             )
         
-        # 更新按钮文本
+        # 更新按钮文本和摘要可见性
         self._toggle_btn.setText("▶" if collapsed else "▼")
+        self._summary_label.setVisible(collapsed)
     
     def toggle(self) -> None:
         """切换折叠状态"""

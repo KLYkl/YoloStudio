@@ -124,8 +124,6 @@ class AugmentMixin:
                         recipe_counters[recipe.name] = recipe_counters.get(recipe.name, 0) + 1
                         recipe_suffix = recipe.name if config.mode == "fixed" else "aug"
                         aug_stem = f"{img_path.stem}_{recipe_suffix}_{recipe_counters[recipe.name]:03d}"
-                        if config.mode == "random" and recipe.name != "aug":
-                            aug_stem = f"{img_path.stem}_{recipe.name}_{display_index:03d}"
                         aug_rel_path = rel_path.with_name(f"{aug_stem}{img_path.suffix.lower()}")
                         aug_output = self._build_augmented_image_output_path(output_dir, aug_rel_path)
 
@@ -381,7 +379,7 @@ class AugmentMixin:
         if strength <= 0:
             return image
 
-        sigma = max(1.0, strength * 255.0)
+        sigma = max(1.0, strength * 128.0)
         if image.mode == "RGBA":
             alpha = image.getchannel("A")
             noisy = self._apply_noise(image.convert("RGB"), strength, rng).convert("RGBA")
@@ -390,10 +388,10 @@ class AugmentMixin:
         if image.mode == "RGB":
             channels = tuple(Image.effect_noise(image.size, sigma) for _ in range(3))
             noise_image = Image.merge("RGB", channels)
-            return ImageChops.add(image, noise_image, scale=1.0, offset=-128)
+            return ImageChops.add(image, noise_image, scale=1, offset=-128)
         if image.mode == "L":
             noise_image = Image.effect_noise(image.size, sigma)
-            return ImageChops.add(image, noise_image, scale=1.0, offset=-128)
+            return ImageChops.add(image, noise_image, scale=1, offset=-128)
         return image
 
     def _apply_hue_shift(self, image: Image.Image, degrees: float) -> Image.Image:

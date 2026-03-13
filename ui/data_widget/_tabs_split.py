@@ -31,7 +31,6 @@ from PySide6.QtWidgets import (
 
 from core.data_handler import SplitMode, SplitResult
 from ui.focus_widgets import FocusSlider, FocusSpinBox
-from ui.path_input_group import PathInputGroup
 
 
 class SplitTabMixin:
@@ -52,14 +51,7 @@ class SplitTabMixin:
         tab_layout = QVBoxLayout(tab)
         tab_layout.setSpacing(10)
 
-        # 路径输入组 (划分不需要 classes.txt)
-        self.split_path_group = PathInputGroup(
-            show_image_dir=True,
-            show_label_dir=True,
-            show_classes=False,
-            group_title="数据源路径",
-        )
-        tab_layout.addWidget(self.split_path_group)
+        # 路径输入组已提升到 DataWidget 外层 (self.path_group)
 
         # 下方内容区 (水平布局)
         content_layout = QHBoxLayout()
@@ -282,7 +274,7 @@ class SplitTabMixin:
     @Slot()
     def _on_split(self) -> None:
         """开始划分数据集"""
-        img_path = self.split_path_group.get_image_dir()
+        img_path = self.path_group.get_image_dir()
         if not img_path:
             self.log_message.emit("请先选择图片目录")
             return
@@ -291,7 +283,7 @@ class SplitTabMixin:
             self.log_message.emit(f"图片目录不存在: {img_path}")
             return
 
-        label_path = self.split_path_group.get_label_dir()
+        label_path = self.path_group.get_label_dir()
 
         output_dir = self.output_dir_input.text().strip()
         if not output_dir:

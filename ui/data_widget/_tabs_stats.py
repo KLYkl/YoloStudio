@@ -26,7 +26,6 @@ from PySide6.QtWidgets import (
 )
 
 from core.data_handler import ScanResult
-from ui.path_input_group import PathInputGroup
 
 
 class StatsTabMixin:
@@ -49,14 +48,7 @@ class StatsTabMixin:
         layout = QVBoxLayout(scroll_content)
         layout.setSpacing(10)
 
-        # 路径输入组
-        self.stats_path_group = PathInputGroup(
-            show_image_dir=True,
-            show_label_dir=True,
-            show_classes=True,
-            group_title="数据源路径",
-        )
-        layout.addWidget(self.stats_path_group)
+        # 路径输入组已提升到 DataWidget 外层 (self.path_group)
 
         # 中部内容区: 左侧类别表，右侧概览
         content_layout = QHBoxLayout()
@@ -236,7 +228,7 @@ class StatsTabMixin:
     @Slot()
     def _on_scan(self) -> None:
         """开始扫描数据集"""
-        img_path = self.stats_path_group.get_image_dir()
+        img_path = self.path_group.get_image_dir()
         if not img_path:
             self.log_message.emit("请先选择图片目录")
             return
@@ -245,8 +237,8 @@ class StatsTabMixin:
             self.log_message.emit(f"图片目录不存在: {img_path}")
             return
 
-        label_path = self.stats_path_group.get_label_dir()
-        classes_txt = self.stats_path_group.get_classes_path()
+        label_path = self.path_group.get_label_dir()
+        classes_txt = self.path_group.get_classes_path()
 
         self._scan_result = None
         self.stats_table.setRowCount(0)
@@ -298,7 +290,7 @@ class StatsTabMixin:
     @Slot()
     def _on_categorize(self) -> None:
         """按类别分类数据集"""
-        img_path = self.stats_path_group.get_image_dir()
+        img_path = self.path_group.get_image_dir()
         if not img_path:
             self.log_message.emit("请先选择图片目录")
             return
@@ -307,8 +299,8 @@ class StatsTabMixin:
             self.log_message.emit(f"图片目录不存在: {img_path}")
             return
 
-        label_path = self.stats_path_group.get_label_dir()
-        classes_txt = self.stats_path_group.get_classes_path()
+        label_path = self.path_group.get_label_dir()
+        classes_txt = self.path_group.get_classes_path()
         include_no_label = self.include_no_label_check.isChecked()
 
         self.log_message.emit("开始按类别分类数据集...")
