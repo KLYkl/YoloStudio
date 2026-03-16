@@ -28,6 +28,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ui.focus_widgets import FocusComboBox
+
 from core.data_handler import (
     DataWorker,
     LabelFormat,
@@ -156,14 +158,14 @@ class EditTabMixin:
 
         # 输入字段
         form_layout = QFormLayout()
-        self.old_name_input = QComboBox()
+        self.old_name_input = FocusComboBox()
         self.old_name_input.setEditable(True)
         self.old_name_input.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
         self.old_name_input.lineEdit().setPlaceholderText("原类别名称或 ID")
         form_layout.addRow("原类别/ID:", self.old_name_input)
 
         self._new_name_label = QLabel("新类别/ID:")
-        self.new_name_input = QComboBox()
+        self.new_name_input = FocusComboBox()
         self.new_name_input.setEditable(True)
         self.new_name_input.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
         self.new_name_input.lineEdit().setPlaceholderText("新类别名称或 ID (留空表示删除)")

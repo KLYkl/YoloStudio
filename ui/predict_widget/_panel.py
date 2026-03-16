@@ -23,7 +23,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.focus_widgets import FocusSlider
+from ui.focus_widgets import FocusComboBox, FocusSlider
 
 
 class PanelMixin:
@@ -242,7 +242,7 @@ class PanelMixin:
 
         cam_row = QHBoxLayout()
         cam_row.setSpacing(4)
-        self._camera_combo = QComboBox()
+        self._camera_combo = FocusComboBox()
         self._camera_combo.setFixedHeight(32)
         self._refresh_camera_btn = QToolButton()
         self._refresh_camera_btn.setText("🔄")
@@ -280,7 +280,7 @@ class PanelMixin:
         screen_layout.setContentsMargins(0, 8, 0, 0)
         screen_layout.setSpacing(6)
 
-        self._screen_combo = QComboBox()
+        self._screen_combo = FocusComboBox()
         self._screen_combo.setFixedHeight(32)
         self._refresh_screen_btn = QToolButton()
         self._refresh_screen_btn.setText("🔄")
@@ -346,7 +346,7 @@ class PanelMixin:
         filter_row.setSpacing(4)
         filter_label = QLabel("类别:")
         filter_label.setFixedWidth(50)
-        self._class_filter_combo = QComboBox()
+        self._class_filter_combo = FocusComboBox()
         self._class_filter_combo.addItem("全部")
         self._class_filter_combo.setFixedHeight(32)
 

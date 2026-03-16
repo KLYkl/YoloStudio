@@ -39,7 +39,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.data_handler import AugmentConfig, AugmentResult
-from ui.focus_widgets import FocusDoubleSpinBox, FocusSpinBox
+from ui.focus_widgets import FocusComboBox, FocusDoubleSpinBox, FocusSpinBox
 
 
 # ==================== 常量 ====================
@@ -549,7 +549,7 @@ class AugmentTabMixin:
         settings_form.setHorizontalSpacing(12)
         settings_form.setVerticalSpacing(10)
 
-        self.augment_mode_combo = QComboBox()
+        self.augment_mode_combo = FocusComboBox()
         self.augment_mode_combo.addItems(["随机生成", "固定生成"])
         settings_form.addRow("生成方式:", self.augment_mode_combo)
 

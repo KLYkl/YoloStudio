@@ -108,7 +108,11 @@ class StatsTabMixin:
         content_layout.addWidget(overview_group, 1)
         layout.addLayout(content_layout, 1)
 
-        # 按钮区域 (底部)
+        # 将内容装入滚动区域
+        scroll_area.setWidget(scroll_content)
+        tab_layout.addWidget(scroll_area, 1)
+
+        # 按钮区域 (底部) — 放在 ScrollArea 外部，固定不随滚动消失
         btn_layout = QHBoxLayout()
 
         # 包含无标签图片复选框 (用于分类功能)
@@ -139,11 +143,7 @@ class StatsTabMixin:
         self.categorize_btn.setProperty("class", "warning")
         btn_layout.addWidget(self.categorize_btn)
 
-        layout.addLayout(btn_layout)
-
-        # 将内容装入滚动区域
-        scroll_area.setWidget(scroll_content)
-        tab_layout.addWidget(scroll_area)
+        tab_layout.addLayout(btn_layout)
 
         return tab
 
