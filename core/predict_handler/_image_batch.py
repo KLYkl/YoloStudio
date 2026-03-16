@@ -6,7 +6,7 @@ _image_batch.py - ImageBatchProcessor: 图片批量处理器
 from __future__ import annotations
 
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 from typing import Any, Optional
 
 import cv2
@@ -74,6 +74,9 @@ class ImageBatchProcessor(QObject):
         # 保存条件
         self._save_condition: SaveCondition = SaveCondition.ALL
 
+        # C1-fix: 参数锁（保护主线程写入和工作线程读取）
+        self._params_lock = Lock()
+
         self._logger = get_logger()
 
     def set_model(self, model: Any) -> None:
@@ -87,9 +90,10 @@ class ImageBatchProcessor(QObject):
         high_conf_threshold: float = 0.7
     ) -> None:
         """更新推理参数"""
-        self._conf = conf
-        self._iou = iou
-        self._high_conf_threshold = high_conf_threshold
+        with self._params_lock:
+            self._conf = conf
+            self._iou = iou
+            self._high_conf_threshold = high_conf_threshold
 
     def load_images(self, source: str | Path | list[str] | list[Path]) -> int:
         """加载图片列表"""
@@ -152,7 +156,9 @@ class ImageBatchProcessor(QObject):
             self.error_occurred.emit(f"无法读取图片: {image_path}")
             return None
 
-        annotated, detections = run_inference(self._model, original, self._conf, self._iou)
+        with self._params_lock:
+            conf, iou = self._conf, self._iou
+        annotated, detections = run_inference(self._model, original, conf, iou)
 
         self._results_cache[image_path] = detections
 
@@ -198,7 +204,9 @@ class ImageBatchProcessor(QObject):
                 self._logger.warning(f"无法读取图片: {image_path}")
                 continue
 
-            annotated, detections = run_inference(self._model, original, self._conf, self._iou)
+            with self._params_lock:
+                conf, iou = self._conf, self._iou
+            annotated, detections = run_inference(self._model, original, conf, iou)
 
             self._results_cache[image_path] = detections
 

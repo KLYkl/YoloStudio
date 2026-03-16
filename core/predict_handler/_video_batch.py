@@ -9,7 +9,7 @@ import json
 import time
 from datetime import datetime
 from pathlib import Path
-from threading import Event
+from threading import Event, Lock
 from typing import Any, Optional
 
 import cv2
@@ -83,6 +83,9 @@ class VideoBatchProcessor(QObject):
         self._high_conf_only: bool = False
         self._high_conf_threshold: float = 0.7
 
+        # C1-fix: 参数锁
+        self._params_lock = Lock()
+
         self._logger = get_logger()
 
     def set_model(self, model: Any) -> None:
@@ -96,9 +99,10 @@ class VideoBatchProcessor(QObject):
         high_conf_threshold: float = 0.7
     ) -> None:
         """更新推理参数"""
-        self._conf = conf
-        self._iou = iou
-        self._high_conf_threshold = high_conf_threshold
+        with self._params_lock:
+            self._conf = conf
+            self._iou = iou
+            self._high_conf_threshold = high_conf_threshold
 
     def set_output_options(
         self,
@@ -150,8 +154,25 @@ class VideoBatchProcessor(QObject):
 
     @property
     def is_paused(self) -> bool:
-        """是否暂停"""
-        return not self._pause_event.is_set()
+        """是否处于暂停状态"""
+        return self._is_running and not self._pause_event.is_set()
+
+    def pause(self) -> None:
+        """暂停批量处理"""
+        if self._is_running:
+            self._pause_event.clear()
+            self._logger.info("视频批量处理已暂停")
+
+    def resume(self) -> None:
+        """恢复批量处理"""
+        if self._is_running:
+            self._pause_event.set()
+            self._logger.info("视频批量处理已恢复")
+
+    def stop(self) -> None:
+        """停止批量处理"""
+        self._stop_requested = True
+        self._pause_event.set()  # 解除暂停等待，让线程能退出
 
     def process_all(self) -> None:
         """批量处理所有视频 (应在 QThread 中调用)"""
@@ -263,8 +284,10 @@ class VideoBatchProcessor(QObject):
                 if not ret:
                     break
 
+                with self._params_lock:
+                    conf, iou = self._conf, self._iou
                 annotated_frame, detections = run_inference(
-                    self._model, frame, self._conf, self._iou, include_bbox=False
+                    self._model, frame, conf, iou, include_bbox=False
                 )
 
                 if detections:

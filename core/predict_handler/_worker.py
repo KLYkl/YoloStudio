@@ -121,23 +121,27 @@ class PredictWorker(QObject):
 
     def pause(self) -> None:
         """请求暂停推理"""
+        should_emit = False
         with self._state_lock:
             if self._running and self._playback_state == PlaybackState.PLAYING:
                 self._pause_event.clear()
                 self._playback_state = PlaybackState.PAUSED
+                should_emit = True
         # 信号发射放在锁外，避免死锁
-        if self._playback_state == PlaybackState.PAUSED:
+        if should_emit:
             self.state_changed.emit(PlaybackState.PAUSED.value)
             self._logger.info("推理已暂停")
 
     def resume(self) -> None:
         """请求恢复推理"""
+        should_emit = False
         with self._state_lock:
             if self._running and self._playback_state == PlaybackState.PAUSED:
                 self._pause_event.set()
                 self._playback_state = PlaybackState.PLAYING
+                should_emit = True
         # 信号发射放在锁外，避免死锁
-        if self._playback_state == PlaybackState.PLAYING:
+        if should_emit:
             self.state_changed.emit(PlaybackState.PLAYING.value)
             self._logger.info("推理已恢复")
 
@@ -309,6 +313,7 @@ class PredictWorker(QObject):
                                 self._logger.debug("Seek 完成，恢复暂停状态")
                                 continue
 
+                frame_start_time = time.time()
                 ret, frame = cap.read()
                 if not ret:
                     if is_video_file:
@@ -347,6 +352,13 @@ class PredictWorker(QObject):
                 if is_video_file and current_time - last_progress_time >= progress_update_interval:
                     self.progress_updated.emit(self._current_frame, self._total_frames)
                     last_progress_time = current_time
+
+                # B5-fix: 视频文件按原始帧率限速，避免加速播放
+                if is_video_file:
+                    elapsed = time.time() - frame_start_time
+                    target_delay = 1.0 / video_fps
+                    if elapsed < target_delay:
+                        time.sleep(target_delay - elapsed)
 
         finally:
             self._playback_state = PlaybackState.IDLE

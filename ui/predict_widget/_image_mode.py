@@ -25,6 +25,7 @@ class ImageModeMixin:
                 original, annotated, detections = result
                 self._image_browser.show_result(original, annotated, detections)
                 self._image_browser.update_navigation(idx, self._image_processor.processed_count)
+                self._object_display.setText(f"检测: {len(detections)} 个")  # B7-fix
 
     @Slot()
     def _on_image_next(self) -> None:
@@ -36,6 +37,7 @@ class ImageModeMixin:
                 original, annotated, detections = result
                 self._image_browser.show_result(original, annotated, detections)
                 self._image_browser.update_navigation(idx, self._image_processor.processed_count)
+                self._object_display.setText(f"检测: {len(detections)} 个")  # B7-fix
 
     @Slot(int, int)
     def _on_image_batch_progress(self, current: int, total: int) -> None:
@@ -107,7 +109,7 @@ class ImageModeMixin:
 
         conf = self._conf_slider.value() / 100.0
         iou = self._iou_slider.value() / 100.0
-        high_conf = self._threshold_slider.value() / 100.0
+        high_conf = self._img_threshold_slider.value() / 100.0
         self._image_processor.update_params(conf, iou, high_conf)
 
         self._is_image_mode = True
@@ -154,16 +156,15 @@ class ImageModeMixin:
 
             class BatchProcessThread(QThread):
                 """批量处理线程"""
-                def __init__(self, processor, condition, finalize_fn):
+                def __init__(self, processor, condition):
                     super().__init__()
                     self._processor = processor
                     self._condition = condition
-                    self._finalize_fn = finalize_fn
 
                 def run(self):
                     self._processor.process_all(self._condition)
 
-            self._batch_thread = BatchProcessThread(self._image_processor, condition, self._finalize_image_output)
+            self._batch_thread = BatchProcessThread(self._image_processor, condition)
             self._batch_thread.start()
 
     def _finalize_image_output(self) -> None:

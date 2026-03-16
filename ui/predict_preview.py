@@ -14,6 +14,7 @@ predict_preview.py - 预览画布
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 import cv2
@@ -81,14 +82,14 @@ class PreviewCanvas(QLabel):
                 QImage.Format.Format_RGB888
             )
             
-            # 转换为 QPixmap
-            self._current_pixmap = QPixmap.fromImage(q_img)
+            # 转换为 QPixmap（.copy() 确保 QImage 拥有独立内存，不依赖 rgb_frame）
+            self._current_pixmap = QPixmap.fromImage(q_img.copy())
             
             # 缩放并显示
             self._update_display()
             
-        except Exception:
-            pass
+        except Exception as e:
+            logging.debug(f"帧渲染失败: {e}")
     
     def _update_display(self) -> None:
         """更新显示 (缩放到当前尺寸)"""

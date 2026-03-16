@@ -220,6 +220,18 @@ class SlotsMixin:
                 )
             return
 
+        # B2-fix: 视频批量处理暂停/恢复
+        if self._video_batch_processor.is_running:
+            if self._video_batch_processor.is_paused:
+                self._video_batch_processor.resume()
+                self._start_btn.setText("⏸ 暂停")
+                set_button_class(self._start_btn, "warning")
+            else:
+                self._video_batch_processor.pause()
+                self._start_btn.setText("▶ 继续")
+                set_button_class(self._start_btn, "success")
+            return
+
         if self._predict_manager.is_running:
             if self._predict_manager.is_paused:
                 self._predict_manager.resume()
@@ -307,14 +319,16 @@ class SlotsMixin:
         self._current_source_type = source_type
 
         if self._predict_manager.start(source=source, source_type=source_type, conf=conf, iou=iou, screen_region=screen_region):
+            self._output_finalized = False  # A5-fix: 重置标志
             self._stop_btn.setEnabled(True)
             self._frame_count = 0
             self._fps_frame_count = 0
             self._fps_timer.start(1000)
 
-            self._playback_bar.setVisible(True)
-
+            # B6-fix: 只有视频文件才显示进度条和时间标签
             is_video = source_type == InputSourceType.VIDEO
+            self._playback_bar.setVisible(is_video)
+
             is_image = source_type == InputSourceType.IMAGE
             self._progress_slider.setEnabled(is_video)
             self._progress_slider.setRange(0, 10000)
@@ -339,6 +353,10 @@ class SlotsMixin:
                 if not self._batch_thread.wait(5000):
                     self.log_message.emit("[警告] 批量处理线程超时未结束")
             self._is_batch_processing = False
+            # D8-fix: 清理线程引用
+            if self._batch_thread:
+                self._batch_thread.deleteLater()
+                self._batch_thread = None
             self._image_progress_bar.set_finished("处理已中止")
             self.log_message.emit("图片批量处理已停止")
         elif self._video_batch_processor.is_running:
@@ -349,6 +367,9 @@ class SlotsMixin:
             self.log_message.emit("视频批量处理已停止")
         elif self._predict_manager.is_running:
             self._predict_manager.stop()
+            # A4-fix: 等待线程退出，避免 Stop 后立即 Start 时旧线程仍在
+            if self._predict_manager._thread and self._predict_manager._thread.isRunning():
+                self._predict_manager._thread.wait(3000)
             self._fps_timer.stop()
             self._finalize_output()
             self.log_message.emit("预测已停止")
@@ -357,6 +378,11 @@ class SlotsMixin:
 
     def _finalize_output(self) -> None:
         """保存录制视频和报告（用户停止和自然结束都需要）"""
+        # A5-fix: 防止重复调用（Stop 和 finished 信号各触发一次）
+        if getattr(self, '_output_finalized', False):
+            return
+        self._output_finalized = True
+
         if self._is_recording:
             video_path = self._output_manager.stop_video()
             if video_path:
@@ -378,6 +404,9 @@ class SlotsMixin:
         self._progress_slider.setEnabled(False)
         self._time_label.setText("00:00 / 00:00")
         self._current_source_type = None
+
+        # D4-fix: 停止后清空预览画面
+        self._preview_canvas.clear_display()
 
         self._is_stopping = False
 
@@ -402,8 +431,11 @@ class SlotsMixin:
                 thresh = self._threshold_slider.value() / 100.0
                 high_conf = [d for d in detections if d.get("confidence", 0) >= thresh]
                 if high_conf:
+                    # A1-fix: 用过滤后的检测结果重新绘制标注图，确保图与标签一致
+                    from core.predict_handler._inference_utils import draw_detections
+                    filtered_annotated = draw_detections(raw_frame, high_conf)
                     self._output_manager.save_keyframe(
-                        annotated_frame, high_conf,
+                        filtered_annotated, high_conf,
                         save_annotated=save_annotated,
                         save_raw=save_raw,
                         raw_frame=raw_frame

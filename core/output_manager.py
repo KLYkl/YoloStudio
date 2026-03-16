@@ -54,6 +54,9 @@ class OutputManager(QObject):
         self._frame_count: int = 0
         self._keyframe_count: int = 0
         self._detection_stats: dict[str, int] = {}  # {类别名: 检测次数}
+        
+        # D14-fix: 关键帧目录创建标记 (惰性初始化)
+        self._keyframe_dirs_created: bool = False
     
     def set_output_dir(self, output_dir: str | Path, allow_existing: bool = True) -> bool:
         """
@@ -149,6 +152,16 @@ class OutputManager(QObject):
             self._video_writer.write(frame)
             self._frame_count += 1
     
+    def _ensure_keyframe_dirs(self) -> None:
+        """D14-fix: 惰性初始化关键帧目录（只创建一次）"""
+        if self._keyframe_dirs_created or self._output_dir is None:
+            return
+        (self._output_dir / "keyframes" / "annotated" / "images").mkdir(parents=True, exist_ok=True)
+        (self._output_dir / "keyframes" / "raw" / "images").mkdir(parents=True, exist_ok=True)
+        (self._output_dir / "keyframes" / "raw" / "labels_yolo").mkdir(parents=True, exist_ok=True)
+        (self._output_dir / "keyframes" / "raw" / "labels_voc").mkdir(parents=True, exist_ok=True)
+        self._keyframe_dirs_created = True
+
     def save_keyframe(
         self,
         annotated_frame: np.ndarray,
@@ -177,33 +190,35 @@ class OutputManager(QObject):
         if self._output_dir is None or not detections:
             return
         
-        # 生成文件名
+        # D14-fix: 确保目录已创建（首次调用时创建，之后跳过）
+        self._ensure_keyframe_dirs()
+        
+        # D13-fix: 时间戳 + 计数器防文件名碰撞
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-        base_name = f"{image_prefix}_{timestamp}"
+        base_name = f"{image_prefix}_{timestamp}_{self._keyframe_count:04d}"
         
         try:
             # 保存带框图 (无标签)
             if save_annotated:
                 annotated_dir = self._output_dir / "keyframes" / "annotated" / "images"
-                annotated_dir.mkdir(parents=True, exist_ok=True)
-                
                 image_path = annotated_dir / f"{base_name}.jpg"
-                cv2.imwrite(str(image_path), annotated_frame)
-                self._keyframe_count += 1
-                self.file_saved.emit(str(image_path))
+                # D16-fix: 检查 imwrite 返回值
+                if not cv2.imwrite(str(image_path), annotated_frame):
+                    self.error_occurred.emit(f"保存帧框图失败: {image_path}")
+                else:
+                    self._keyframe_count += 1
+                    self.file_saved.emit(str(image_path))
             
             # 保存原图 (含标签: YOLO TXT + VOC XML)
             if save_raw and raw_frame is not None:
                 raw_images_dir = self._output_dir / "keyframes" / "raw" / "images"
                 labels_yolo_dir = self._output_dir / "keyframes" / "raw" / "labels_yolo"
                 labels_voc_dir = self._output_dir / "keyframes" / "raw" / "labels_voc"
-                raw_images_dir.mkdir(parents=True, exist_ok=True)
-                labels_yolo_dir.mkdir(parents=True, exist_ok=True)
-                labels_voc_dir.mkdir(parents=True, exist_ok=True)
                 
                 # 保存原图
                 raw_path = raw_images_dir / f"{base_name}.jpg"
-                cv2.imwrite(str(raw_path), raw_frame)
+                if not cv2.imwrite(str(raw_path), raw_frame):
+                    self.error_occurred.emit(f"保存原图失败: {raw_path}")
                 
                 # 获取图片尺寸 (用于 VOC XML)
                 h, w = raw_frame.shape[:2]
@@ -287,6 +302,7 @@ class OutputManager(QObject):
         self._frame_count = 0
         self._keyframe_count = 0
         self._detection_stats.clear()
+        self._keyframe_dirs_created = False  # D14-fix: 重置目录标记
     
     def get_stats(self) -> dict:
         """
