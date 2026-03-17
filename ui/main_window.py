@@ -33,7 +33,8 @@ from PySide6.QtWidgets import (
 )
 
 from config import AppConfig
-from ui.base_ui import DARK_THEME_QSS, LIGHT_THEME_QSS, PlaceholderWidget
+from ui.base_ui import PlaceholderWidget
+from ui.theme import ThemeManager
 from utils.logger import get_logger
 
 
@@ -116,8 +117,6 @@ class GlobalLogPanel(QWidget):
         # ========== Body: 日志文本框 ==========
         self.log_text = QPlainTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setMinimumHeight(120)
-        self.log_text.setMaximumHeight(180)
         self.log_text.setPlaceholderText("运行日志将显示在这里...")
         self.log_text.setMaximumBlockCount(500)
         self.log_text.setObjectName("logPanel")
@@ -192,6 +191,8 @@ class MainWindow(QMainWindow):
         
         # 主题状态
         self._is_dark_theme = self.config.get("dark_theme", True)
+        # 同步 ThemeManager
+        ThemeManager.instance().set_dark(self._is_dark_theme)
         
         # 初始化 UI
         self._setup_window()
@@ -237,7 +238,7 @@ class MainWindow(QMainWindow):
         
         # 主题切换按钮 (悬浮在 Tab 栏右侧)
         self._theme_btn = QToolButton(self.tab_widget)
-        self._theme_btn.setFixedSize(32, 32)
+        self._theme_btn.setFixedSize(24, 24)
         self._theme_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._update_theme_button()
         self._theme_btn.clicked.connect(self._toggle_theme)
@@ -283,10 +284,9 @@ class MainWindow(QMainWindow):
     
     def _apply_theme(self) -> None:
         """应用当前主题"""
-        if self._is_dark_theme:
-            self.setStyleSheet(DARK_THEME_QSS)
-        else:
-            self.setStyleSheet(LIGHT_THEME_QSS)
+        tm = ThemeManager.instance()
+        tm.set_dark(self._is_dark_theme)
+        tm.apply(self)
         # 同步 Windows 标题栏颜色
         if self.isVisible():
             _set_windows_titlebar_dark(int(self.winId()), self._is_dark_theme)
@@ -340,8 +340,8 @@ class MainWindow(QMainWindow):
             tab_bar = self.tab_widget.tabBar()
             # 放在 Tab 栏右侧，与 Tab 标签对齐
             btn_x = self.tab_widget.width() - self._theme_btn.width() - 5
-            btn_y = (tab_bar.height() - self._theme_btn.height()) // 2
-            self._theme_btn.move(btn_x, max(btn_y, 2))
+            btn_y = 1
+            self._theme_btn.move(btn_x, btn_y)
     
     def closeEvent(self, event: QCloseEvent) -> None:
         """

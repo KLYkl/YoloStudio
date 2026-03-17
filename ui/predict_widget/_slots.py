@@ -367,9 +367,8 @@ class SlotsMixin:
             self.log_message.emit("视频批量处理已停止")
         elif self._predict_manager.is_running:
             self._predict_manager.stop()
-            # A4-fix: 等待线程退出，避免 Stop 后立即 Start 时旧线程仍在
-            if self._predict_manager._thread and self._predict_manager._thread.isRunning():
-                self._predict_manager._thread.wait(3000)
+            # 使用公开 API 等待线程退出，避免访问私有成员
+            self._predict_manager.wait_for_stop(3000)
             self._fps_timer.stop()
             self._finalize_output()
             self.log_message.emit("预测已停止")

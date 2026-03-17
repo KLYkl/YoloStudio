@@ -164,6 +164,16 @@ class PredictManager(QObject):
         if self._worker is not None:
             self._worker.stop()
 
+    def wait_for_stop(self, timeout_ms: int = 3000) -> bool:
+        """等待推理线程退出（公开 API，避免外部访问 _thread）
+
+        Returns:
+            True 如果线程已退出，False 如果超时
+        """
+        if self._thread is not None and self._thread.isRunning():
+            return self._thread.wait(timeout_ms)
+        return True
+
     def pause(self) -> None:
         """暂停预测"""
         if self._worker is not None:

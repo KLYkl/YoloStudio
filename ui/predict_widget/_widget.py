@@ -205,8 +205,7 @@ class PredictWidget(
         # 停止 PredictManager 推理线程
         if self._predict_manager.is_running:
             self._predict_manager.stop()
-            if self._predict_manager._thread and self._predict_manager._thread.isRunning():
-                self._predict_manager._thread.wait(3000)
+            self._predict_manager.wait_for_stop(3000)
 
         # 停止图片批量处理线程
         if self._is_batch_processing:

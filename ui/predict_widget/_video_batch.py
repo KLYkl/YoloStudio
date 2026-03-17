@@ -72,6 +72,11 @@ class VideoBatchMixin:
 
     def _start_video_batch_processing(self) -> None:
         """启动视频批量处理"""
+        # 前置检查: 旧线程是否仍在运行 (必须在修改 UI 之前)
+        if hasattr(self, '_video_batch_thread') and self._video_batch_thread and self._video_batch_thread.isRunning():
+            StyledMessageBox.warning(self, "警告", "上一次批量处理尚未完成")
+            return
+
         source = self._batch_video_folder_edit.text().strip()
         if not source:
             StyledMessageBox.warning(self, "警告", "请选择视频文件夹")
@@ -115,6 +120,7 @@ class VideoBatchMixin:
             high_conf_only=self._high_conf_check.isChecked()
         )
 
+        # 通过所有验证后再修改 UI 状态
         self._start_btn.setText("处理中...")
         self._start_btn.setEnabled(False)
         self._stop_btn.setEnabled(True)
@@ -123,11 +129,6 @@ class VideoBatchMixin:
         self.log_message.emit(f"开始批量处理 {video_count} 个视频")
 
         from PySide6.QtCore import QThread
-
-        # BUG-7: 检查旧线程是否仍在运行
-        if hasattr(self, '_video_batch_thread') and self._video_batch_thread and self._video_batch_thread.isRunning():
-            StyledMessageBox.warning(self, "警告", "上一次批量处理尚未完成")
-            return
 
         class VideoBatchThread(QThread):
             """视频批量处理线程"""

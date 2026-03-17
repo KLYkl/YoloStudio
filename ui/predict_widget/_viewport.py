@@ -11,12 +11,12 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QSlider,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
 )
 
+from ui.focus_widgets import FocusSlider
 from ui.image_result_browser import ImageResultBrowser, ImageProgressBar
 from ui.predict_preview import PreviewCanvas
 
@@ -69,7 +69,7 @@ class ViewportMixin:
         layout.setContentsMargins(8, 2, 8, 2)
         layout.setSpacing(8)
 
-        self._progress_slider = QSlider(Qt.Orientation.Horizontal)
+        self._progress_slider = FocusSlider(Qt.Orientation.Horizontal)
         self._progress_slider.setObjectName("playbackSlider")
         self._progress_slider.setRange(0, 100)
         self._progress_slider.setValue(0)

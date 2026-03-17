@@ -149,6 +149,14 @@ class CollapsibleGroupBox(QWidget):
         self._content_animation.setDuration(self._animation_duration)
         
         self._animation_group.addAnimation(self._content_animation)
+        
+        # 动画结束后解锁高度，防止内容动态变化时被裁剪
+        self._animation_group.finished.connect(self._on_animation_finished)
+    
+    def _on_animation_finished(self) -> None:
+        """动画结束后：展开状态解锁高度，折叠状态保持 0"""
+        if not self._collapsed:
+            self._content_area.setMaximumHeight(16777215)  # QWIDGETSIZE_MAX
     
     def add_widget(self, widget: QWidget) -> None:
         """
@@ -213,7 +221,7 @@ class CollapsibleGroupBox(QWidget):
             self._animation_group.start()
         else:
             self._content_area.setMaximumHeight(
-                content_height if not collapsed else 0
+                16777215 if not collapsed else 0  # QWIDGETSIZE_MAX
             )
         
         # 更新按钮文本和摘要可见性
