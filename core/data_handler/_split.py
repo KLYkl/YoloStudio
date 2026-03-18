@@ -270,21 +270,26 @@ class SplitMixin:
         train_txt = root / "train.txt"
         val_txt = root / "val.txt"
 
-        with open(train_txt, "w", encoding="utf-8") as f:
-            for img in train_images:
-                try:
-                    rel = img.relative_to(root)
-                except ValueError:
-                    rel = img.absolute()
-                f.write(str(rel) + "\n")
+        try:
+            with open(train_txt, "w", encoding="utf-8") as f:
+                for img in train_images:
+                    try:
+                        rel = img.relative_to(root)
+                    except ValueError:
+                        rel = img.absolute()
+                    f.write(str(rel) + "\n")
 
-        with open(val_txt, "w", encoding="utf-8") as f:
-            for img in val_images:
-                try:
-                    rel = img.relative_to(root)
-                except ValueError:
-                    rel = img.absolute()
-                f.write(str(rel) + "\n")
+            with open(val_txt, "w", encoding="utf-8") as f:
+                for img in val_images:
+                    try:
+                        rel = img.relative_to(root)
+                    except ValueError:
+                        rel = img.absolute()
+                    f.write(str(rel) + "\n")
+        except OSError as e:
+            if message_callback:
+                message_callback(f"索引文件写入失败: {e}")
+            return str(train_txt), str(val_txt)
 
         if message_callback:
             message_callback(f"已生成索引文件: {train_txt.name}, {val_txt.name} (相对路径)")
@@ -309,19 +314,22 @@ class SplitMixin:
         transfer_func = shutil.copy2 if use_copy else shutil.move
         action = "→" if use_copy else "⇢"
 
-        # 传输图片
-        dest_img = img_dir / img_path.name
-        transfer_func(str(img_path), str(dest_img))
-        log_parts = [f"{img_path.name} {action} {img_dir.parent.name}/{img_dir.name}"]
+        try:
+            # 传输图片
+            dest_img = img_dir / img_path.name
+            transfer_func(str(img_path), str(dest_img))
+            log_parts = [f"{img_path.name} {action} {img_dir.parent.name}/{img_dir.name}"]
 
-        # 查找并传输标签
-        if label_source_dir and label_source_dir.exists():
-            label_path, _ = self._find_label_in_dir(img_path, label_source_dir)
-        else:
-            label_path, _ = self._find_label(img_path, root)
+            # 查找并传输标签
+            if label_source_dir and label_source_dir.exists():
+                label_path, _ = self._find_label_in_dir(img_path, label_source_dir)
+            else:
+                label_path, _ = self._find_label(img_path, root)
 
-        if label_path and label_path.exists():
-            transfer_func(str(label_path), str(lbl_dir / label_path.name))
-            log_parts.append(f"+ {label_path.suffix}")
+            if label_path and label_path.exists():
+                transfer_func(str(label_path), str(lbl_dir / label_path.name))
+                log_parts.append(f"+ {label_path.suffix}")
 
-        return " ".join(log_parts)
+            return " ".join(log_parts)
+        except OSError as e:
+            return f"失败: {img_path.name} - {e}"

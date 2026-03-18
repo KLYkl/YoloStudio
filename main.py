@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 import traceback
 from typing import Type
 
@@ -40,6 +41,7 @@ def exception_hook(
     全局异常处理钩子
     
     捕获所有未处理的异常，弹出错误对话框并记录日志，防止程序直接闪退。
+    注意: 从工作线程触发时仅记录日志，不弹窗（Qt 要求 UI 操作在主线程）。
     
     Args:
         exc_type: 异常类型
@@ -58,6 +60,12 @@ def exception_hook(
     # 记录到日志
     logger = get_logger()
     logger.critical(f"未捕获的异常:\n{tb_text}")
+    
+    # 安全检查: 仅在主线程弹出错误对话框
+    # 从工作线程 (QThread) 创建 QDialog 会导致 QPainter 竞争错误
+    if threading.current_thread() is not threading.main_thread():
+        logger.error("异常发生在工作线程中，已记录日志（跳过弹窗）")
+        return
     
     # 弹出错误对话框 (查找当前活动窗口作为父窗口以居中显示)
     from ui.styled_message_box import StyledMessageBox

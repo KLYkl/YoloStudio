@@ -200,7 +200,12 @@ class VideoBatchProcessor(QObject):
             self.video_started.emit(str(video_path), i, total)
             self._logger.info(f"开始处理视频 [{i+1}/{total}]: {video_path.name}")
 
-            stats = self._process_single_video(video_path)
+            try:
+                stats = self._process_single_video(video_path)
+            except Exception as e:
+                self._logger.error(f"处理视频失败 [{video_path.name}]: {e}")
+                self.error_occurred.emit(f"视频处理失败 [{video_path.name}]: {e}")
+                stats = None
 
             if stats:
                 self._video_stats[video_path] = stats
@@ -345,9 +350,13 @@ class VideoBatchProcessor(QObject):
         stats["keyframes_saved/已保存关键帧"] = keyframe_count
 
         if self._save_report and video_output_dir:
-            report_path = video_output_dir / "report.json"
-            with open(report_path, "w", encoding="utf-8") as f:
-                json.dump(stats, f, ensure_ascii=False, indent=2)
+            try:
+                report_path = video_output_dir / "report.json"
+                with open(report_path, "w", encoding="utf-8") as f:
+                    json.dump(stats, f, ensure_ascii=False, indent=2)
+            except OSError as e:
+                self._logger.error(f"保存视频报告失败: {e}")
+                self.error_occurred.emit(f"保存视频报告失败: {e}")
 
         return stats
 
@@ -399,8 +408,13 @@ class VideoBatchProcessor(QObject):
         }
 
         report_path = self._output_dir / "batch_report.json"
-        with open(report_path, "w", encoding="utf-8") as f:
-            json.dump(report, f, ensure_ascii=False, indent=2)
+        try:
+            with open(report_path, "w", encoding="utf-8") as f:
+                json.dump(report, f, ensure_ascii=False, indent=2)
+        except OSError as e:
+            self._logger.error(f"生成批量报告失败: {e}")
+            self.error_occurred.emit(f"生成批量报告失败: {e}")
+            return None
 
         self._logger.info(f"批量报告已生成: {report_path}")
         return report_path

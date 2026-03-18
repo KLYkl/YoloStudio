@@ -145,12 +145,15 @@ class OutputManager(QObject):
             frame: BGR 格式的帧 (OpenCV 格式)
         """
         if self._video_writer is not None and self._video_writer.isOpened():
-            # 确保帧尺寸与 VideoWriter 匹配
-            h, w = frame.shape[:2]
-            if hasattr(self, '_video_size') and self._video_size and (w, h) != self._video_size:
-                frame = cv2.resize(frame, self._video_size)
-            self._video_writer.write(frame)
-            self._frame_count += 1
+            try:
+                # 确保帧尺寸与 VideoWriter 匹配
+                h, w = frame.shape[:2]
+                if hasattr(self, '_video_size') and self._video_size and (w, h) != self._video_size:
+                    frame = cv2.resize(frame, self._video_size)
+                self._video_writer.write(frame)
+                self._frame_count += 1
+            except Exception as e:
+                self.error_occurred.emit(f"写入视频帧失败: {e}")
     
     def _ensure_keyframe_dirs(self) -> None:
         """D14-fix: 惰性初始化关键帧目录（只创建一次）"""
@@ -430,26 +433,29 @@ class OutputManager(QObject):
         
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         
-        # 保存有检测结果列表
-        detected_path = self._output_dir / "detected.txt"
-        with open(detected_path, "w", encoding="utf-8") as f:
-            f.write(f"# 有检测结果的图片列表\n")
-            f.write(f"# 生成时间: {timestamp}\n")
-            f.write(f"# 总数: {len(detected_paths)}\n")
-            for p in detected_paths:
-                f.write(f"{p}\n")
-        
-        # 保存无检测结果列表
-        empty_path = self._output_dir / "empty.txt"
-        with open(empty_path, "w", encoding="utf-8") as f:
-            f.write(f"# 无检测结果的图片列表\n")
-            f.write(f"# 生成时间: {timestamp}\n")
-            f.write(f"# 总数: {len(empty_paths)}\n")
-            for p in empty_paths:
-                f.write(f"{p}\n")
-        
-        self.file_saved.emit(str(detected_path))
-        self.file_saved.emit(str(empty_path))
+        try:
+            # 保存有检测结果列表
+            detected_path = self._output_dir / "detected.txt"
+            with open(detected_path, "w", encoding="utf-8") as f:
+                f.write(f"# 有检测结果的图片列表\n")
+                f.write(f"# 生成时间: {timestamp}\n")
+                f.write(f"# 总数: {len(detected_paths)}\n")
+                for p in detected_paths:
+                    f.write(f"{p}\n")
+            
+            # 保存无检测结果列表
+            empty_path = self._output_dir / "empty.txt"
+            with open(empty_path, "w", encoding="utf-8") as f:
+                f.write(f"# 无检测结果的图片列表\n")
+                f.write(f"# 生成时间: {timestamp}\n")
+                f.write(f"# 总数: {len(empty_paths)}\n")
+                for p in empty_paths:
+                    f.write(f"{p}\n")
+            
+            self.file_saved.emit(str(detected_path))
+            self.file_saved.emit(str(empty_path))
+        except OSError as e:
+            self.error_occurred.emit(f"保存路径列表失败: {e}")
     
     def generate_image_report(
         self,

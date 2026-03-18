@@ -5,6 +5,8 @@ _video_batch.py - VideoBatchMixin: 视频批量处理槽函数
 
 from __future__ import annotations
 
+import logging
+import traceback
 from pathlib import Path
 
 from PySide6.QtCore import Slot
@@ -137,7 +139,12 @@ class VideoBatchMixin:
                 self._processor = processor
 
             def run(self):
-                self._processor.process_all()
+                try:
+                    self._processor.process_all()
+                except Exception:
+                    logging.getLogger(__name__).error(
+                        f"视频批量处理线程异常:\n{traceback.format_exc()}"
+                    )
 
         self._video_batch_thread = VideoBatchThread(self._video_batch_processor)
         self._video_batch_thread.start()

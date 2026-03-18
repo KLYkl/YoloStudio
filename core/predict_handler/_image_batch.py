@@ -204,9 +204,14 @@ class ImageBatchProcessor(QObject):
                 self._logger.warning(f"无法读取图片: {image_path}")
                 continue
 
-            with self._params_lock:
-                conf, iou = self._conf, self._iou
-            annotated, detections = run_inference(self._model, original, conf, iou)
+            try:
+                with self._params_lock:
+                    conf, iou = self._conf, self._iou
+                annotated, detections = run_inference(self._model, original, conf, iou)
+            except Exception as e:
+                self._logger.error(f"推理失败 {image_path.name}: {e}")
+                self.error_occurred.emit(f"推理失败 {image_path.name}: {e}")
+                continue
 
             self._results_cache[image_path] = detections
 

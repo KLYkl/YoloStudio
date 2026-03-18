@@ -5,6 +5,9 @@ _image_mode.py - ImageModeMixin: 图片模式专用槽函数
 
 from __future__ import annotations
 
+import logging
+import traceback
+
 from PySide6.QtCore import Qt, Slot
 
 from core.predict_handler import SaveCondition
@@ -161,7 +164,12 @@ class ImageModeMixin:
                     self._condition = condition
 
                 def run(self):
-                    self._processor.process_all(self._condition)
+                    try:
+                        self._processor.process_all(self._condition)
+                    except Exception:
+                        logging.getLogger(__name__).error(
+                            f"图片批量处理线程异常:\n{traceback.format_exc()}"
+                        )
 
             self._batch_thread = BatchProcessThread(self._image_processor, condition)
             self._batch_thread.start()
@@ -183,39 +191,49 @@ class ImageModeMixin:
                 self._options = options
 
             def run(self):
-                import cv2
-                from core.predict_handler._inference_utils import draw_detections
+                try:
+                    import cv2
+                    from core.predict_handler._inference_utils import draw_detections
 
-                for path in self._processor.get_processed_list():
-                    detections = self._processor.get_detections(path)
-                    if not detections and not self._options["save_annotated"]:
-                        continue
+                    for path in self._processor.get_processed_list():
+                        try:
+                            detections = self._processor.get_detections(path)
+                            if not detections and not self._options["save_annotated"]:
+                                continue
 
-                    original = cv2.imread(str(path))
-                    if original is None:
-                        continue
+                            original = cv2.imread(str(path))
+                            if original is None:
+                                continue
 
-                    annotated = draw_detections(original, detections)
+                            annotated = draw_detections(original, detections)
 
-                    self._output_manager.save_image_result(
-                        original=original,
-                        annotated=annotated,
-                        detections=detections,
-                        image_name=path.stem,
-                        save_original=self._options["save_original"],
-                        save_annotated=self._options["save_annotated"],
-                        save_labels=self._options["save_labels"],
-                    )
+                            self._output_manager.save_image_result(
+                                original=original,
+                                annotated=annotated,
+                                detections=detections,
+                                image_name=path.stem,
+                                save_original=self._options["save_original"],
+                                save_annotated=self._options["save_annotated"],
+                                save_labels=self._options["save_labels"],
+                            )
+                        except Exception:
+                            logging.getLogger(__name__).error(
+                                f"保存图片结果失败 {path.name}:\n{traceback.format_exc()}"
+                            )
 
-                detected_list = self._processor.get_detected_list()
-                empty_list = self._processor.get_empty_list()
-                self._output_manager.save_path_list(detected_list, empty_list)
+                    detected_list = self._processor.get_detected_list()
+                    empty_list = self._processor.get_empty_list()
+                    self._output_manager.save_path_list(detected_list, empty_list)
 
-                if self._options["save_report"]:
-                    self._output_manager.generate_image_report(
-                        total_images=self._processor.image_count,
-                        detected_count=len(detected_list),
-                        empty_count=len(empty_list),
+                    if self._options["save_report"]:
+                        self._output_manager.generate_image_report(
+                            total_images=self._processor.image_count,
+                            detected_count=len(detected_list),
+                            empty_count=len(empty_list),
+                        )
+                except Exception:
+                    logging.getLogger(__name__).error(
+                        f"图片输出线程异常:\n{traceback.format_exc()}"
                     )
 
         options = {

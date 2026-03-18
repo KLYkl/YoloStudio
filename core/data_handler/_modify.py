@@ -73,33 +73,37 @@ class ModifyMixin:
             if not label_path.exists():
                 continue
 
-            # 根据文件类型处理
-            if label_path.suffix.lower() == ".xml":
-                modified, tree = self._prepare_modified_xml(label_path, action, old_value, new_value)
-                if modified and tree is not None:
-                    if backup:
-                        backup_path = self._get_unique_backup_path(label_path)
-                        shutil.copy2(label_path, backup_path)
-                        backup_count += 1
-                    ET.indent(tree, space="    ")
-                    self._write_xml_tree_atomic(label_path, tree)
-            else:
-                modified, new_lines = self._prepare_modified_txt(
-                    label_path,
-                    action,
-                    old_value,
-                    new_value,
-                    class_mapping=class_mapping,
-                )
-                if modified and new_lines is not None:
-                    if backup:
-                        backup_path = self._get_unique_backup_path(label_path)
-                        shutil.copy2(label_path, backup_path)
-                        backup_count += 1
-                    self._write_lines_atomic(label_path, new_lines)
+            try:
+                # 根据文件类型处理
+                if label_path.suffix.lower() == ".xml":
+                    modified, tree = self._prepare_modified_xml(label_path, action, old_value, new_value)
+                    if modified and tree is not None:
+                        if backup:
+                            backup_path = self._get_unique_backup_path(label_path)
+                            shutil.copy2(label_path, backup_path)
+                            backup_count += 1
+                        ET.indent(tree, space="    ")
+                        self._write_xml_tree_atomic(label_path, tree)
+                else:
+                    modified, new_lines = self._prepare_modified_txt(
+                        label_path,
+                        action,
+                        old_value,
+                        new_value,
+                        class_mapping=class_mapping,
+                    )
+                    if modified and new_lines is not None:
+                        if backup:
+                            backup_path = self._get_unique_backup_path(label_path)
+                            shutil.copy2(label_path, backup_path)
+                            backup_count += 1
+                        self._write_lines_atomic(label_path, new_lines)
 
-            if modified:
-                modified_count += 1
+                if modified:
+                    modified_count += 1
+            except Exception as e:
+                if message_callback:
+                    message_callback(f"修改失败: {label_path.name} - {e}")
 
             if progress_callback:
                 progress_callback(i + 1, total)
