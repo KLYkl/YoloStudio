@@ -134,17 +134,6 @@ class ExtractTabMixin:
         self.ext_category_tree.setMinimumHeight(120)
         cat_group_layout.addWidget(self.ext_category_tree)
 
-        # 特殊类别勾选
-        special_layout = QHBoxLayout()
-        self.ext_cat_empty_check = QCheckBox("空标签")
-        self.ext_cat_mixed_check = QCheckBox("混合类")
-        self.ext_cat_no_label_check = QCheckBox("无标签")
-        special_layout.addWidget(self.ext_cat_empty_check)
-        special_layout.addWidget(self.ext_cat_mixed_check)
-        special_layout.addWidget(self.ext_cat_no_label_check)
-        special_layout.addStretch()
-        cat_group_layout.addLayout(special_layout)
-
         # 类别操作按钮
         cat_btn_layout = QHBoxLayout()
         self.ext_scan_categories_btn = QPushButton("🔍 扫描类别")
@@ -385,15 +374,30 @@ class ExtractTabMixin:
         if not hasattr(self, "detected_classes") or not self.detected_classes:
             return
 
+        # 普通类别行
         for cls_name in self.detected_classes:
             item = QTreeWidgetItem()
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(0, Qt.CheckState.Unchecked)
             item.setText(0, str(cls_name))
-            item.setText(1, "—")  # 可用数量将在扫描后更新
+            item.setText(1, "—")
             self.ext_category_tree.addTopLevelItem(item)
+            self._setup_row_widgets(self.ext_category_tree, item, 999999)
 
-            # 设置行内控件
+        # 特殊类别行 (空标签 / 混合类 / 无标签)
+        special_categories = [
+            ("_empty", "🔲 空标签"),
+            ("_mixed", "🔀 混合类"),
+            ("_no_label", "❌ 无标签"),
+        ]
+        for internal_name, display_name in special_categories:
+            item = QTreeWidgetItem()
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(0, Qt.CheckState.Unchecked)
+            item.setText(0, display_name)
+            item.setText(1, "—")
+            item.setData(0, Qt.ItemDataRole.UserRole, internal_name)
+            self.ext_category_tree.addTopLevelItem(item)
             self._setup_row_widgets(self.ext_category_tree, item, 999999)
 
         for col in range(self.ext_category_tree.columnCount()):
@@ -502,26 +506,17 @@ class ExtractTabMixin:
         per_item_counts: dict[str, tuple[str, float]] = {}
 
         if is_category:
-            # 收集类别配置
+            # 收集类别配置 (含普通类别和特殊类别)
             categories: list[str] = []
             for i in range(self.ext_category_tree.topLevelItemCount()):
                 item = self.ext_category_tree.topLevelItem(i)
                 row_config = self._read_row_config(item)
                 if row_config is not None:
-                    cls_name = item.text(0)
+                    # 优先取 UserRole 存的内部名称 (特殊类别用)
+                    internal_name = item.data(0, Qt.ItemDataRole.UserRole)
+                    cls_name = internal_name if internal_name else item.text(0)
                     categories.append(cls_name)
                     per_item_counts[cls_name] = row_config
-
-            # 特殊类别
-            if self.ext_cat_empty_check.isChecked():
-                categories.append("_empty")
-                per_item_counts["_empty"] = ("all", 0)
-            if self.ext_cat_mixed_check.isChecked():
-                categories.append("_mixed")
-                per_item_counts["_mixed"] = ("all", 0)
-            if self.ext_cat_no_label_check.isChecked():
-                categories.append("_no_label")
-                per_item_counts["_no_label"] = ("all", 0)
 
             if not categories:
                 self.log_message.emit("请至少选择一个类别")
