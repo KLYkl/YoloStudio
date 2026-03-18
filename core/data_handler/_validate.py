@@ -98,7 +98,7 @@ class ValidateMixin:
                 break
 
             if label_dir and label_dir.exists():
-                label_path, _ = self._find_label_in_dir(img_path, label_dir)
+                label_path, _ = self._find_label_in_dir(img_path, label_dir, img_dir=img_dir)
             else:
                 label_path, _ = self._find_label(img_path, img_dir.parent)
 
@@ -113,20 +113,40 @@ class ValidateMixin:
             "missing_labels": missing_labels,
         }
 
-    def _find_label_in_dir(self, img_path: Path, label_dir: Path) -> tuple[Optional[Path], Optional[LabelFormat]]:
+    def _find_label_in_dir(
+        self,
+        img_path: Path,
+        label_dir: Path,
+        img_dir: Optional[Path] = None,
+    ) -> tuple[Optional[Path], Optional[LabelFormat]]:
         """
         在指定目录中查找图片对应的标签文件
 
         Args:
             img_path: 图片路径
             label_dir: 标签目录
+            img_dir: 图片根目录 (可选，用于子目录结构映射)
+                      例: img_dir=images/, img_path=images/train/1.jpg
+                      → 在 label_dir/train/ 下查找标签
 
         Returns:
             (标签路径, 格式) 或 (None, None)
         """
         stem = img_path.stem
 
-        # XML 优先
+        # 1. 子目录映射: 通过 img_dir 计算相对子路径
+        if img_dir and img_dir.exists():
+            try:
+                rel_sub = img_path.parent.relative_to(img_dir)
+                sub_label_dir = label_dir / rel_sub
+                for ext, fmt in [(".xml", LabelFormat.XML), (".txt", LabelFormat.TXT)]:
+                    label_path = sub_label_dir / (stem + ext)
+                    if label_path.exists():
+                        return label_path, fmt
+            except ValueError:
+                pass
+
+        # 2. 回退: 直接在 label_dir 根目录查找 (原有行为)
         for ext, fmt in [(".xml", LabelFormat.XML), (".txt", LabelFormat.TXT)]:
             label_path = label_dir / (stem + ext)
             if label_path.exists():
@@ -309,7 +329,7 @@ class ValidateMixin:
         seen: set[Path] = set()
         for img_path in self._find_images(img_dir):
             if label_dir and label_dir.exists():
-                label_path, _ = self._find_label_in_dir(img_path, label_dir)
+                label_path, _ = self._find_label_in_dir(img_path, label_dir, img_dir=img_dir)
             else:
                 label_path, _ = self._find_label(img_path, img_dir.parent)
 

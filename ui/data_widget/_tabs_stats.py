@@ -9,7 +9,6 @@ from typing import Optional
 
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
-    QCheckBox,
     QFrame,
     QGridLayout,
     QGroupBox,
@@ -46,18 +45,19 @@ class StatsTabMixin:
 
         scroll_content = QWidget()
         layout = QVBoxLayout(scroll_content)
-        layout.setSpacing(10)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
 
         # 路径输入组已提升到 DataWidget 外层 (self.path_group)
 
         # 中部内容区: 左侧类别表，右侧概览
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(15)
+        content_layout.setSpacing(10)
 
         # ========== 左侧: 类别统计 GroupBox ==========
         stats_group = QGroupBox("类别统计")
         stats_group_layout = QVBoxLayout(stats_group)
-        stats_group_layout.setContentsMargins(8, 8, 8, 8)
+        stats_group_layout.setContentsMargins(4, 4, 4, 4)
 
         self.stats_table = QTableWidget()
         self.stats_table.setColumnCount(3)
@@ -69,22 +69,22 @@ class StatsTabMixin:
         self.stats_table.setShowGrid(False)
         stats_group_layout.addWidget(self.stats_table)
 
-        content_layout.addWidget(stats_group, 3)
+        content_layout.addWidget(stats_group, 2)
 
         # ========== 右侧: 数据概览 GroupBox ==========
         overview_group = QGroupBox("数据概览")
         overview_group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        overview_group.setMinimumWidth(310)
-        overview_group.setMaximumWidth(350)
+        overview_group.setMinimumWidth(280)
+        overview_group.setMaximumWidth(380)
 
         overview_outer = QVBoxLayout(overview_group)
-        overview_outer.setContentsMargins(8, 8, 8, 8)
-        overview_outer.setSpacing(8)
+        overview_outer.setContentsMargins(4, 4, 4, 4)
+        overview_outer.setSpacing(4)
 
         # 卡片网格
         overview_grid = QGridLayout()
-        overview_grid.setHorizontalSpacing(8)
-        overview_grid.setVerticalSpacing(8)
+        overview_grid.setHorizontalSpacing(4)
+        overview_grid.setVerticalSpacing(4)
 
         # accent_key 用于 QSS 动态属性匹配颜色
         overview_items = [
@@ -114,34 +114,16 @@ class StatsTabMixin:
 
         # 按钮区域 (底部) — 放在 ScrollArea 外部，固定不随滚动消失
         btn_layout = QHBoxLayout()
-
-        # 包含无标签图片复选框 (用于分类功能)
-        self.include_no_label_check = QCheckBox("包含无标签图片")
-        self.include_no_label_check.setChecked(True)
-        self.include_no_label_check.setToolTip("分类时是否将无标签图片复制到 _no_label 文件夹")
-        btn_layout.addWidget(self.include_no_label_check)
+        btn_layout.setContentsMargins(4, 6, 10, 4)
+        btn_layout.setSpacing(10)
 
         btn_layout.addStretch()
 
         # 扫描按钮
         self.scan_btn = QPushButton("🔍 扫描数据集")
-        self.scan_btn.setMinimumHeight(35)
+        self.scan_btn.setMinimumHeight(28)
         self.scan_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         btn_layout.addWidget(self.scan_btn)
-
-        # 按类别分类按钮
-        self.categorize_btn = QPushButton("📂 按类别分类")
-        self.categorize_btn.setMinimumHeight(35)
-        self.categorize_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.categorize_btn.setToolTip(
-            "将数据集按标签类别分类到不同文件夹：\n"
-            "• 单一类别 → {class_id}/\n"
-            "• 多类别 → _mixed/\n"
-            "• 空标签 → _empty/\n"
-            "• 无标签 → _no_label/"
-        )
-        self.categorize_btn.setProperty("class", "warning")
-        btn_layout.addWidget(self.categorize_btn)
 
         tab_layout.addLayout(btn_layout)
 
@@ -159,7 +141,7 @@ class StatsTabMixin:
         card = QFrame()
         card.setObjectName("statsOverviewCard")
         card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-        card.setMinimumHeight(72)
+        card.setMinimumHeight(56)
 
         card_layout = QHBoxLayout(card)
         card_layout.setContentsMargins(0, 0, 12, 0)
@@ -174,7 +156,7 @@ class StatsTabMixin:
 
         # 右侧内容区
         text_layout = QVBoxLayout()
-        text_layout.setContentsMargins(12, 10, 0, 10)
+        text_layout.setContentsMargins(8, 6, 0, 6)
         text_layout.setSpacing(4)
 
         title_label = QLabel(title)
@@ -287,44 +269,3 @@ class StatsTabMixin:
         )
         self.log_message.emit(f"扫描完成: {summary}")
 
-    @Slot()
-    def _on_categorize(self) -> None:
-        """按类别分类数据集"""
-        img_path = self.path_group.get_image_dir()
-        if not img_path:
-            self.log_message.emit("请先选择图片目录")
-            return
-
-        if not img_path.exists():
-            self.log_message.emit(f"图片目录不存在: {img_path}")
-            return
-
-        label_path = self.path_group.get_label_dir()
-        classes_txt = self.path_group.get_classes_path()
-        include_no_label = self.include_no_label_check.isChecked()
-
-        self.log_message.emit("开始按类别分类数据集...")
-
-        self._start_worker(
-            lambda: self._handler.categorize_by_class(
-                img_path,
-                label_dir=label_path,
-                output_dir=None,
-                classes_txt=classes_txt,
-                include_no_label=include_no_label,
-                interrupt_check=lambda: self._worker.is_interrupted() if self._worker else False,
-                progress_callback=self._emit_progress,
-                message_callback=self._emit_message,
-            ),
-            on_finished=self._on_categorize_finished,
-        )
-
-    def _on_categorize_finished(self, stats: dict) -> None:
-        """分类完成回调"""
-        if not stats:
-            self.log_message.emit("分类完成 (无数据)")
-            return
-
-        total = sum(stats.values())
-        categories = len(stats)
-        self.log_message.emit(f"分类完成: 共 {total} 张图片分到 {categories} 个类别")

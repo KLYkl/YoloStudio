@@ -71,7 +71,7 @@ class SplitMixin:
             labeled_images = []
             for img in images:
                 if label_dir and label_dir.exists():
-                    label_path, _ = self._find_label_in_dir(img, label_dir)
+                    label_path, _ = self._find_label_in_dir(img, label_dir, img_dir=img_dir)
                 else:
                     label_path, _ = self._find_label(img, img_dir.parent)
                 if label_path is not None:
@@ -236,7 +236,7 @@ class SplitMixin:
             if interrupt_check():
                 break
 
-            log_msg = self._transfer_with_label(img_path, train_img_dir, train_lbl_dir, img_dir.parent, label_dir, use_copy)
+            log_msg = self._transfer_with_label(img_path, train_img_dir, train_lbl_dir, img_dir, label_dir, use_copy)
             if log_msg and message_callback:
                 message_callback(log_msg)
             current += 1
@@ -248,7 +248,7 @@ class SplitMixin:
             if interrupt_check():
                 break
 
-            log_msg = self._transfer_with_label(img_path, val_img_dir, val_lbl_dir, img_dir.parent, label_dir, use_copy)
+            log_msg = self._transfer_with_label(img_path, val_img_dir, val_lbl_dir, img_dir, label_dir, use_copy)
             if log_msg and message_callback:
                 message_callback(log_msg)
             current += 1
@@ -301,7 +301,7 @@ class SplitMixin:
         img_path: Path,
         img_dir: Path,
         lbl_dir: Path,
-        root: Path,
+        source_img_dir: Path,
         label_source_dir: Optional[Path],
         use_copy: bool
     ) -> str:
@@ -322,9 +322,9 @@ class SplitMixin:
 
             # 查找并传输标签
             if label_source_dir and label_source_dir.exists():
-                label_path, _ = self._find_label_in_dir(img_path, label_source_dir)
+                label_path, _ = self._find_label_in_dir(img_path, label_source_dir, img_dir=source_img_dir)
             else:
-                label_path, _ = self._find_label(img_path, root)
+                label_path, _ = self._find_label(img_path, source_img_dir.parent)
 
             if label_path and label_path.exists():
                 transfer_func(str(label_path), str(lbl_dir / label_path.name))

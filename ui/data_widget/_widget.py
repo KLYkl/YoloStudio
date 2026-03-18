@@ -29,13 +29,17 @@ from ui.data_widget._tabs_stats import StatsTabMixin
 from ui.data_widget._tabs_edit import EditTabMixin
 from ui.data_widget._tabs_augment import AugmentTabMixin
 from ui.data_widget._tabs_split import SplitTabMixin
+from ui.data_widget._tabs_extract import ExtractTabMixin
+from ui.data_widget._tabs_image_check import ImageCheckTabMixin
 
 
 class DataWidget(
     StatsTabMixin,
+    ExtractTabMixin,
     EditTabMixin,
     AugmentTabMixin,
     SplitTabMixin,
+    ImageCheckTabMixin,
     QWidget,
 ):
     """
@@ -79,6 +83,9 @@ class DataWidget(
         # 当前扫描结果
         self._scan_result: Optional[ScanResult] = None
 
+        # 图像检查结果缓存
+        self._ic_last_health_result: Optional[dict] = None
+
         # 应用 QSS 样式
         self._apply_styles()
 
@@ -115,9 +122,11 @@ class DataWidget(
         self.tab_widget = QTabWidget()
         self.tab_widget.setObjectName("subTabWidget")
         self.tab_widget.addTab(self._create_stats_tab(), "📊 统计")
+        self.tab_widget.addTab(self._create_extract_tab(), "🎯 抽取")
         self.tab_widget.addTab(self._create_edit_tab(), "✏️ 编辑")
         self.tab_widget.addTab(self._create_augment_tab(), "🧪 增强")
         self.tab_widget.addTab(self._create_split_tab(), "📂 划分")
+        self.tab_widget.addTab(self._create_image_check_tab(), "🖼️ 图像检查")
         main_layout.addWidget(self.tab_widget, 1)  # 拉伸因子 = 1
 
         # 进度条区
@@ -164,7 +173,17 @@ class DataWidget(
 
         # Tab 1 - 统计
         self.scan_btn.clicked.connect(self._on_scan)
-        self.categorize_btn.clicked.connect(self._on_categorize)
+
+        # Tab 2 - 抽取
+        self.ext_mode_group.buttonClicked.connect(lambda: self._on_extract_mode_changed())
+        self.ext_count_mode_combo.currentIndexChanged.connect(lambda: self._on_count_mode_changed())
+        self.ext_scan_dirs_btn.clicked.connect(self._on_ext_scan_dirs)
+        self.ext_select_all_btn.clicked.connect(self._on_ext_select_all)
+        self.ext_deselect_all_btn.clicked.connect(self._on_ext_deselect_all)
+        self.ext_output_browse_btn.clicked.connect(self._on_ext_browse_output)
+        self.ext_preview_btn.clicked.connect(self._on_ext_preview)
+        self.ext_start_btn.clicked.connect(self._on_ext_start)
+        self.ext_scan_categories_btn.clicked.connect(self._on_ext_scan_categories)
 
         # Tab 2 - 编辑
         self.gen_empty_btn.clicked.connect(self._on_generate_empty)
@@ -226,12 +245,17 @@ class DataWidget(
         self.yaml_browse_btn.clicked.connect(self._on_browse_yaml)
         self.save_yaml_btn.clicked.connect(self._on_save_yaml)
 
+        # Tab 6 - 图像检查
+        self._connect_image_check_signals()
+
         # 取消按钮
         self.cancel_btn.clicked.connect(self._on_cancel)
 
         self._refresh_edit_class_options()
         self._update_edit_action_states()
         self._update_augment_action_states()
+        self._update_extract_action_states()
+        self._update_image_check_action_states()
 
     # ============================================================
     # 路径变更回调
@@ -242,7 +266,9 @@ class DataWidget(
         self._invalidate_edit_precheck_cache()
         self._refresh_edit_class_options()
         self._update_edit_action_states()
+        self._update_extract_action_states()
         self._update_augment_action_states()
+        self._update_image_check_action_states()
         self._update_path_summary()
 
         image_dir = self.path_group.get_all_paths().get("image_dir", "")
@@ -320,6 +346,8 @@ class DataWidget(
         """子 Tab 切换时刷新按钮状态"""
         self._update_edit_action_states()
         self._update_augment_action_states()
+        self._update_extract_action_states()
+        self._update_image_check_action_states()
 
     @Slot()
     def _on_cancel(self) -> None:
@@ -393,7 +421,6 @@ class DataWidget(
         """设置 UI 忙碌状态"""
         self.cancel_btn.setEnabled(busy and enable_cancel)
         self.scan_btn.setEnabled(not busy)
-        self.categorize_btn.setEnabled(not busy)
         self.split_btn.setEnabled(not busy)
         self.save_yaml_btn.setEnabled(not busy)
 
@@ -403,9 +430,20 @@ class DataWidget(
             self.modify_btn.setEnabled(False)
             self.validate_btn.setEnabled(False)
             self.augment_btn.setEnabled(False)
+            self.ext_preview_btn.setEnabled(False)
+            self.ext_start_btn.setEnabled(False)
+            self.ext_scan_dirs_btn.setEnabled(False)
+            self.ext_scan_categories_btn.setEnabled(False)
+            self.ic_integrity_btn.setEnabled(False)
+            self.ic_convert_btn.setEnabled(False)
+            self.ic_analyze_btn.setEnabled(False)
+            self.ic_duplicate_btn.setEnabled(False)
+            self.ic_health_btn.setEnabled(False)
         else:
             self._update_edit_action_states()
             self._update_augment_action_states()
+            self._update_extract_action_states()
+            self._update_image_check_action_states()
 
         if not busy:
             self.progress_bar.setRange(0, 100)

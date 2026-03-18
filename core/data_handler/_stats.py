@@ -135,7 +135,7 @@ class StatsMixin:
 
             # 查找标签
             if label_dir and label_dir.exists():
-                label_path, label_format = self._find_label_in_dir(img_path, label_dir)
+                label_path, label_format = self._find_label_in_dir(img_path, label_dir, img_dir=img_dir)
             else:
                 label_path, label_format = self._find_label(img_path, img_dir.parent)
 
