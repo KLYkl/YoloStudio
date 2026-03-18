@@ -251,6 +251,7 @@ class ExtractMixin:
 
         # 复制文件
         total = len(selected)
+        actually_copied: list[Path] = []
         for i, img_path in enumerate(selected):
             if interrupt_check():
                 if message_callback:
@@ -274,6 +275,7 @@ class ExtractMixin:
                 dest_img.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(str(img_path), str(dest_img))
                 result.extracted += 1
+                actually_copied.append(img_path)
             except OSError as e:
                 if message_callback:
                     message_callback(f"复制失败: {img_path.name} - {e}")
@@ -312,8 +314,8 @@ class ExtractMixin:
             if progress_callback:
                 progress_callback(i + 1, total)
 
-        # 生成抽取日志
-        self._write_extract_log(output_dir, config, result, selected)
+        # 生成抽取日志 (仅记录实际成功复制的文件)
+        self._write_extract_log(output_dir, config, result, actually_copied)
 
         # 输出统计
         if message_callback:
@@ -528,13 +530,18 @@ class ExtractMixin:
             "# ========================================",
             "",
             f"抽取模式: {config.mode}",
-            f"数量模式: {config.count_mode}",
         ]
 
-        if config.count_mode == "count":
-            lines.append(f"目标数量: {config.count}")
-        elif config.count_mode == "ratio":
-            lines.append(f"目标比例: {config.ratio:.1%}")
+        # 记录每组的抽取配置
+        if config.per_item_counts:
+            lines.append("各组抽取配置:")
+            for name, (mode, value) in config.per_item_counts.items():
+                if mode == "all":
+                    lines.append(f"  {name}: 全部")
+                elif mode == "count":
+                    lines.append(f"  {name}: {int(value)} 张")
+                elif mode == "ratio":
+                    lines.append(f"  {name}: {value:.1%}")
 
         if config.categories:
             lines.append(f"目标类别: {', '.join(config.categories)}")

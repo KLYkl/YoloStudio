@@ -391,13 +391,13 @@ class DataWidget(
             self.status_label.setText(f"{current}/{total}")
 
     def _emit_progress(self, current: int, total: int) -> None:
-        """发射进度信号 (需在主线程中调用)"""
+        """发射进度信号 (在工作线程中调用，Qt 自动走 QueuedConnection)"""
         worker = self._worker
         if worker is not None:
             worker.progress.emit(current, total)
 
     def _emit_message(self, message: str) -> None:
-        """发射消息信号到全局日志面板"""
+        """发射消息信号到全局日志面板 (在工作线程中调用，Qt 自动走 QueuedConnection)"""
         self.log_message.emit(message)
 
     @Slot()
