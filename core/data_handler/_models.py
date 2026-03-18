@@ -241,3 +241,119 @@ class ValidateResult:
         """问题总数"""
         return (len(self.coord_errors) + len(self.class_errors)
                 + len(self.format_errors) + len(self.orphan_labels))
+
+
+@dataclass
+class ImageCheckResult:
+    """
+    图像完整性校验结果
+
+    Attributes:
+        total_images: 扫描的图片总数
+        corrupted: 损坏图片列表 [(文件路径, 原因)]
+        zero_bytes: 零字节文件列表
+        format_mismatch: 文件头/扩展名不匹配列表 [(路径, 声称扩展名, 真实格式)]
+        exif_rotation: 含 EXIF 旋转标记的图片列表 [(路径, orientation值)]
+    """
+    total_images: int = 0
+    corrupted: list[tuple[Path, str]] = field(default_factory=list)
+    zero_bytes: list[Path] = field(default_factory=list)
+    format_mismatch: list[tuple[Path, str, str]] = field(default_factory=list)
+    exif_rotation: list[tuple[Path, int]] = field(default_factory=list)
+
+    @property
+    def has_issues(self) -> bool:
+        return bool(self.corrupted or self.zero_bytes
+                    or self.format_mismatch or self.exif_rotation)
+
+    @property
+    def issue_count(self) -> int:
+        return (len(self.corrupted) + len(self.zero_bytes)
+                + len(self.format_mismatch) + len(self.exif_rotation))
+
+
+@dataclass
+class ImageSizeStats:
+    """
+    图像尺寸分析结果
+
+    Attributes:
+        total_images: 图片总数
+        min_size: 最小尺寸 (宽, 高)
+        max_size: 最大尺寸 (宽, 高)
+        avg_size: 平均尺寸 (宽, 高)
+        sizes: 所有图片尺寸列表 [(路径, 宽, 高)]
+        abnormal_small: 异常小图片列表 (宽或高 < 阈值)
+        abnormal_large: 异常大图片列表 (宽或高 > 阈值)
+    """
+    total_images: int = 0
+    min_size: tuple[int, int] = (0, 0)
+    max_size: tuple[int, int] = (0, 0)
+    avg_size: tuple[int, int] = (0, 0)
+    sizes: list[tuple[Path, int, int]] = field(default_factory=list)
+    abnormal_small: list[Path] = field(default_factory=list)
+    abnormal_large: list[Path] = field(default_factory=list)
+
+
+@dataclass
+class DuplicateGroup:
+    """
+    重复图片组
+
+    Attributes:
+        hash_value: 哈希值字符串
+        paths: 该组中重复图片的路径列表
+    """
+    hash_value: str = ""
+    paths: list[Path] = field(default_factory=list)
+
+
+@dataclass
+class ExtractConfig:
+    """
+    图片抽取配置
+
+    Attributes:
+        mode: 抽取模式 ("by_category" | "by_directory")
+        per_item_counts: 每个类别/目录的独立提取配置
+            {名称: (模式, 值)}
+            模式: "all" | "count" | "ratio"
+            值: 具体数量(int) 或 比例(float, 0~1)
+            示例: {"car": ("all", 0), "person": ("count", 100)}
+        categories: 目标类别列表 (含 _empty/_mixed/_no_label)
+        selected_dirs: 选中的目录列表
+        keep_structure: 是否保持目录结构
+        copy_labels: 是否同时复制标签
+        seed: 随机种子 (None=不固定)
+        output_dir: 输出目录
+    """
+    mode: str = "by_category"
+    per_item_counts: dict[str, tuple[str, float]] = field(default_factory=dict)
+    categories: list[str] = field(default_factory=list)
+    selected_dirs: list[Path] = field(default_factory=list)
+    keep_structure: bool = True
+    copy_labels: bool = True
+    seed: Optional[int] = None
+    output_dir: Optional[Path] = None
+
+
+@dataclass
+class ExtractResult:
+    """
+    图片抽取结果
+
+    Attributes:
+        output_dir: 输出目录路径
+        total_available: 可用图片总数
+        extracted: 实际提取数量
+        labels_copied: 复制的标签数
+        dir_stats: 每个目录的提取统计 {目录名: 提取数量}
+        conflicts: 文件冲突列表 [(新文件路径, 已存在文件路径)]
+    """
+    output_dir: str = ""
+    total_available: int = 0
+    extracted: int = 0
+    labels_copied: int = 0
+    dir_stats: dict[str, int] = field(default_factory=dict)
+    conflicts: list[tuple[Path, Path]] = field(default_factory=list)
+

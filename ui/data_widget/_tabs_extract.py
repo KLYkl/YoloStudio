@@ -1,6 +1,10 @@
 """
 _tabs_extract.py - ExtractTabMixin: 抽取 Tab UI + 逻辑
 ============================================
+
+重构版：
+    - 两种主模式: 按类别 / 按目录
+    - 每个类别/目录独立控制提取方式和数量
 """
 
 from __future__ import annotations
@@ -11,19 +15,20 @@ from typing import Optional
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QFileDialog,
     QFrame,
     QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QPushButton,
     QRadioButton,
     QButtonGroup,
     QScrollArea,
     QSizePolicy,
+    QSpinBox,
+    QDoubleSpinBox,
     QTreeWidget,
     QTreeWidgetItem,
     QVBoxLayout,
@@ -31,7 +36,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.data_handler import ExtractConfig, ExtractResult
-from ui.focus_widgets import FocusComboBox, FocusDoubleSpinBox, FocusSpinBox
+from ui.focus_widgets import FocusSpinBox
 from ui.styled_message_box import StyledMessageBox
 
 
@@ -45,9 +50,9 @@ class ExtractTabMixin:
         创建抽取 Tab
 
         结构:
-            顶部: 模式选择 (3 个 RadioButton)
-            中部: 左(目录选择/类别选择) + 右(参数设置)
-            底部: 预估结果 + 执行按钮
+            顶部: 模式选择 (2 个 RadioButton)
+            中部: 左(目录选择 OR 类别选择) + 右(参数设置)
+            底部: 按钮行
         """
         tab = QWidget()
         tab_layout = QVBoxLayout(tab)
@@ -57,17 +62,14 @@ class ExtractTabMixin:
         mode_group_box = QGroupBox("抽取模式")
         mode_layout = QHBoxLayout(mode_group_box)
 
-        self.ext_random_radio = QRadioButton("🎲 随机抽取")
         self.ext_category_radio = QRadioButton("🏷️ 按类别抽取")
         self.ext_directory_radio = QRadioButton("📂 按目录抽取")
-        self.ext_random_radio.setChecked(True)
+        self.ext_category_radio.setChecked(True)
 
         self.ext_mode_group = QButtonGroup(self)
-        self.ext_mode_group.addButton(self.ext_random_radio, 0)
-        self.ext_mode_group.addButton(self.ext_category_radio, 1)
-        self.ext_mode_group.addButton(self.ext_directory_radio, 2)
+        self.ext_mode_group.addButton(self.ext_category_radio, 0)
+        self.ext_mode_group.addButton(self.ext_directory_radio, 1)
 
-        mode_layout.addWidget(self.ext_random_radio)
         mode_layout.addWidget(self.ext_category_radio)
         mode_layout.addWidget(self.ext_directory_radio)
         mode_layout.addStretch()
@@ -91,13 +93,13 @@ class ExtractTabMixin:
         left_layout.setSpacing(6)
 
         # --- 目录选择 GroupBox ---
-        dir_group = QGroupBox("📁 目录选择")
-        dir_group_layout = QVBoxLayout(dir_group)
+        self.ext_dir_group = QGroupBox("📁 目录选择")
+        dir_group_layout = QVBoxLayout(self.ext_dir_group)
         dir_group_layout.setContentsMargins(4, 4, 4, 4)
 
         self.ext_dir_tree = QTreeWidget()
-        self.ext_dir_tree.setHeaderLabels(["目录", "图片数量"])
-        self.ext_dir_tree.setColumnCount(2)
+        self.ext_dir_tree.setHeaderLabels(["目录", "图片数量", "提取方式", "数量/比例"])
+        self.ext_dir_tree.setColumnCount(4)
         self.ext_dir_tree.setAlternatingRowColors(True)
         self.ext_dir_tree.setMinimumHeight(150)
         dir_group_layout.addWidget(self.ext_dir_tree)
@@ -117,26 +119,20 @@ class ExtractTabMixin:
         dir_btn_layout.addStretch()
         dir_group_layout.addLayout(dir_btn_layout)
 
-        left_layout.addWidget(dir_group, 1)  # 拉伸因子 = 1，填满左侧
+        self.ext_dir_group.setVisible(False)  # 默认隐藏 (默认按类别模式)
+        left_layout.addWidget(self.ext_dir_group, 1)
 
-        # --- 类别选择 GroupBox (按类别模式显示) ---
+        # --- 类别选择 GroupBox ---
         self.ext_category_group = QGroupBox("🏷️ 类别选择")
         cat_group_layout = QVBoxLayout(self.ext_category_group)
         cat_group_layout.setContentsMargins(4, 4, 4, 4)
 
-        cat_btn_row = QHBoxLayout()
-        self.ext_scan_categories_btn = QPushButton("🔍 扫描类别")
-        self.ext_scan_categories_btn.setToolTip(
-            "扫描标签目录获取类别列表 (也可在统计 Tab 扫描后自动获取)"
-        )
-        cat_btn_row.addWidget(self.ext_scan_categories_btn)
-        cat_btn_row.addStretch()
-        cat_group_layout.addLayout(cat_btn_row)
-
-        self.ext_category_list = QListWidget()
-        self.ext_category_list.setMinimumHeight(120)
-        self.ext_category_list.setToolTip("勾选要提取的类别")
-        cat_group_layout.addWidget(self.ext_category_list)
+        self.ext_category_tree = QTreeWidget()
+        self.ext_category_tree.setHeaderLabels(["类别", "可用", "提取方式", "数量/比例"])
+        self.ext_category_tree.setColumnCount(4)
+        self.ext_category_tree.setAlternatingRowColors(True)
+        self.ext_category_tree.setMinimumHeight(120)
+        cat_group_layout.addWidget(self.ext_category_tree)
 
         # 特殊类别勾选
         special_layout = QHBoxLayout()
@@ -149,8 +145,24 @@ class ExtractTabMixin:
         special_layout.addStretch()
         cat_group_layout.addLayout(special_layout)
 
-        self.ext_category_group.setVisible(False)  # 默认隐藏
-        left_layout.addWidget(self.ext_category_group)
+        # 类别操作按钮
+        cat_btn_layout = QHBoxLayout()
+        self.ext_scan_categories_btn = QPushButton("🔍 扫描类别")
+        self.ext_scan_categories_btn.setToolTip(
+            "扫描标签目录获取类别列表 (也可在统计 Tab 扫描后自动获取)"
+        )
+        cat_btn_layout.addWidget(self.ext_scan_categories_btn)
+
+        self.ext_cat_select_all_btn = QPushButton("全选")
+        self.ext_cat_select_all_btn.setFixedWidth(50)
+        self.ext_cat_deselect_all_btn = QPushButton("全不选")
+        self.ext_cat_deselect_all_btn.setFixedWidth(65)
+        cat_btn_layout.addWidget(self.ext_cat_select_all_btn)
+        cat_btn_layout.addWidget(self.ext_cat_deselect_all_btn)
+        cat_btn_layout.addStretch()
+        cat_group_layout.addLayout(cat_btn_layout)
+
+        left_layout.addWidget(self.ext_category_group, 1)
 
         left_scroll.setWidget(left_widget)
         content_layout.addWidget(left_scroll, 1)
@@ -172,50 +184,6 @@ class ExtractTabMixin:
         param_layout = QVBoxLayout(param_group)
         param_layout.setSpacing(8)
 
-        # 数量模式
-        mode_row = QHBoxLayout()
-        mode_row.addWidget(QLabel("模式:"))
-        self.ext_count_mode_combo = FocusComboBox()
-        self.ext_count_mode_combo.addItems(["按数量", "按比例", "全部"])
-        mode_row.addWidget(self.ext_count_mode_combo, 1)
-        param_layout.addLayout(mode_row)
-
-        # 数量 (容器)
-        self.ext_count_row = QWidget()
-        count_row = QHBoxLayout(self.ext_count_row)
-        count_row.setContentsMargins(0, 0, 0, 0)
-        count_row.addWidget(QLabel("数量:"))
-        self.ext_count_spin = FocusSpinBox()
-        self.ext_count_spin.setRange(1, 999999)
-        self.ext_count_spin.setValue(100)
-        count_row.addWidget(self.ext_count_spin, 1)
-        param_layout.addWidget(self.ext_count_row)
-
-        # 比例 (容器，默认隐藏)
-        self.ext_ratio_row = QWidget()
-        ratio_row = QHBoxLayout(self.ext_ratio_row)
-        ratio_row.setContentsMargins(0, 0, 0, 0)
-        ratio_row.addWidget(QLabel("比例:"))
-        self.ext_ratio_spin = FocusDoubleSpinBox()
-        self.ext_ratio_spin.setRange(0.01, 1.00)
-        self.ext_ratio_spin.setValue(0.10)
-        self.ext_ratio_spin.setSingleStep(0.05)
-        self.ext_ratio_spin.setDecimals(2)
-        ratio_row.addWidget(self.ext_ratio_spin, 1)
-        self.ext_ratio_row.setVisible(False)
-        param_layout.addWidget(self.ext_ratio_row)
-
-        # 可用图片数标签
-        self.ext_available_label = QLabel("可用: -- 张")
-        self.ext_available_label.setObjectName("mutedLabel")
-        param_layout.addWidget(self.ext_available_label)
-
-        # 分隔线
-        separator = QFrame()
-        separator.setFrameShape(QFrame.Shape.HLine)
-        separator.setFrameShadow(QFrame.Shadow.Sunken)
-        param_layout.addWidget(separator)
-
         # 选项
         self.ext_keep_structure_check = QCheckBox("保持目录结构")
         self.ext_keep_structure_check.setChecked(True)
@@ -229,6 +197,12 @@ class ExtractTabMixin:
         self.ext_copy_labels_check.setChecked(True)
         self.ext_copy_labels_check.setToolTip("提取图片时同时复制对应的标签文件")
         param_layout.addWidget(self.ext_copy_labels_check)
+
+        # 分隔线
+        separator = QFrame()
+        separator.setFrameShape(QFrame.Shape.HLine)
+        separator.setFrameShadow(QFrame.Shadow.Sunken)
+        param_layout.addWidget(separator)
 
         # 随机种子
         seed_row = QHBoxLayout()
@@ -257,7 +231,9 @@ class ExtractTabMixin:
         output_row.addWidget(self.ext_output_browse_btn)
         param_layout.addLayout(output_row)
 
-        right_layout.addWidget(param_group, 1)  # 拉伸因子 = 1，填满右侧
+        param_layout.addStretch()
+
+        right_layout.addWidget(param_group, 1)
         right_scroll.setWidget(right_widget)
         content_layout.addWidget(right_scroll, 1)
 
@@ -286,64 +262,142 @@ class ExtractTabMixin:
 
         return tab
 
+    # ==================== 行内控件创建 ====================
+
+    def _create_extract_mode_combo(self) -> QComboBox:
+        """创建提取方式 ComboBox (全部 / 按数量 / 按比例)"""
+        combo = QComboBox()
+        combo.addItems(["全部", "按数量", "按比例"])
+        combo.setFixedWidth(80)
+        return combo
+
+    def _create_extract_count_spin(self) -> QSpinBox:
+        """创建数量 SpinBox"""
+        spin = QSpinBox()
+        spin.setRange(1, 999999)
+        spin.setValue(100)
+        spin.setFixedWidth(80)
+        return spin
+
+    def _create_extract_ratio_spin(self) -> QDoubleSpinBox:
+        """创建比例 DoubleSpinBox"""
+        spin = QDoubleSpinBox()
+        spin.setRange(0.01, 1.00)
+        spin.setValue(0.10)
+        spin.setSingleStep(0.05)
+        spin.setDecimals(2)
+        spin.setFixedWidth(80)
+        return spin
+
+    def _setup_row_widgets(
+        self, tree: QTreeWidget, item: QTreeWidgetItem, available: int
+    ) -> None:
+        """为 TreeWidget 的一行设置内嵌控件 (ComboBox + SpinBox)"""
+        combo = self._create_extract_mode_combo()
+        count_spin = self._create_extract_count_spin()
+        count_spin.setMaximum(available)
+        count_spin.setValue(min(100, available))
+        ratio_spin = self._create_extract_ratio_spin()
+
+        # 容器：用 QWidget 包含 count_spin 和 ratio_spin 的堆叠
+        value_container = QWidget()
+        value_layout = QHBoxLayout(value_container)
+        value_layout.setContentsMargins(0, 0, 0, 0)
+        value_layout.addWidget(count_spin)
+        value_layout.addWidget(ratio_spin)
+        ratio_spin.setVisible(False)
+
+        # 默认: 全部模式，隐藏数量控件
+        count_spin.setVisible(False)
+
+        def on_mode_changed(idx: int) -> None:
+            # 0=全部, 1=按数量, 2=按比例
+            count_spin.setVisible(idx == 1)
+            ratio_spin.setVisible(idx == 2)
+
+        combo.currentIndexChanged.connect(on_mode_changed)
+
+        tree.setItemWidget(item, 2, combo)
+        tree.setItemWidget(item, 3, value_container)
+
+        # 存储控件引用到 item 的 UserRole data
+        item.setData(2, Qt.ItemDataRole.UserRole, combo)
+        item.setData(3, Qt.ItemDataRole.UserRole, (count_spin, ratio_spin))
+
+    def _read_row_config(
+        self, item: QTreeWidgetItem
+    ) -> Optional[tuple[str, float]]:
+        """读取一行的提取配置: (模式, 值) 或 None (未勾选)"""
+        if item.checkState(0) != Qt.CheckState.Checked:
+            return None
+
+        combo = item.data(2, Qt.ItemDataRole.UserRole)
+        spins = item.data(3, Qt.ItemDataRole.UserRole)
+        if not combo or not spins:
+            return ("all", 0)
+
+        count_spin, ratio_spin = spins
+        idx = combo.currentIndex()
+
+        if idx == 0:  # 全部
+            return ("all", 0)
+        elif idx == 1:  # 按数量
+            return ("count", count_spin.value())
+        else:  # 按比例
+            return ("ratio", ratio_spin.value())
+
     # ==================== 状态管理 ====================
 
     def _update_extract_action_states(self) -> None:
         """根据当前输入状态更新按钮可用性"""
         has_img_dir = bool(self.path_group.get_image_dir())
-        has_tree_items = self.ext_dir_tree.topLevelItemCount() > 0
+        has_label_dir = bool(self.path_group.get_label_dir())
+        is_category = self.ext_category_radio.isChecked()
+
+        if is_category:
+            has_items = self.ext_category_tree.topLevelItemCount() > 0
+        else:
+            has_items = self.ext_dir_tree.topLevelItemCount() > 0
 
         self.ext_scan_dirs_btn.setEnabled(has_img_dir)
-        self.ext_preview_btn.setEnabled(has_img_dir and has_tree_items)
-        self.ext_start_btn.setEnabled(has_img_dir and has_tree_items)
+        self.ext_scan_categories_btn.setEnabled(has_img_dir or has_label_dir)
+        self.ext_preview_btn.setEnabled(has_img_dir and has_items)
+        self.ext_start_btn.setEnabled(has_img_dir and has_items)
 
     def _on_extract_mode_changed(self) -> None:
         """抽取模式切换时更新 UI"""
         is_category = self.ext_category_radio.isChecked()
-        is_directory = self.ext_directory_radio.isChecked()
 
-        # 类别选择面板: 仅按类别模式显示
+        # 按类别: 显示类别面板, 隐藏目录面板
         self.ext_category_group.setVisible(is_category)
+        self.ext_dir_group.setVisible(not is_category)
 
         # 按类别模式: 默认勾选复制标签
         if is_category:
             self.ext_copy_labels_check.setChecked(True)
 
-        # 按目录模式: 隐藏统一数量/比例控件
-        if is_directory:
-            self.ext_count_row.setVisible(False)
-            self.ext_ratio_row.setVisible(False)
-        else:
-            self._on_count_mode_changed()
-
         self._update_extract_action_states()
 
-    def _on_count_mode_changed(self) -> None:
-        """数量模式切换"""
-        idx = self.ext_count_mode_combo.currentIndex()
-        is_directory = self.ext_directory_radio.isChecked()
-
-        if is_directory:
-            self.ext_count_row.setVisible(False)
-            self.ext_ratio_row.setVisible(False)
-            return
-
-        # 0=按数量, 1=按比例, 2=全部
-        self.ext_count_row.setVisible(idx == 0)
-        self.ext_ratio_row.setVisible(idx == 1)
-
     def _refresh_extract_categories(self) -> None:
-        """从扫描结果刷新类别列表"""
-        self.ext_category_list.clear()
+        """从扫描结果刷新类别列表 (带行内控件)"""
+        self.ext_category_tree.clear()
 
         if not hasattr(self, "detected_classes") or not self.detected_classes:
             return
 
         for cls_name in self.detected_classes:
-            item = QListWidgetItem(str(cls_name))
+            item = QTreeWidgetItem()
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
-            item.setCheckState(Qt.CheckState.Unchecked)
-            self.ext_category_list.addItem(item)
+            item.setCheckState(0, Qt.CheckState.Unchecked)
+            item.setText(0, str(cls_name))
+            item.setText(1, "—")  # 可用数量将在扫描后更新
+            self.ext_category_tree.addTopLevelItem(item)
+
+            # 设置行内控件
+            self._setup_row_widgets(self.ext_category_tree, item, 999999)
+
+        for col in range(self.ext_category_tree.columnCount()):
+            self.ext_category_tree.resizeColumnToContents(col)
 
     # ==================== 槽函数 ====================
 
@@ -384,13 +438,14 @@ class ExtractTabMixin:
             item.setData(1, Qt.ItemDataRole.UserRole, count)    # 存储数量
 
             self.ext_dir_tree.addTopLevelItem(item)
+
+            # 设置行内控件
+            self._setup_row_widgets(self.ext_dir_tree, item, count)
+
             total_images += count
 
-        self.ext_dir_tree.resizeColumnToContents(0)
-        self.ext_dir_tree.resizeColumnToContents(1)
-
-        self.ext_available_label.setText(f"可用: {total_images} 张")
-        self.ext_count_spin.setMaximum(total_images)
+        for col in range(self.ext_dir_tree.columnCount()):
+            self.ext_dir_tree.resizeColumnToContents(col)
 
         self.log_message.emit(
             f"扫描完成: {len(dir_stats)} 个目录, 共 {total_images} 张图片"
@@ -417,6 +472,22 @@ class ExtractTabMixin:
             )
 
     @Slot()
+    def _on_ext_cat_select_all(self) -> None:
+        """全选类别"""
+        for i in range(self.ext_category_tree.topLevelItemCount()):
+            self.ext_category_tree.topLevelItem(i).setCheckState(
+                0, Qt.CheckState.Checked
+            )
+
+    @Slot()
+    def _on_ext_cat_deselect_all(self) -> None:
+        """全不选类别"""
+        for i in range(self.ext_category_tree.topLevelItemCount()):
+            self.ext_category_tree.topLevelItem(i).setCheckState(
+                0, Qt.CheckState.Unchecked
+            )
+
+    @Slot()
     def _on_ext_browse_output(self) -> None:
         """选择输出目录"""
         path = QFileDialog.getExistingDirectory(self, "选择输出目录")
@@ -425,72 +496,88 @@ class ExtractTabMixin:
 
     def _build_extract_config(self) -> Optional[ExtractConfig]:
         """从 UI 构建 ExtractConfig"""
-        # 确定模式
-        if self.ext_random_radio.isChecked():
-            mode = "random"
-        elif self.ext_category_radio.isChecked():
-            mode = "by_category"
-        else:
-            mode = "by_directory"
+        is_category = self.ext_category_radio.isChecked()
+        mode = "by_category" if is_category else "by_directory"
 
-        # 收集选中目录
-        selected_dirs = []
-        dir_counts: dict[str, int] = {}
-        for i in range(self.ext_dir_tree.topLevelItemCount()):
-            item = self.ext_dir_tree.topLevelItem(i)
-            if item.checkState(0) == Qt.CheckState.Checked:
-                rel_dir = item.data(0, Qt.ItemDataRole.UserRole)
-                available = item.data(1, Qt.ItemDataRole.UserRole) or 0
-                selected_dirs.append(Path(rel_dir))
-                dir_counts[rel_dir] = available  # 默认全部
+        per_item_counts: dict[str, tuple[str, float]] = {}
 
-        if not selected_dirs:
-            self.log_message.emit("请至少选择一个目录")
-            return None
+        if is_category:
+            # 收集类别配置
+            categories: list[str] = []
+            for i in range(self.ext_category_tree.topLevelItemCount()):
+                item = self.ext_category_tree.topLevelItem(i)
+                row_config = self._read_row_config(item)
+                if row_config is not None:
+                    cls_name = item.text(0)
+                    categories.append(cls_name)
+                    per_item_counts[cls_name] = row_config
 
-        # 数量模式
-        count_mode_idx = self.ext_count_mode_combo.currentIndex()
-        count_mode_map = {0: "count", 1: "ratio", 2: "all"}
-        count_mode = count_mode_map.get(count_mode_idx, "count")
-
-        # 类别
-        categories: list[str] = []
-        if mode == "by_category":
-            for i in range(self.ext_category_list.count()):
-                item = self.ext_category_list.item(i)
-                if item.checkState() == Qt.CheckState.Checked:
-                    categories.append(item.text())
+            # 特殊类别
             if self.ext_cat_empty_check.isChecked():
                 categories.append("_empty")
+                per_item_counts["_empty"] = ("all", 0)
             if self.ext_cat_mixed_check.isChecked():
                 categories.append("_mixed")
+                per_item_counts["_mixed"] = ("all", 0)
             if self.ext_cat_no_label_check.isChecked():
                 categories.append("_no_label")
+                per_item_counts["_no_label"] = ("all", 0)
 
             if not categories:
                 self.log_message.emit("请至少选择一个类别")
                 return None
 
-        # 输出目录
-        output_text = self.ext_output_input.text().strip()
-        output_dir = Path(output_text) if output_text else None
+            return ExtractConfig(
+                mode=mode,
+                per_item_counts=per_item_counts,
+                categories=categories,
+                selected_dirs=[],  # 按类别模式搜索全部目录
+                keep_structure=self.ext_keep_structure_check.isChecked(),
+                copy_labels=self.ext_copy_labels_check.isChecked(),
+                seed=(
+                    self.ext_seed_spin.value()
+                    if self.ext_seed_check.isChecked()
+                    else None
+                ),
+                output_dir=(
+                    Path(self.ext_output_input.text().strip())
+                    if self.ext_output_input.text().strip()
+                    else None
+                ),
+            )
+        else:
+            # 收集目录配置
+            selected_dirs: list[Path] = []
+            for i in range(self.ext_dir_tree.topLevelItemCount()):
+                item = self.ext_dir_tree.topLevelItem(i)
+                row_config = self._read_row_config(item)
+                if row_config is not None:
+                    rel_dir = item.data(0, Qt.ItemDataRole.UserRole)
+                    selected_dirs.append(Path(rel_dir))
+                    per_item_counts[rel_dir] = row_config
 
-        # 随机种子
-        seed = self.ext_seed_spin.value() if self.ext_seed_check.isChecked() else None
+            if not selected_dirs:
+                self.log_message.emit("请至少选择一个目录")
+                return None
 
-        return ExtractConfig(
-            mode=mode,
-            count_mode=count_mode,
-            count=self.ext_count_spin.value(),
-            ratio=self.ext_ratio_spin.value(),
-            categories=categories,
-            selected_dirs=selected_dirs,
-            dir_counts=dir_counts,
-            keep_structure=self.ext_keep_structure_check.isChecked(),
-            copy_labels=self.ext_copy_labels_check.isChecked(),
-            seed=seed,
-            output_dir=output_dir,
-        )
+            return ExtractConfig(
+                mode=mode,
+                per_item_counts=per_item_counts,
+                categories=[],
+                selected_dirs=selected_dirs,
+                keep_structure=self.ext_keep_structure_check.isChecked(),
+                copy_labels=self.ext_copy_labels_check.isChecked(),
+                seed=(
+                    self.ext_seed_spin.value()
+                    if self.ext_seed_check.isChecked()
+                    else None
+                ),
+                output_dir=(
+                    Path(self.ext_output_input.text().strip())
+                    if self.ext_output_input.text().strip()
+                    else None
+                ),
+            )
 
     @Slot()
     def _on_ext_preview(self) -> None:
@@ -507,7 +594,6 @@ class ExtractTabMixin:
         label_path = self.path_group.get_label_dir()
         classes_txt = self.path_group.get_classes_path()
 
-        self.ext_preview_text.clear()
         self.log_message.emit("正在预估...")
 
         self._start_worker(
@@ -659,4 +745,3 @@ class ExtractTabMixin:
         self.log_message.emit(
             f"扫描到 {len(class_list)} 个类别: {', '.join(str(c) for c in class_list)}"
         )
-

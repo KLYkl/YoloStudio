@@ -176,7 +176,6 @@ class DataWidget(
 
         # Tab 2 - 抽取
         self.ext_mode_group.buttonClicked.connect(lambda: self._on_extract_mode_changed())
-        self.ext_count_mode_combo.currentIndexChanged.connect(lambda: self._on_count_mode_changed())
         self.ext_scan_dirs_btn.clicked.connect(self._on_ext_scan_dirs)
         self.ext_select_all_btn.clicked.connect(self._on_ext_select_all)
         self.ext_deselect_all_btn.clicked.connect(self._on_ext_deselect_all)
@@ -184,6 +183,8 @@ class DataWidget(
         self.ext_preview_btn.clicked.connect(self._on_ext_preview)
         self.ext_start_btn.clicked.connect(self._on_ext_start)
         self.ext_scan_categories_btn.clicked.connect(self._on_ext_scan_categories)
+        self.ext_cat_select_all_btn.clicked.connect(self._on_ext_cat_select_all)
+        self.ext_cat_deselect_all_btn.clicked.connect(self._on_ext_cat_deselect_all)
 
         # Tab 2 - 编辑
         self.gen_empty_btn.clicked.connect(self._on_generate_empty)

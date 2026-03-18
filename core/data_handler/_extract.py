@@ -152,9 +152,9 @@ class ExtractMixin:
                 message_callback("未找到符合条件的图片")
             return result
 
-        # 按模式预估
+        # 按模式分组 + 抽样
         if config.mode == "by_category":
-            images = self._filter_by_category(
+            grouped = self._group_by_category(
                 images, img_dir, label_dir, config,
                 classes_txt=classes_txt,
                 interrupt_check=interrupt_check,
@@ -163,9 +163,11 @@ class ExtractMixin:
             )
             if interrupt_check():
                 return result
+        else:
+            grouped = self._group_by_directory(images, img_dir)
 
-        # 计算抽取数量
-        selected = self._sample_images(images, img_dir, config)
+        # 按每组独立抽样
+        selected = self._sample_per_group(grouped, config)
         result.extracted = len(selected)
 
         # 统计各目录
@@ -174,10 +176,7 @@ class ExtractMixin:
                 rel_dir = str(img.parent.relative_to(img_dir))
             except ValueError:
                 rel_dir = "."
-            if rel_dir == ".":
-                dir_name = "."
-            else:
-                dir_name = rel_dir
+            dir_name = rel_dir if rel_dir != "." else "."
             result.dir_stats[dir_name] = result.dir_stats.get(dir_name, 0) + 1
 
         return result
@@ -228,9 +227,9 @@ class ExtractMixin:
         if message_callback:
             message_callback(f"可用图片: {len(images)} 张")
 
-        # 按类别过滤
+        # 按模式分组 + 抽样
         if config.mode == "by_category":
-            images = self._filter_by_category(
+            grouped = self._group_by_category(
                 images, img_dir, label_dir, config,
                 classes_txt=classes_txt,
                 interrupt_check=interrupt_check,
@@ -241,12 +240,11 @@ class ExtractMixin:
                 if message_callback:
                     message_callback("抽取已取消")
                 return result
+        else:
+            grouped = self._group_by_directory(images, img_dir)
 
-            if message_callback:
-                message_callback(f"类别过滤后: {len(images)} 张")
-
-        # 抽样
-        selected = self._sample_images(images, img_dir, config)
+        # 按每组独立抽样
+        selected = self._sample_per_group(grouped, config)
 
         if message_callback:
             message_callback(f"将抽取 {len(selected)} 张图片...")
@@ -350,7 +348,7 @@ class ExtractMixin:
         else:
             return self._find_images(img_dir)
 
-    def _filter_by_category(
+    def _group_by_category(
         self,
         images: list[Path],
         img_dir: Path,
@@ -360,10 +358,10 @@ class ExtractMixin:
         interrupt_check: Callable[[], bool] = lambda: False,
         progress_callback: Optional[Callable[[int, int], None]] = None,
         message_callback: Optional[Callable[[str], None]] = None,
-    ) -> list[Path]:
-        """按类别过滤图片"""
+    ) -> dict[str, list[Path]]:
+        """按类别分组图片，返回 {类别名: [图片路径]} 字典"""
         if not config.categories:
-            return images
+            return {}
 
         # 加载类别映射
         class_mapping: dict[int, str] = {}
@@ -372,10 +370,10 @@ class ExtractMixin:
 
         if message_callback:
             message_callback(
-                f"正在按类别过滤 ({', '.join(config.categories)})..."
+                f"正在按类别分组 ({', '.join(config.categories)})..."
             )
 
-        filtered: list[Path] = []
+        grouped: dict[str, list[Path]] = {}
         total = len(images)
 
         for i, img_path in enumerate(images):
@@ -386,60 +384,68 @@ class ExtractMixin:
                 img_path, label_dir, img_dir, class_mapping
             )
             if category in config.categories:
-                filtered.append(img_path)
+                grouped.setdefault(category, []).append(img_path)
 
             if progress_callback:
                 progress_callback(i + 1, total)
 
-        return filtered
+        return grouped
 
-    def _sample_images(
+    def _group_by_directory(
         self,
         images: list[Path],
         img_dir: Path,
+    ) -> dict[str, list[Path]]:
+        """按目录分组图片，返回 {相对路径: [图片路径]} 字典"""
+        grouped: dict[str, list[Path]] = {}
+        for img in images:
+            try:
+                rel_dir = str(img.parent.relative_to(img_dir))
+            except ValueError:
+                rel_dir = "."
+            grouped.setdefault(rel_dir, []).append(img)
+        return grouped
+
+    def _sample_per_group(
+        self,
+        grouped: dict[str, list[Path]],
         config: ExtractConfig,
     ) -> list[Path]:
-        """根据配置进行抽样"""
-        if not images:
+        """
+        按 per_item_counts 对每组独立抽样
+
+        per_item_counts 格式: {组名: (模式, 值)}
+            - ("all", 0): 取该组全部
+            - ("count", N): 随机取 N 张
+            - ("ratio", R): 随机取 总数*R 张
+        """
+        if not grouped:
             return []
 
-        # 按目录模式: 每个目录独立抽取
-        if config.mode == "by_directory" and config.dir_counts:
-            selected: list[Path] = []
-            # 按目录分组
-            dir_groups: dict[str, list[Path]] = {}
-            for img in images:
-                try:
-                    rel_dir = str(img.parent.relative_to(img_dir))
-                except ValueError:
-                    rel_dir = "."
-                dir_groups.setdefault(rel_dir, []).append(img)
+        rng = random.Random(config.seed)
+        selected: list[Path] = []
 
-            rng = random.Random(config.seed)
-            for rel_dir, dir_images in dir_groups.items():
-                count = config.dir_counts.get(rel_dir, 0)
+        for group_name, group_images in grouped.items():
+            item_config = config.per_item_counts.get(group_name)
+            if not item_config:
+                # 未配置的组跳过
+                continue
+
+            count_mode, value = item_config
+
+            if count_mode == "all":
+                selected.extend(group_images)
+            elif count_mode == "ratio":
+                count = max(1, int(len(group_images) * value))
+                count = min(count, len(group_images))
+                selected.extend(rng.sample(group_images, count))
+            else:  # "count"
+                count = min(int(value), len(group_images))
                 if count <= 0:
                     continue
-                count = min(count, len(dir_images))
-                selected.extend(rng.sample(dir_images, count))
-            return sorted(selected)
+                selected.extend(rng.sample(group_images, count))
 
-        # 随机/按类别模式: 统一抽样
-        if config.count_mode == "all":
-            return images
-
-        if config.count_mode == "ratio":
-            count = max(1, int(len(images) * config.ratio))
-        else:
-            count = config.count
-
-        count = min(count, len(images))
-
-        if count >= len(images):
-            return images
-
-        rng = random.Random(config.seed)
-        return sorted(rng.sample(images, count))
+        return sorted(selected)
 
     def _build_extract_dest_path(
         self,
