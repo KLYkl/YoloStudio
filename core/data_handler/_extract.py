@@ -469,7 +469,14 @@ class ExtractMixin:
             except ValueError:
                 return output_dir / source.name
         else:
-            # 扁平化: 添加目录前缀避免冲突
+            # 扁平化: 先尝试原名，仅同名冲突时才加目录前缀
+            sub_dir = "labels" if label_mode else "images"
+            base_dest = output_dir / sub_dir / source.name
+
+            if not base_dest.exists():
+                return base_dest
+
+            # 原名已被占用 → 加目录前缀去重
             try:
                 rel_dir = source.parent.relative_to(source_root)
                 if str(rel_dir) != ".":
@@ -480,10 +487,7 @@ class ExtractMixin:
             except ValueError:
                 new_name = source.name
 
-            if label_mode:
-                return output_dir / "labels" / new_name
-            else:
-                return output_dir / "images" / new_name
+            return output_dir / sub_dir / new_name
 
     def _find_extract_label(
         self,
