@@ -154,7 +154,7 @@ class ExtractMixin:
 
         # 按模式分组 + 抽样
         if config.mode == "by_category":
-            grouped = self._group_by_category(
+            grouped, _ = self._group_by_category(
                 images, img_dir, label_dir, config,
                 classes_txt=classes_txt,
                 interrupt_check=interrupt_check,
@@ -228,8 +228,9 @@ class ExtractMixin:
             message_callback(f"可用图片: {len(images)} 张")
 
         # 按模式分组 + 抽样
+        category_map: dict[Path, str] = {}  # 图片→类别映射 (按类别布局用)
         if config.mode == "by_category":
-            grouped = self._group_by_category(
+            grouped, category_map = self._group_by_category(
                 images, img_dir, label_dir, config,
                 classes_txt=classes_txt,
                 interrupt_check=interrupt_check,
@@ -259,8 +260,10 @@ class ExtractMixin:
                 break
 
             # 确定目标路径
+            img_category = category_map.get(img_path)
             dest_img = self._build_extract_dest_path(
-                img_path, img_dir, output_dir, config.keep_structure
+                img_path, img_dir, output_dir, config.output_layout,
+                category=img_category,
             )
 
             # 检查冲突
@@ -299,9 +302,10 @@ class ExtractMixin:
                             label_path,
                             label_dir if label_dir else img_dir.parent,
                             output_dir,
-                            config.keep_structure,
+                            config.output_layout,
                             label_mode=True,
                             img_name=img_path.stem,
+                            category=img_category,
                         )
                         dest_label.parent.mkdir(parents=True, exist_ok=True)
                         if not dest_label.exists():
@@ -360,10 +364,17 @@ class ExtractMixin:
         interrupt_check: Callable[[], bool] = lambda: False,
         progress_callback: Optional[Callable[[int, int], None]] = None,
         message_callback: Optional[Callable[[str], None]] = None,
-    ) -> dict[str, list[Path]]:
-        """按类别分组图片，返回 {类别名: [图片路径]} 字典"""
+    ) -> tuple[dict[str, list[Path]], dict[Path, str]]:
+        """
+        按类别分组图片
+
+        Returns:
+            (grouped, category_map)
+            grouped: {类别名: [图片路径]}
+            category_map: {图片路径: 类别名} (供按类别布局使用)
+        """
         if not config.categories:
-            return {}
+            return {}, {}
 
         # 加载类别映射
         class_mapping: dict[int, str] = {}
@@ -376,6 +387,7 @@ class ExtractMixin:
             )
 
         grouped: dict[str, list[Path]] = {}
+        category_map: dict[Path, str] = {}
         total = len(images)
 
         for i, img_path in enumerate(images):
@@ -387,11 +399,12 @@ class ExtractMixin:
             )
             if category in config.categories:
                 grouped.setdefault(category, []).append(img_path)
+                category_map[img_path] = category
 
             if progress_callback:
                 progress_callback(i + 1, total)
 
-        return grouped
+        return grouped, category_map
 
     def _group_by_directory(
         self,
@@ -454,9 +467,10 @@ class ExtractMixin:
         source: Path,
         source_root: Path,
         output_dir: Path,
-        keep_structure: bool,
+        output_layout: str,
         label_mode: bool = False,
         img_name: Optional[str] = None,
+        category: Optional[str] = None,
     ) -> Path:
         """
         构建目标文件路径
@@ -465,11 +479,16 @@ class ExtractMixin:
             source: 源文件路径
             source_root: 源文件根目录
             output_dir: 输出目录
-            keep_structure: 是否保持目录结构
+            output_layout: 输出布局 ("keep"/"flat"/"by_category")
             label_mode: 标签文件模式 (输出到 labels/ 子目录)
             img_name: 对应图片文件名 (用于标签文件扁平化命名)
+            category: 图片所属类别 (仅 by_category 布局使用)
         """
-        if keep_structure:
+        if output_layout == "by_category" and category:
+            # 按类别放置: output_dir / 类别名 / images(或labels) / 文件名
+            sub_dir = "labels" if label_mode else "images"
+            return output_dir / category / sub_dir / source.name
+        elif output_layout == "keep":
             # 保持原始目录结构
             try:
                 rel = source.relative_to(source_root)
@@ -548,7 +567,8 @@ class ExtractMixin:
         if config.seed is not None:
             lines.append(f"随机种子: {config.seed}")
 
-        lines.append(f"保持目录结构: {config.keep_structure}")
+        layout_labels = {"keep": "保持目录结构", "flat": "扁平化", "by_category": "按类别放置"}
+        lines.append(f"输出布局: {layout_labels.get(config.output_layout, config.output_layout)}")
         lines.append(f"复制标签: {config.copy_labels}")
         lines.append("")
         lines.append("# ========================================")

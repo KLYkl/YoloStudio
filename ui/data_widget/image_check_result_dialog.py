@@ -40,46 +40,36 @@ from core.data_handler._models import (
     ImageSizeStats,
 )
 from ui.styled_message_box import StyledMessageBox
+from ui.theme import ThemeManager
 
 
 # ============================================================
-# 公共主题色板
+# 公共主题色板 (从 ThemeManager 获取)
 # ============================================================
 
-def _get_palette(is_dark: bool) -> dict:
-    """返回当前主题的完整色板字典"""
-    if is_dark:
-        return dict(
-            bg="#1e1e2e", border="#313244",
-            text_primary="#cdd6f4", text_secondary="#a6adc8",
-            text_muted="#6c7086", surface="#181825",
-            card_bg="#11111b", card_border="#313244",
-            accent="#89b4fa",
-            green="#a6e3a1", red="#f38ba8", yellow="#f9e2af",
-            blue="#89b4fa", orange="#fab387",
-            green_bg="rgba(166, 227, 161, 15)",
-            red_bg="rgba(243, 139, 168, 15)",
-            yellow_bg="rgba(249, 226, 175, 15)",
-            blue_bg="rgba(137, 180, 250, 15)",
-            orange_bg="rgba(250, 179, 135, 15)",
-            badge_text="#1e1e2e",
-            btn_fg="#1e1e2e",
-        )
+def _get_palette() -> dict:
+    """从 ThemeManager 获取当前主题的完整色板字典"""
+    tm = ThemeManager.instance()
+    get = tm.get_color
     return dict(
-        bg="#eff1f5", border="#bcc0cc",
-        text_primary="#4c4f69", text_secondary="#5c5f77",
-        text_muted="#7c7f93", surface="#e6e9ef",
-        card_bg="#dce0e8", card_border="#bcc0cc",
-        accent="#1e66f5",
-        green="#40a02b", red="#d20f39", yellow="#df8e1d",
-        blue="#1e66f5", orange="#fe640b",
-        green_bg="rgba(64, 160, 43, 15)",
-        red_bg="rgba(210, 15, 57, 15)",
-        yellow_bg="rgba(223, 142, 29, 15)",
-        blue_bg="rgba(30, 102, 245, 15)",
-        orange_bg="rgba(254, 100, 11, 15)",
-        badge_text="#eff1f5",
-        btn_fg="#eff1f5",
+        bg=get("dialog_bg"), border=get("dialog_border"),
+        text_primary=get("dialog_text_primary"),
+        text_secondary=get("dialog_text_secondary"),
+        text_muted=get("dialog_text_muted"),
+        surface=get("dialog_surface"),
+        card_bg=get("dialog_footer_bg"),
+        card_border=get("dialog_border"),
+        accent=get("dialog_info_accent"),
+        green=get("success"), red=get("danger"),
+        yellow=get("warning"), blue=get("accent"),
+        orange=get("warning"),
+        green_bg=get("dialog_info_bg"),
+        red_bg=get("dialog_critical_bg"),
+        yellow_bg=get("dialog_warning_bg"),
+        blue_bg=get("dialog_info_bg"),
+        orange_bg=get("dialog_warning_bg"),
+        badge_text=get("dialog_bg"),
+        btn_fg=get("dialog_bg"),
     )
 
 
@@ -110,8 +100,7 @@ class _BaseResultDialog(QDialog):
         self.setModal(True)
         self.setFixedWidth(width)
 
-        is_dark = StyledMessageBox._is_dark_theme()
-        self.p = _get_palette(is_dark)
+        self.p = _get_palette()
         self._bg_color = self.p["bg"]
         self._border_color = self.p["border"]
         self._radius = 12
@@ -199,10 +188,10 @@ class _BaseResultDialog(QDialog):
                 font-size: 14px; font-weight: 600;
             }}
             QPushButton:hover {{
-                background-color: {StyledMessageBox._lighten(a, 0.1)};
+                background-color: {ThemeManager.lighten(a, 0.1)};
             }}
             QPushButton:pressed {{
-                background-color: {StyledMessageBox._darken(a, 0.08)};
+                background-color: {ThemeManager.darken(a, 0.08)};
             }}
         """)
         ok_btn.clicked.connect(self.accept)

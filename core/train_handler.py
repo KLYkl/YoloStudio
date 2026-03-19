@@ -72,6 +72,7 @@ class TrainManager(QObject):
         
         self._process: Optional[QProcess] = None
         self._is_running = False
+        self._user_stopped = False  # 区分用户主动停止和正常结束
     
     @property
     def is_running(self) -> bool:
@@ -208,13 +209,18 @@ class TrainManager(QObject):
         
         return result_list
     
-    def start_training(self, command_str: str, work_dir: str) -> bool:
+    def start_training(
+        self, command_str: str, work_dir: str,
+        python_path: Optional[str] = None,
+    ) -> bool:
         """
         启动训练进程
         
         Args:
-            command_str: 完整的命令字符串 (用户可编辑)
+            command_str: yolo 命令字符串 (如 "yolo train model=...")
             work_dir: 工作目录
+            python_path: 所选环境的 Python 解释器路径，
+                         用于推导 yolo 可执行文件的完整路径
         
         Returns:
             是否成功启动
@@ -222,6 +228,11 @@ class TrainManager(QObject):
         if self._is_running:
             self.system_msg.emit("训练已在运行中", "warning")
             return False
+        
+        # 清理旧进程 (防止资源泄漏)
+        self._cleanup_process()
+        
+        self._user_stopped = False
         
         # 创建进程
         self._process = QProcess(self)
@@ -233,35 +244,31 @@ class TrainManager(QObject):
         self._process.finished.connect(self._on_finished)
         self._process.errorOccurred.connect(self._on_error)
         
-        # 启动进程
-        self.system_msg.emit(f"启动训练: {command_str[:100]}...", "info")
+        # 解析实际执行命令: 将 "yolo" 替换为所选环境的 yolo 全路径
+        actual_cmd = command_str
+        if python_path and command_str.lstrip().startswith("yolo "):
+            yolo_exe = self._resolve_yolo_path(python_path)
+            if yolo_exe:
+                # 用全路径替换命令开头的 "yolo"
+                actual_cmd = f'"{yolo_exe}" {command_str[5:]}'
+                env_label = Path(python_path).parent.name
+                self.system_msg.emit(f"使用环境: {env_label}", "info")
+            else:
+                self.system_msg.emit(
+                    "所选环境中未找到 yolo 命令，请确认已安装 ultralytics",
+                    "error",
+                )
+                return False
+        
+        self.system_msg.emit(f"启动训练: {actual_cmd[:120]}...", "info")
         self.system_msg.emit(f"工作目录: {work_dir}", "info")
         
         if sys.platform == "win32":
-            # Windows: 尝试激活 conda 环境后运行
-            # 从命令中提取 python 路径并推断环境名
-            env_name = self._extract_env_name(command_str)
-            
-            if env_name:
-                # 使用 conda activate 激活环境
-                # 构建: conda activate env_name && python -m ultralytics ...
-                # 需要从原始命令中移除 python 路径，只保留后续参数
-                train_args = self._extract_train_args(command_str)
-                if train_args:
-                    full_cmd = f'conda activate {env_name} && python {train_args}'
-                    self.system_msg.emit(f"激活环境: {env_name}", "info")
-                else:
-                    full_cmd = command_str
-            else:
-                # 无法推断环境名，使用原始命令
-                full_cmd = command_str
-            
             self._process.setProgram("cmd.exe")
-            self._process.setArguments(["/c", full_cmd])
+            self._process.setArguments(["/c", actual_cmd])
         else:
-            # Unix: 解析命令并直接运行
             try:
-                args = shlex.split(command_str)
+                args = shlex.split(actual_cmd)
             except ValueError as e:
                 self.system_msg.emit(f"命令解析失败: {e}", "error")
                 return False
@@ -278,43 +285,22 @@ class TrainManager(QObject):
         self.system_msg.emit("训练已开始", "info")
         return True
     
-    def _extract_env_name(self, command_str: str) -> Optional[str]:
+    @staticmethod
+    def _resolve_yolo_path(python_path: str) -> Optional[str]:
         """
-        从命令字符串中提取 Conda 环境名
+        从 Python 解释器路径推导 yolo 可执行文件的位置
         
-        命令格式: "D:/Anaconda/envs/yolodo/python.exe" -m ultralytics ...
-        或: D:/Anaconda/envs/yolodo/python.exe -m ultralytics ...
-        
-        Returns:
-            环境名 (如 "yolodo") 或 None
+        Windows: .../envs/yolodo/python.exe → .../envs/yolodo/Scripts/yolo.exe
+        Unix:    .../envs/yolodo/bin/python  → .../envs/yolodo/bin/yolo
         """
-        import re
+        python_dir = Path(python_path).parent
         
-        # 匹配带引号或不带引号的 python 路径
-        # 格式: .../envs/ENV_NAME/python.exe 或 .../envs/ENV_NAME/bin/python
-        pattern = r'["\']?([^"\']+?)[/\\]envs[/\\]([^/\\"\']+)[/\\](?:bin[/\\])?python(?:\.exe)?["\']?'
-        match = re.search(pattern, command_str, re.IGNORECASE)
+        if sys.platform == "win32":
+            yolo_exe = python_dir / "Scripts" / "yolo.exe"
+        else:
+            yolo_exe = python_dir / "yolo"
         
-        if match:
-            return match.group(2)  # 返回环境名
-        
-        return None
-    
-    def _extract_train_args(self, command_str: str) -> Optional[str]:
-        """
-        从命令字符串中提取训练参数 (去除 python 路径)
-        
-        命令格式: "D:/.../python.exe" -m ultralytics train model=...
-        返回: -m ultralytics train model=...
-        """
-        import re
-        
-        # 移除开头的 python 解释器路径
-        # 匹配: "path/to/python.exe" 或 path/to/python.exe
-        pattern = r'^["\']?[^"\']*?python(?:\.exe)?["\']?\s+'
-        result = re.sub(pattern, '', command_str, count=1, flags=re.IGNORECASE)
-        
-        return result.strip() if result != command_str else None
+        return str(yolo_exe) if yolo_exe.exists() else None
     
     def stop_training(self) -> None:
         """停止训练进程"""
@@ -322,14 +308,12 @@ class TrainManager(QObject):
             self.system_msg.emit("没有正在运行的训练", "warning")
             return
         
+        self._user_stopped = True
         self.system_msg.emit("正在停止训练...", "warning")
         
-        # 强制终止
+        # 强制终止 — _on_finished 会处理状态清理和信号发射
         self._process.kill()
         self._process.waitForFinished(3000)
-        
-        self._is_running = False
-        self.system_msg.emit("训练已停止", "warning")
     
     def _on_stdout(self) -> None:
         """处理标准输出"""
@@ -352,10 +336,12 @@ class TrainManager(QObject):
             self.raw_output.emit(text)
     
     def _on_finished(self, exit_code: int, exit_status: QProcess.ExitStatus) -> None:
-        """处理进程结束"""
+        """处理进程结束 (统一入口，避免与 stop_training 竞态)"""
         self._is_running = False
         
-        if exit_status == QProcess.ExitStatus.NormalExit:
+        if self._user_stopped:
+            self.system_msg.emit("训练已停止", "warning")
+        elif exit_status == QProcess.ExitStatus.NormalExit:
             if exit_code == 0:
                 self.system_msg.emit("训练完成 ✓", "info")
             else:
@@ -377,3 +363,13 @@ class TrainManager(QObject):
         }
         msg = error_msgs.get(error, "未知错误")
         self.system_msg.emit(f"进程错误: {msg}", "error")
+    
+    def _cleanup_process(self) -> None:
+        """清理旧的 QProcess 实例"""
+        if self._process is not None:
+            try:
+                self._process.disconnect()
+            except RuntimeError:
+                pass
+            self._process.deleteLater()
+            self._process = None

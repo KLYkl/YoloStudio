@@ -266,7 +266,7 @@ class AugmentTabMixin:
         content = QWidget()
         content_layout = QVBoxLayout(content)
         content_layout.setContentsMargins(0, 4, 0, 0)
-        content_layout.setSpacing(10)
+        content_layout.setSpacing(6)
 
         content_layout.addWidget(self._create_preset_section())
         content_layout.addWidget(self._create_geometry_section())
@@ -282,8 +282,8 @@ class AugmentTabMixin:
         button_row.setContentsMargins(4, 5, 4, 5)
         button_row.addStretch()
         self.augment_btn = QPushButton("🧪 开始增强")
-        self.augment_btn.setMinimumHeight(35)
-        self.augment_btn.setMinimumWidth(120)
+        self.augment_btn.setMinimumHeight(28)
+        self.augment_btn.setMinimumWidth(100)
         self.augment_btn.setProperty("class", "primary")
         self.augment_btn.setEnabled(False)
         button_row.addWidget(self.augment_btn)
@@ -330,15 +330,6 @@ class AugmentTabMixin:
         self._preview_original_label = _ScaledImageLabel()
         self._preview_original_label.setObjectName("previewImageLabel")
         self._preview_original_label.setText("请先在上方设置图片目录")
-        self._preview_original_label.setStyleSheet("""
-            QLabel#previewImageLabel {
-                background-color: #11111b;
-                border: 1px solid #313244;
-                border-radius: 6px;
-                color: #6c7086;
-                padding: 8px;
-            }
-        """)
         self._preview_original_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
@@ -355,15 +346,6 @@ class AugmentTabMixin:
         self._preview_augmented_label = _ScaledImageLabel()
         self._preview_augmented_label.setObjectName("previewImageLabel")
         self._preview_augmented_label.setText("调整左侧参数后自动预览")
-        self._preview_augmented_label.setStyleSheet("""
-            QLabel#previewImageLabel {
-                background-color: #11111b;
-                border: 1px solid #313244;
-                border-radius: 6px;
-                color: #6c7086;
-                padding: 8px;
-            }
-        """)
         self._preview_augmented_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
@@ -540,7 +522,7 @@ class AugmentTabMixin:
         """Create the output settings section."""
         group = QGroupBox("⚙️ 输出设置")
         settings_layout = QVBoxLayout(group)
-        settings_layout.setSpacing(10)
+        settings_layout.setSpacing(6)
 
         settings_form = QFormLayout()
         settings_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
@@ -556,7 +538,7 @@ class AugmentTabMixin:
         fixed_mode_row = QWidget()
         fixed_mode_layout = QHBoxLayout(fixed_mode_row)
         fixed_mode_layout.setContentsMargins(0, 0, 0, 0)
-        fixed_mode_layout.setSpacing(10)
+        fixed_mode_layout.setSpacing(6)
         self.augment_fixed_single_check = QCheckBox("单项覆盖")
         self.augment_fixed_single_check.setChecked(True)
         self.augment_fixed_single_check.setToolTip("每种启用的增强方法单独生成一张图片")
@@ -982,6 +964,12 @@ class AugmentTabMixin:
         classes_txt = self.path_group.get_classes_path()
         output_dir = self.augment_output_input.text().strip()
         output_path = Path(output_dir) if output_dir else img_path.parent / f"{img_path.name}_augmented"
+
+        from ui.output_dir_check import check_output_dir
+        checked = check_output_dir(self, output_path)
+        if checked is None:
+            return
+        output_path = checked
         self.augment_output_input.setText(str(output_path))
 
         self._start_worker(

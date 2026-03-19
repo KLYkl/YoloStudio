@@ -49,13 +49,13 @@ class SplitTabMixin:
         """
         tab = QWidget()
         tab_layout = QVBoxLayout(tab)
-        tab_layout.setSpacing(10)
+        tab_layout.setSpacing(6)
 
         # 路径输入组已提升到 DataWidget 外层 (self.path_group)
 
         # 下方内容区 (水平布局)
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(15)
+        content_layout.setSpacing(8)
 
         # ========== 左侧: 划分工具 (Flex 1) ==========
         left_scroll = QScrollArea()
@@ -65,7 +65,7 @@ class SplitTabMixin:
 
         left_group = QGroupBox("划分工具")
         left_group_layout = QVBoxLayout(left_group)
-        left_group_layout.setSpacing(10)
+        left_group_layout.setSpacing(6)
 
         # --- Group 1: 划分参数 ---
         param_group = QGroupBox("划分参数")
@@ -131,7 +131,7 @@ class SplitTabMixin:
         self.clear_output_check.setToolTip("删除 train/ 和 val/ 目录后再写入")
         output_layout.addWidget(self.clear_output_check)
 
-        output_layout.addSpacing(5)
+        output_layout.addSpacing(2)
 
         # 输出目录
         output_layout.addWidget(QLabel("输出目录:"))
@@ -146,13 +146,13 @@ class SplitTabMixin:
         dir_row.addWidget(self.output_browse_btn)
         output_layout.addLayout(dir_row)
 
-        output_layout.addSpacing(10)
+        output_layout.addSpacing(4)
 
         # 执行按钮
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         self.split_btn = QPushButton("🚀 开始划分")
-        self.split_btn.setMinimumHeight(35)
+        self.split_btn.setMinimumHeight(28)
         self.split_btn.setProperty("class", "primary")
         btn_row.addWidget(self.split_btn)
         output_layout.addLayout(btn_row)
@@ -181,7 +181,7 @@ class SplitTabMixin:
         tab = QWidget()
         main_layout = QVBoxLayout(tab)
         main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(10)
+        main_layout.setSpacing(6)
 
         # ========== 统一 GroupBox ==========
         yaml_group = QGroupBox("YAML 配置")
@@ -189,7 +189,7 @@ class SplitTabMixin:
 
         # ========== 左右分栏布局 ==========
         content_layout = QHBoxLayout()
-        content_layout.setSpacing(15)
+        content_layout.setSpacing(8)
 
         # ========== 左侧: 路径配置 (Flex 3) ==========
         left_group = QGroupBox("路径配置")
@@ -247,7 +247,7 @@ class SplitTabMixin:
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         self.save_yaml_btn = QPushButton("💾 保存 YAML 配置")
-        self.save_yaml_btn.setMinimumHeight(40)
+        self.save_yaml_btn.setMinimumHeight(28)
         self.save_yaml_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.save_yaml_btn.setProperty("class", "success")
         btn_layout.addWidget(self.save_yaml_btn)
@@ -290,6 +290,13 @@ class SplitTabMixin:
             self.log_message.emit("请选择输出目录")
             return
         output_path = Path(output_dir)
+
+        from ui.output_dir_check import check_output_dir
+        checked = check_output_dir(self, output_path)
+        if checked is None:
+            return
+        output_path = checked
+        self.output_dir_input.setText(str(output_path))
 
         ratio = self.ratio_slider.value() / 100.0
         seed = self.seed_spin.value()

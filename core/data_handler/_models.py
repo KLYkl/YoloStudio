@@ -322,7 +322,10 @@ class ExtractConfig:
             示例: {"car": ("all", 0), "person": ("count", 100)}
         categories: 目标类别列表 (含 _empty/_mixed/_no_label)
         selected_dirs: 选中的目录列表
-        keep_structure: 是否保持目录结构
+        output_layout: 输出目录布局
+            "keep" — 保持原始目录结构
+            "flat" — 扁平化到 images/labels 子目录
+            "by_category" — 按类别创建子目录 (仅按类别抽取模式)
         copy_labels: 是否同时复制标签
         seed: 随机种子 (None=不固定)
         output_dir: 输出目录
@@ -331,7 +334,7 @@ class ExtractConfig:
     per_item_counts: dict[str, tuple[str, float]] = field(default_factory=dict)
     categories: list[str] = field(default_factory=list)
     selected_dirs: list[Path] = field(default_factory=list)
-    keep_structure: bool = True
+    output_layout: str = "keep"
     copy_labels: bool = True
     seed: Optional[int] = None
     output_dir: Optional[Path] = None

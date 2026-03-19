@@ -301,6 +301,12 @@ class SlotsMixin:
 
         output_dir = self._output_dir_edit.text().strip()
         if output_dir and (self._save_video_check.isChecked() or self._save_keyframe_annotated_check.isChecked() or self._save_keyframe_raw_check.isChecked() or self._save_report_check.isChecked()):
+            from ui.output_dir_check import check_output_dir
+            checked = check_output_dir(self, Path(output_dir))
+            if checked is None:
+                return
+            output_dir = str(checked)
+            self._output_dir_edit.setText(output_dir)
             self._output_manager.set_output_dir(output_dir)
             self._output_manager.reset_stats()
             if self._save_video_check.isChecked():

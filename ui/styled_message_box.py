@@ -3,14 +3,14 @@ styled_message_box.py - 自定义样式消息弹窗
 ============================================
 
 职责:
-    - 替代原生 QMessageBox，提供与项目 Catppuccin 主题一致的弹窗样式
+    - 替代原生 QMessageBox，提供与项目主题一致的弹窗样式
     - 参考微软 Fluent Design / Windows 11 对话框风格
     - 自动居中到应用主窗口
     - 提供 information / warning / critical / question 静态方法
 
 架构要点:
     - 继承 QDialog，完全自绘界面
-    - 通过查找 QMainWindow 实例确保弹窗居中到主窗口
+    - 通过 ThemeManager 令牌获取颜色，跟随主题切换
     - 支持 detailedText 展开/收起
 """
 
@@ -31,9 +31,11 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ui.theme import ThemeManager
+
 
 class StyledMessageBox(QDialog):
-    """自定义样式消息弹窗 — 微软 Fluent Design 风格 + Catppuccin 配色"""
+    """自定义样式消息弹窗 — 微软 Fluent Design 风格 + ThemeManager 配色"""
 
     # 消息类型常量
     INFO = "info"
@@ -41,36 +43,12 @@ class StyledMessageBox(QDialog):
     CRITICAL = "critical"
     QUESTION = "question"
 
-    # 各类型对应的配置
-    _TYPE_CONFIG = {
-        "info": {
-            "icon": "✓",
-            "accent_dark": "#89b4fa",
-            "accent_light": "#1e66f5",
-            "bg_dark": "rgba(137, 180, 250, 25)",
-            "bg_light": "rgba(30, 102, 245, 20)",
-        },
-        "warning": {
-            "icon": "!",
-            "accent_dark": "#f9e2af",
-            "accent_light": "#df8e1d",
-            "bg_dark": "rgba(249, 226, 175, 25)",
-            "bg_light": "rgba(223, 142, 29, 20)",
-        },
-        "critical": {
-            "icon": "✕",
-            "accent_dark": "#f38ba8",
-            "accent_light": "#d20f39",
-            "bg_dark": "rgba(243, 139, 168, 25)",
-            "bg_light": "rgba(210, 15, 57, 20)",
-        },
-        "question": {
-            "icon": "?",
-            "accent_dark": "#89dceb",
-            "accent_light": "#179299",
-            "bg_dark": "rgba(137, 220, 235, 25)",
-            "bg_light": "rgba(23, 146, 153, 20)",
-        },
+    # 各类型对应的图标
+    _TYPE_ICONS = {
+        "info": "✓",
+        "warning": "!",
+        "critical": "✕",
+        "question": "?",
     }
 
     def __init__(
@@ -82,6 +60,7 @@ class StyledMessageBox(QDialog):
         detailed_text: str = "",
         accept_text: str = "确定",
         reject_text: str = "",
+        third_text: str = "",
     ) -> None:
         # 查找主窗口作为 parent，确保居中
         main_window = self._find_main_window(parent)
@@ -96,32 +75,22 @@ class StyledMessageBox(QDialog):
         self.setModal(True)
         self.setFixedWidth(340)
 
-        config = self._TYPE_CONFIG.get(msg_type, self._TYPE_CONFIG["info"])
-        is_dark = self._is_dark_theme()
-        accent = config["accent_dark"] if is_dark else config["accent_light"]
-        icon_bg = config["bg_dark"] if is_dark else config["bg_light"]
+        # 从 ThemeManager 获取颜色
+        tm = ThemeManager.instance()
+        type_colors = tm.get_dialog_type_colors(msg_type)
+        accent = type_colors["accent"]
+        icon_bg = type_colors["icon_bg"]
+        icon_char = self._TYPE_ICONS.get(msg_type, "✓")
 
-        # 主题色
-        if is_dark:
-            bg = "#1e1e2e"
-            surface = "#181825"
-            border = "#313244"
-            text_primary = "#cdd6f4"
-            text_secondary = "#a6adc8"
-            text_muted = "#6c7086"
-            btn_bg = "#45475a"
-            btn_hover = "#585b70"
-            footer_bg = "#11111b"
-        else:
-            bg = "#eff1f5"
-            surface = "#e6e9ef"
-            border = "#bcc0cc"
-            text_primary = "#4c4f69"
-            text_secondary = "#5c5f77"
-            text_muted = "#7c7f93"
-            btn_bg = "#ccd0da"
-            btn_hover = "#bcc0cc"
-            footer_bg = "#dce0e8"
+        bg = tm.get_color("dialog_bg")
+        surface = tm.get_color("dialog_surface")
+        border = tm.get_color("dialog_border")
+        text_primary = tm.get_color("dialog_text_primary")
+        text_secondary = tm.get_color("dialog_text_secondary")
+        text_muted = tm.get_color("dialog_text_muted")
+        btn_bg = tm.get_color("dialog_btn_bg")
+        btn_hover = tm.get_color("dialog_btn_hover")
+        footer_bg = tm.get_color("dialog_footer_bg")
 
         # ==================== 主布局 ====================
         root = QVBoxLayout(self)
@@ -147,7 +116,7 @@ class StyledMessageBox(QDialog):
         header_row.setContentsMargins(0, 0, 0, 10)
         header_row.setSpacing(10)
 
-        icon_label = QLabel(config["icon"])
+        icon_label = QLabel(icon_char)
         icon_label.setFixedSize(26, 26)
         icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         icon_label.setStyleSheet(f"""
@@ -258,34 +227,44 @@ class StyledMessageBox(QDialog):
 
         # ---------- 底部按钮栏 ----------
         footer = QWidget()
-        footer.setStyleSheet(f"background: transparent;")
+        footer.setStyleSheet("background: transparent;")
         footer_layout = QHBoxLayout(footer)
         footer_layout.setContentsMargins(24, 0, 24, 16)
         footer_layout.setSpacing(10)
         footer_layout.addStretch()
 
+        _secondary_btn_style = f"""
+            QPushButton {{
+                background-color: {btn_bg};
+                color: {text_primary};
+                border: 1px solid {border};
+                border-radius: 6px;
+                font-size: 13px;
+                font-weight: 500;
+            }}
+            QPushButton:hover {{
+                background-color: {btn_hover};
+            }}
+            QPushButton:pressed {{
+                background-color: {surface};
+            }}
+        """
+
         if reject_text:
             cancel_btn = QPushButton(reject_text)
             cancel_btn.setFixedSize(80, 30)
             cancel_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            cancel_btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {btn_bg};
-                    color: {text_primary};
-                    border: 1px solid {border};
-                    border-radius: 6px;
-                    font-size: 13px;
-                    font-weight: 500;
-                }}
-                QPushButton:hover {{
-                    background-color: {btn_hover};
-                }}
-                QPushButton:pressed {{
-                    background-color: {surface};
-                }}
-            """)
+            cancel_btn.setStyleSheet(_secondary_btn_style)
             cancel_btn.clicked.connect(self.reject)
             footer_layout.addWidget(cancel_btn)
+
+        if third_text:
+            third_btn = QPushButton(third_text)
+            third_btn.setFixedSize(80, 30)
+            third_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            third_btn.setStyleSheet(_secondary_btn_style)
+            third_btn.clicked.connect(lambda: self.done(2))
+            footer_layout.addWidget(third_btn)
 
         ok_btn = QPushButton(accept_text)
         ok_btn.setFixedSize(80, 30)
@@ -293,17 +272,17 @@ class StyledMessageBox(QDialog):
         ok_btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {accent};
-                color: {"#1e1e2e" if is_dark else "#eff1f5"};
+                color: {tm.get_color("dialog_bg")};
                 border: none;
                 border-radius: 6px;
                 font-size: 13px;
                 font-weight: 600;
             }}
             QPushButton:hover {{
-                background-color: {self._lighten(accent, 0.1)};
+                background-color: {tm.lighten(accent, 0.1)};
             }}
             QPushButton:pressed {{
-                background-color: {self._darken(accent, 0.08)};
+                background-color: {tm.darken(accent, 0.08)};
             }}
         """)
         ok_btn.clicked.connect(self.accept)
@@ -358,36 +337,6 @@ class StyledMessageBox(QDialog):
         app = QApplication.instance()
         return app.activeWindow() if app else None
 
-    @staticmethod
-    def _is_dark_theme() -> bool:
-        """通过检测主窗口背景色判断当前是否为暗色主题"""
-        app = QApplication.instance()
-        if app:
-            for w in app.topLevelWidgets():
-                if isinstance(w, QMainWindow):
-                    palette = w.palette()
-                    bg = palette.color(palette.ColorRole.Window)
-                    return bg.lightness() < 128
-        return True
-
-    @staticmethod
-    def _lighten(hex_color: str, factor: float) -> str:
-        """提亮颜色"""
-        c = QColor(hex_color)
-        h, s, l, a = c.getHslF()
-        l = min(1.0, l + factor)
-        c.setHslF(h, s, l, a)
-        return c.name()
-
-    @staticmethod
-    def _darken(hex_color: str, factor: float) -> str:
-        """加深颜色"""
-        c = QColor(hex_color)
-        h, s, l, a = c.getHslF()
-        l = max(0.0, l - factor)
-        c.setHslF(h, s, l, a)
-        return c.name()
-
     def showEvent(self, event) -> None:
         """显示事件：居中弹窗到父窗口"""
         super().showEvent(event)
@@ -410,15 +359,31 @@ class StyledMessageBox(QDialog):
     # ==================== 静态方法接口 ====================
 
     @staticmethod
-    def information(parent: QWidget | None, title: str, text: str) -> None:
+    def information(
+        parent: QWidget | None,
+        title: str,
+        text: str,
+        detailed_text: str = "",
+    ) -> None:
         """显示信息提示弹窗"""
-        dlg = StyledMessageBox(parent, StyledMessageBox.INFO, title, text)
+        dlg = StyledMessageBox(
+            parent, StyledMessageBox.INFO, title, text,
+            detailed_text=detailed_text,
+        )
         dlg.exec()
 
     @staticmethod
-    def warning(parent: QWidget | None, title: str, text: str) -> None:
+    def warning(
+        parent: QWidget | None,
+        title: str,
+        text: str,
+        detailed_text: str = "",
+    ) -> None:
         """显示警告弹窗"""
-        dlg = StyledMessageBox(parent, StyledMessageBox.WARNING, title, text)
+        dlg = StyledMessageBox(
+            parent, StyledMessageBox.WARNING, title, text,
+            detailed_text=detailed_text,
+        )
         dlg.exec()
 
     @staticmethod
@@ -454,6 +419,39 @@ class StyledMessageBox(QDialog):
         )
         return dlg.exec() == QDialog.DialogCode.Accepted
 
+    @staticmethod
+    def three_way_question(
+        parent: QWidget | None,
+        title: str,
+        text: str,
+        accept_text: str = "覆盖",
+        reject_text: str = "取消",
+        third_text: str = "新建",
+    ) -> str:
+        """
+        显示三选一确认弹窗
+
+        Returns:
+            "overwrite" - 用户选择覆盖 (accept)
+            "new"       - 用户选择新建 (third)
+            "cancel"    - 用户选择取消 (reject / 关闭)
+        """
+        dlg = StyledMessageBox(
+            parent,
+            StyledMessageBox.QUESTION,
+            title,
+            text,
+            accept_text=accept_text,
+            reject_text=reject_text,
+            third_text=third_text,
+        )
+        result = dlg.exec()
+        if result == QDialog.DialogCode.Accepted:
+            return "overwrite"
+        elif result == 2:
+            return "new"
+        return "cancel"
+
 
 class StyledProgressDialog(QDialog):
     """自定义样式进度弹窗，与 StyledMessageBox 保持一致风格"""
@@ -479,27 +477,19 @@ class StyledProgressDialog(QDialog):
         self.setModal(True)
         self.setFixedWidth(360)
 
-        config = StyledMessageBox._TYPE_CONFIG[StyledMessageBox.QUESTION]
-        is_dark = StyledMessageBox._is_dark_theme()
-        accent = config["accent_dark"] if is_dark else config["accent_light"]
-        icon_bg = config["bg_dark"] if is_dark else config["bg_light"]
+        # 从 ThemeManager 获取颜色
+        tm = ThemeManager.instance()
+        type_colors = tm.get_dialog_type_colors(StyledMessageBox.QUESTION)
+        accent = type_colors["accent"]
+        icon_bg = type_colors["icon_bg"]
 
-        if is_dark:
-            bg = "#1e1e2e"
-            surface = "#181825"
-            border = "#313244"
-            text_primary = "#cdd6f4"
-            text_secondary = "#a6adc8"
-            btn_bg = "#45475a"
-            btn_hover = "#585b70"
-        else:
-            bg = "#eff1f5"
-            surface = "#e6e9ef"
-            border = "#bcc0cc"
-            text_primary = "#4c4f69"
-            text_secondary = "#5c5f77"
-            btn_bg = "#ccd0da"
-            btn_hover = "#bcc0cc"
+        bg = tm.get_color("dialog_bg")
+        surface = tm.get_color("dialog_surface")
+        border = tm.get_color("dialog_border")
+        text_primary = tm.get_color("dialog_text_primary")
+        text_secondary = tm.get_color("dialog_text_secondary")
+        btn_bg = tm.get_color("dialog_btn_bg")
+        btn_hover = tm.get_color("dialog_btn_hover")
 
         self._bg_color = bg
         self._border_color = border

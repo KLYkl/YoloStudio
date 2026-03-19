@@ -90,12 +90,12 @@ class ImageCheckTabMixin:
 
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setSpacing(10)
+        scroll_layout.setSpacing(6)
 
         # 2×2 网格布局
         content_grid = QGridLayout()
-        content_grid.setHorizontalSpacing(15)
-        content_grid.setVerticalSpacing(10)
+        content_grid.setHorizontalSpacing(8)
+        content_grid.setVerticalSpacing(6)
         content_grid.setColumnStretch(0, 1)
         content_grid.setColumnStretch(1, 1)
 
@@ -159,8 +159,8 @@ class ImageCheckTabMixin:
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         self.ic_integrity_btn = QPushButton("🔍 开始校验")
-        self.ic_integrity_btn.setMinimumHeight(35)
-        self.ic_integrity_btn.setMinimumWidth(120)
+        self.ic_integrity_btn.setMinimumHeight(28)
+        self.ic_integrity_btn.setMinimumWidth(100)
         self.ic_integrity_btn.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
@@ -206,8 +206,8 @@ class ImageCheckTabMixin:
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         self.ic_convert_btn = QPushButton("🔄 执行转换")
-        self.ic_convert_btn.setMinimumHeight(35)
-        self.ic_convert_btn.setMinimumWidth(120)
+        self.ic_convert_btn.setMinimumHeight(28)
+        self.ic_convert_btn.setMinimumWidth(100)
         self.ic_convert_btn.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
@@ -247,8 +247,8 @@ class ImageCheckTabMixin:
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         self.ic_analyze_btn = QPushButton("📐 分析尺寸")
-        self.ic_analyze_btn.setMinimumHeight(35)
-        self.ic_analyze_btn.setMinimumWidth(120)
+        self.ic_analyze_btn.setMinimumHeight(28)
+        self.ic_analyze_btn.setMinimumWidth(100)
         self.ic_analyze_btn.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
@@ -267,10 +267,10 @@ class ImageCheckTabMixin:
         card.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
-        card.setMinimumHeight(62)
+        card.setMinimumHeight(56)
 
         card_layout = QHBoxLayout(card)
-        card_layout.setContentsMargins(0, 0, 10, 0)
+        card_layout.setContentsMargins(0, 0, 8, 0)
         card_layout.setSpacing(0)
 
         # 左侧彩色指示条
@@ -282,7 +282,7 @@ class ImageCheckTabMixin:
 
         # 右侧内容
         text_layout = QVBoxLayout()
-        text_layout.setContentsMargins(10, 8, 0, 8)
+        text_layout.setContentsMargins(8, 6, 0, 6)
         text_layout.setSpacing(2)
 
         title_label = QLabel(title)
@@ -340,8 +340,8 @@ class ImageCheckTabMixin:
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
         self.ic_duplicate_btn = QPushButton("🔍 检测重复")
-        self.ic_duplicate_btn.setMinimumHeight(35)
-        self.ic_duplicate_btn.setMinimumWidth(120)
+        self.ic_duplicate_btn.setMinimumHeight(28)
+        self.ic_duplicate_btn.setMinimumWidth(100)
         self.ic_duplicate_btn.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
@@ -371,7 +371,7 @@ class ImageCheckTabMixin:
         layout.addStretch()
 
         self.ic_health_btn = QPushButton("📊 一键健康检查")
-        self.ic_health_btn.setMinimumHeight(35)
+        self.ic_health_btn.setMinimumHeight(28)
         self.ic_health_btn.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
@@ -380,7 +380,7 @@ class ImageCheckTabMixin:
         layout.addWidget(self.ic_health_btn)
 
         self.ic_export_btn = QPushButton("📄 导出报告")
-        self.ic_export_btn.setMinimumHeight(35)
+        self.ic_export_btn.setMinimumHeight(28)
         self.ic_export_btn.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )

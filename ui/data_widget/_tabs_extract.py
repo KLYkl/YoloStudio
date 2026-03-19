@@ -173,14 +173,32 @@ class ExtractTabMixin:
         param_layout = QVBoxLayout(param_group)
         param_layout.setSpacing(8)
 
-        # 选项
-        self.ext_keep_structure_check = QCheckBox("保持目录结构")
-        self.ext_keep_structure_check.setChecked(True)
-        self.ext_keep_structure_check.setToolTip(
-            "勾选: 输出保持原始子目录层级\n"
-            "取消: 所有文件扁平化到一个目录 (自动加目录前缀)"
+        # 输出布局选项 (3 个 RadioButton)
+        layout_label = QLabel("输出布局:")
+        param_layout.addWidget(layout_label)
+
+        self.ext_layout_keep_radio = QRadioButton("保持目录结构")
+        self.ext_layout_keep_radio.setChecked(True)
+        self.ext_layout_keep_radio.setToolTip(
+            "输出保持原始子目录层级"
         )
-        param_layout.addWidget(self.ext_keep_structure_check)
+        self.ext_layout_flat_radio = QRadioButton("扁平化")
+        self.ext_layout_flat_radio.setToolTip(
+            "所有文件扁平化到 images/labels 目录 (自动加目录前缀去重)"
+        )
+        self.ext_layout_category_radio = QRadioButton("按类别放置")
+        self.ext_layout_category_radio.setToolTip(
+            "按类别分子目录存放 (仅按类别抽取模式可用)"
+        )
+
+        self.ext_layout_group = QButtonGroup(self)
+        self.ext_layout_group.addButton(self.ext_layout_keep_radio, 0)
+        self.ext_layout_group.addButton(self.ext_layout_flat_radio, 1)
+        self.ext_layout_group.addButton(self.ext_layout_category_radio, 2)
+
+        param_layout.addWidget(self.ext_layout_keep_radio)
+        param_layout.addWidget(self.ext_layout_flat_radio)
+        param_layout.addWidget(self.ext_layout_category_radio)
 
         self.ext_copy_labels_check = QCheckBox("同时复制标签")
         self.ext_copy_labels_check.setChecked(True)
@@ -365,6 +383,11 @@ class ExtractTabMixin:
         if is_category:
             self.ext_copy_labels_check.setChecked(True)
 
+        # "按类别放置" radio 仅在按类别抽取模式下可用
+        self.ext_layout_category_radio.setEnabled(is_category)
+        if not is_category and self.ext_layout_category_radio.isChecked():
+            self.ext_layout_keep_radio.setChecked(True)
+
         self._update_extract_action_states()
 
     def _refresh_extract_categories(self) -> None:
@@ -498,6 +521,14 @@ class ExtractTabMixin:
         if path:
             self.ext_output_input.setText(path)
 
+    def _get_output_layout(self) -> str:
+        """从 RadioButton 组获取输出布局值"""
+        if self.ext_layout_category_radio.isChecked():
+            return "by_category"
+        elif self.ext_layout_flat_radio.isChecked():
+            return "flat"
+        return "keep"
+
     def _build_extract_config(self) -> Optional[ExtractConfig]:
         """从 UI 构建 ExtractConfig"""
         is_category = self.ext_category_radio.isChecked()
@@ -527,7 +558,7 @@ class ExtractTabMixin:
                 per_item_counts=per_item_counts,
                 categories=categories,
                 selected_dirs=[],  # 按类别模式搜索全部目录
-                keep_structure=self.ext_keep_structure_check.isChecked(),
+                output_layout=self._get_output_layout(),
                 copy_labels=self.ext_copy_labels_check.isChecked(),
                 seed=(
                     self.ext_seed_spin.value()
@@ -560,7 +591,7 @@ class ExtractTabMixin:
                 per_item_counts=per_item_counts,
                 categories=[],
                 selected_dirs=selected_dirs,
-                keep_structure=self.ext_keep_structure_check.isChecked(),
+                output_layout=self._get_output_layout(),
                 copy_labels=self.ext_copy_labels_check.isChecked(),
                 seed=(
                     self.ext_seed_spin.value()
@@ -646,6 +677,15 @@ class ExtractTabMixin:
         config = self._build_extract_config()
         if config is None:
             return
+
+        # 检查输出目录是否已存在
+        if config.output_dir is not None:
+            from ui.output_dir_check import check_output_dir
+            checked = check_output_dir(self, config.output_dir)
+            if checked is None:
+                return
+            config.output_dir = checked
+            self.ext_output_input.setText(str(checked))
 
         label_path = self.path_group.get_label_dir()
         classes_txt = self.path_group.get_classes_path()

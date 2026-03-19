@@ -102,6 +102,12 @@ class VideoBatchMixin:
         model_name = Path(model_path).stem
         output_dir = str(Path(output_dir) / model_name)
 
+        from ui.output_dir_check import check_output_dir
+        checked = check_output_dir(self, Path(output_dir))
+        if checked is None:
+            return
+        output_dir = str(checked)
+
         video_count = self._video_batch_processor.load_videos(source)
         if video_count == 0:
             StyledMessageBox.warning(self, "警告", "未找到视频文件")

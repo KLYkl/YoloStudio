@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import logging
 import traceback
+from pathlib import Path
 
 from PySide6.QtCore import Qt, Slot
 
@@ -106,6 +107,12 @@ class ImageModeMixin:
 
         output_dir = self._output_dir_edit.text().strip()
         if output_dir:
+            from ui.output_dir_check import check_output_dir
+            checked = check_output_dir(self, Path(output_dir))
+            if checked is None:
+                return
+            output_dir = str(checked)
+            self._output_dir_edit.setText(output_dir)
             self._output_manager.set_output_dir(output_dir)
             self._output_manager.setup_image_output_dirs()
 

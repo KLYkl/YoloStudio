@@ -19,7 +19,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Qt, Signal, Slot
+from PySide6.QtCore import Qt, QTimer, Signal, Slot
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -46,6 +46,10 @@ from core.thread_pool import Worker, run_in_thread
 from ui.focus_widgets import FocusComboBox, FocusDoubleSpinBox, FocusSpinBox
 
 
+# 终端最大文本块数 (防止长训练时内存/渲染性能问题)
+_MAX_TERMINAL_BLOCKS = 5000
+
+
 class TrainWidget(QWidget):
     """
     模型训练模块 UI
@@ -68,6 +72,12 @@ class TrainWidget(QWidget):
         # 训练管理器
         self._manager = TrainManager(self)
         self._scan_worker: Optional[Worker] = None
+        
+        # 命令生成防抖定时器
+        self._cmd_timer = QTimer(self)
+        self._cmd_timer.setSingleShot(True)
+        self._cmd_timer.setInterval(50)  # 50ms 防抖
+        self._cmd_timer.timeout.connect(self._generate_command)
         
         # 初始化 UI
         self._setup_ui()
@@ -622,7 +632,12 @@ class TrainWidget(QWidget):
         self.scan_env_btn.setText("扫描")
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        """Detach scan callbacks when the widget is closing."""
+        """窗口关闭时清理后台任务和训练进程"""
+        # 停止正在运行的训练
+        if self._manager.is_running:
+            self._manager.stop_training()
+        
+        # 取消扫描任务
         if self._scan_worker is not None:
             self._scan_worker.cancel()
             self._scan_worker = None
@@ -654,24 +669,19 @@ class TrainWidget(QWidget):
     
     @Slot()
     def _on_param_changed(self) -> None:
-        """参数变化时生成命令"""
-        self._generate_command()
+        """参数变化时重启防抖定时器"""
+        self._cmd_timer.start()
     
     def _generate_command(self) -> None:
-        """生成训练命令"""
-        # 优先从 userData 获取完整路径，如果用户手动输入则使用文本
-        python = self.python_combo.currentData()
-        if not python:
-            python = self.python_combo.currentText().strip()
+        """生成标准 yolo 训练命令"""
         model = self.model_input.text().strip()
         data = self.data_input.text().strip()
         
-        # 构建命令
+        # 构建标准 yolo CLI 命令
         cmd_parts = [
-            f'"{python}"' if " " in python else python,
-            "-m", "ultralytics", "train",
-            f'model="{model}"' if model else "",
-            f'data="{data}"' if data else "",
+            "yolo", "train",
+            f"model={model}" if model else "",
+            f"data={data}" if data else "",
             f"epochs={self.epochs_spin.value()}",
             f"batch={self.batch_spin.value()}",
             f"imgsz={self.imgsz_spin.value()}",
@@ -692,10 +702,8 @@ class TrainWidget(QWidget):
             # ComboBox 参数
             elif isinstance(widget, FocusComboBox):
                 value = widget.currentText()
-                # 特殊处理: optimizer=auto 不需要添加
                 if param_name == "optimizer" and value == "auto":
                     continue
-                # 特殊处理: cache=False 不需要添加
                 if param_name == "cache" and value == "False":
                     continue
                 cmd_parts.append(f"{param_name}={value}")
@@ -720,10 +728,21 @@ class TrainWidget(QWidget):
             self.log_message.emit("请先配置训练参数")
             return
         
+        # 检查是否正在扫描环境
+        if self._scan_worker is not None:
+            self.log_message.emit("环境扫描中，请稍候再试")
+            return
+        
         # 验证必要路径
         data_path = self.data_input.text().strip()
         if not data_path:
             self.log_message.emit("请选择数据配置文件 (.yaml)")
+            return
+        
+        # 获取选中环境的 Python 路径
+        python_path = self.python_combo.currentData()
+        if not python_path:
+            self.log_message.emit("请选择有效的 Python 环境")
             return
         
         # 确定工作目录
@@ -735,8 +754,8 @@ class TrainWidget(QWidget):
         # 清空终端
         self.terminal.clear()
         
-        # 启动训练
-        success = self._manager.start_training(command, work_dir)
+        # 启动训练 (传入 Python 路径，用于定位 yolo 可执行文件)
+        success = self._manager.start_training(command, work_dir, python_path=python_path)
         
         if success:
             self.start_btn.setEnabled(False)
@@ -749,8 +768,21 @@ class TrainWidget(QWidget):
     
     @Slot(str)
     def _on_raw_output(self, text: str) -> None:
-        """处理原始输出 → 终端"""
+        """处理原始输出 → 终端 (带性能保护)"""
         self.terminal.insertPlainText(text)
+        
+        # 限制终端文本量，防止长训练时性能退化
+        doc = self.terminal.document()
+        if doc.blockCount() > _MAX_TERMINAL_BLOCKS:
+            cursor = self.terminal.textCursor()
+            cursor.movePosition(cursor.MoveOperation.Start)
+            # 删除最旧的 20% 文本块
+            blocks_to_remove = doc.blockCount() - _MAX_TERMINAL_BLOCKS
+            for _ in range(blocks_to_remove):
+                cursor.movePosition(cursor.MoveOperation.Down, cursor.MoveMode.KeepAnchor)
+            cursor.removeSelectedText()
+            cursor.deleteChar()  # 删除残余换行
+        
         # 自动滚动到底部
         scrollbar = self.terminal.verticalScrollBar()
         scrollbar.setValue(scrollbar.maximum())
