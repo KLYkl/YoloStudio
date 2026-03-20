@@ -89,8 +89,7 @@ class AugmentConfig:
     include_original: bool = True
     seed: int = 42
     mode: str = "random"
-    fixed_include_individual: bool = True
-    fixed_include_combo: bool = True
+    custom_recipes: list[tuple[str, ...]] = field(default_factory=list)
     enable_horizontal_flip: bool = False
     enable_vertical_flip: bool = False
     enable_rotate: bool = False
@@ -146,24 +145,22 @@ class AugmentConfig:
         return bool(self.enabled_operations())
 
     def build_fixed_recipes(self) -> list["AugmentRecipe"]:
-        operations = self.enabled_operations()
+        """Build recipes from custom_recipes list."""
         recipes: list[AugmentRecipe] = []
         seen: set[tuple[str, ...]] = set()
+        enabled = set(self.enabled_operations())
 
-        if self.fixed_include_individual:
-            for operation in operations:
-                recipe_ops = (operation,)
-                if recipe_ops in seen:
-                    continue
-                recipes.append(AugmentRecipe(self.operation_slug(operation), recipe_ops))
-                seen.add(recipe_ops)
-
-        if self.fixed_include_combo and operations:
-            recipe_ops = tuple(operations)
-            if recipe_ops not in seen:
-                recipe_name = "combo" if len(recipe_ops) > 1 else self.operation_slug(recipe_ops[0])
-                recipes.append(AugmentRecipe(recipe_name, recipe_ops))
-                seen.add(recipe_ops)
+        for recipe_ops in self.custom_recipes:
+            # Filter to only currently enabled operations
+            filtered = tuple(op for op in recipe_ops if op in enabled)
+            if not filtered or filtered in seen:
+                continue
+            if len(filtered) == 1:
+                name = self.operation_slug(filtered[0])
+            else:
+                name = "combo_" + "_".join(self.operation_slug(op) for op in filtered)
+            recipes.append(AugmentRecipe(name, filtered))
+            seen.add(filtered)
 
         return recipes
 

@@ -21,6 +21,8 @@ from PySide6.QtGui import QImage, QPixmap, QResizeEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
+    QDialogButtonBox,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -28,6 +30,8 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QPushButton,
     QRadioButton,
     QButtonGroup,
@@ -535,20 +539,50 @@ class AugmentTabMixin:
         self.augment_mode_combo.addItems(["随机生成", "固定生成"])
         settings_form.addRow("生成方式:", self.augment_mode_combo)
 
-        fixed_mode_row = QWidget()
-        fixed_mode_layout = QHBoxLayout(fixed_mode_row)
-        fixed_mode_layout.setContentsMargins(0, 0, 0, 0)
-        fixed_mode_layout.setSpacing(6)
-        self.augment_fixed_single_check = QCheckBox("单项覆盖")
-        self.augment_fixed_single_check.setChecked(True)
-        self.augment_fixed_single_check.setToolTip("每种启用的增强方法单独生成一张图片")
-        self.augment_fixed_combo_check = QCheckBox("组合增强")
-        self.augment_fixed_combo_check.setChecked(True)
-        self.augment_fixed_combo_check.setToolTip("将所有启用的增强方法组合在一起生成一张图片")
-        fixed_mode_layout.addWidget(self.augment_fixed_single_check)
-        fixed_mode_layout.addWidget(self.augment_fixed_combo_check)
-        fixed_mode_layout.addStretch()
-        settings_form.addRow("固定模式:", fixed_mode_row)
+        settings_layout.addLayout(settings_form)
+
+        # ── 配方列表区 (仅固定模式可见) ──
+        self._recipe_panel = QWidget()
+        recipe_panel_layout = QVBoxLayout(self._recipe_panel)
+        recipe_panel_layout.setContentsMargins(0, 4, 0, 0)
+        recipe_panel_layout.setSpacing(6)
+
+        recipe_label = QLabel("增强配方:")
+        recipe_panel_layout.addWidget(recipe_label)
+
+        self._recipe_list = QListWidget()
+        self._recipe_list.setMaximumHeight(120)
+        self._recipe_list.setToolTip("固定模式下，按此列表中的组合生成增强图片")
+        recipe_panel_layout.addWidget(self._recipe_list)
+
+        recipe_btn_row = QHBoxLayout()
+        recipe_btn_row.setSpacing(4)
+        self._recipe_add_btn = QPushButton("➕ 添加组合")
+        self._recipe_add_btn.setToolTip("选择增强项创建自定义组合")
+        self._recipe_add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._recipe_all_singles_btn = QPushButton("📋 全部单项")
+        self._recipe_all_singles_btn.setToolTip("为每个启用的增强项添加单独配方")
+        self._recipe_all_singles_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._recipe_all_combo_btn = QPushButton("🔗 全部组合")
+        self._recipe_all_combo_btn.setToolTip("添加一条包含所有启用项的组合配方")
+        self._recipe_all_combo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._recipe_clear_btn = QPushButton("🗑️ 清空")
+        self._recipe_clear_btn.setToolTip("清除所有配方")
+        self._recipe_clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        recipe_btn_row.addWidget(self._recipe_add_btn)
+        recipe_btn_row.addWidget(self._recipe_all_singles_btn)
+        recipe_btn_row.addWidget(self._recipe_all_combo_btn)
+        recipe_btn_row.addWidget(self._recipe_clear_btn)
+        recipe_btn_row.addStretch()
+        recipe_panel_layout.addLayout(recipe_btn_row)
+
+        settings_layout.addWidget(self._recipe_panel)
+
+        count_seed_form = QFormLayout()
+        count_seed_form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
+        count_seed_form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        count_seed_form.setHorizontalSpacing(12)
+        count_seed_form.setVerticalSpacing(10)
 
         count_row = QWidget()
         count_row_layout = QHBoxLayout(count_row)
@@ -562,7 +596,7 @@ class AugmentTabMixin:
         self.augment_count_hint = QLabel("份")
         count_row_layout.addWidget(self.augment_count_hint)
         count_row_layout.addStretch()
-        settings_form.addRow("每项份数:", count_row)
+        count_seed_form.addRow("每项份数:", count_row)
 
         seed_row = QWidget()
         seed_row_layout = QHBoxLayout(seed_row)
@@ -575,9 +609,9 @@ class AugmentTabMixin:
         seed_row_layout.addWidget(self.augment_seed_spin)
         seed_row_layout.addWidget(QLabel("固定后结果可复现"))
         seed_row_layout.addStretch()
-        settings_form.addRow("随机种子:", seed_row)
+        count_seed_form.addRow("随机种子:", seed_row)
 
-        settings_layout.addLayout(settings_form)
+        settings_layout.addLayout(count_seed_form)
 
         self.augment_include_original_check = QCheckBox("保留原图到输出目录")
         self.augment_include_original_check.setChecked(True)
@@ -736,11 +770,10 @@ class AugmentTabMixin:
     def _update_augment_mode_controls(self) -> None:
         """Refresh mode-specific augmentation controls."""
         is_fixed_mode = self.augment_mode_combo.currentIndex() == 1
-        self.augment_fixed_single_check.setEnabled(is_fixed_mode)
-        self.augment_fixed_combo_check.setEnabled(is_fixed_mode)
-        self.augment_count_hint.setText("份 / 每个方案" if is_fixed_mode else "份 / 每次随机采样")
+        self._recipe_panel.setVisible(is_fixed_mode)
+        self.augment_count_hint.setText("份 / 每个配方" if is_fixed_mode else "份 / 每次随机采样")
         self.augment_mode_hint_label.setText(
-            "固定生成：按勾选项稳定输出单项图和组合图，适合稀缺类别精确补样。"
+            "固定生成：按配方列表精确输出对应增强组合，适合稀缺类别精确补样。"
             if is_fixed_mode
             else "随机生成：按启用项随机采样组合，更适合快速扩充数据量。"
         )
@@ -781,9 +814,6 @@ class AugmentTabMixin:
         )
         for checkbox, spin in toggle_pairs:
             spin.setEnabled(checkbox.isChecked())
-            param_row = spin.parent()
-            if param_row:
-                param_row.setEnabled(checkbox.isChecked())
 
         enabled_operations = [
             self.augment_hflip_check.isChecked(),
@@ -800,10 +830,8 @@ class AugmentTabMixin:
         has_operation = any(enabled_operations)
         has_recipe_strategy = True
         if is_fixed_mode:
-            has_recipe_strategy = (
-                self.augment_fixed_single_check.isChecked()
-                or self.augment_fixed_combo_check.isChecked()
-            )
+            self._sync_recipe_display()
+            has_recipe_strategy = self._count_effective_recipes() > 0
         self.augment_btn.setEnabled(
             has_image_dir and has_operation and has_recipe_strategy and not is_busy
         )
@@ -857,8 +885,7 @@ class AugmentTabMixin:
             include_original=self.augment_include_original_check.isChecked(),
             seed=self.augment_seed_spin.value(),
             mode="fixed" if self.augment_mode_combo.currentIndex() == 1 else "random",
-            fixed_include_individual=self.augment_fixed_single_check.isChecked(),
-            fixed_include_combo=self.augment_fixed_combo_check.isChecked(),
+            custom_recipes=self._get_recipe_tuples(),
             enable_horizontal_flip=self.augment_hflip_check.isChecked(),
             enable_vertical_flip=self.augment_vflip_check.isChecked(),
             enable_rotate=self.augment_rotate_check.isChecked(),
@@ -928,6 +955,183 @@ class AugmentTabMixin:
         self.augment_blur_check.setChecked(config.get("blur", False))
         if "blur_val" in config:
             self.augment_blur_spin.setValue(config["blur_val"])
+
+    # ==================== 配方管理 ====================
+
+    # 内部 operation 名 → AUGMENT_ITEMS key 的映射
+    _OP_TO_KEY: dict[str, str] = {
+        "flip_lr": "hflip",
+        "flip_ud": "vflip",
+        "rotate": "rotate",
+        "brightness": "brightness",
+        "contrast": "contrast",
+        "color": "color",
+        "hue": "hue",
+        "noise": "noise",
+        "sharpness": "sharpness",
+        "blur": "blur",
+    }
+
+    def _get_enabled_operation_keys(self) -> list[str]:
+        """Return the internal operation keys for currently enabled augment items."""
+        ops: list[str] = []
+        if self.augment_hflip_check.isChecked():
+            ops.append("flip_lr")
+        if self.augment_vflip_check.isChecked():
+            ops.append("flip_ud")
+        if self.augment_rotate_check.isChecked() and self.augment_rotate_degrees_spin.value() > 0:
+            ops.append("rotate")
+        if self.augment_brightness_check.isChecked() and self.augment_brightness_spin.value() > 0:
+            ops.append("brightness")
+        if self.augment_contrast_check.isChecked() and self.augment_contrast_spin.value() > 0:
+            ops.append("contrast")
+        if self.augment_color_check.isChecked() and self.augment_color_spin.value() > 0:
+            ops.append("color")
+        if self.augment_noise_check.isChecked() and self.augment_noise_spin.value() > 0:
+            ops.append("noise")
+        if self.augment_hue_check.isChecked() and self.augment_hue_spin.value() > 0:
+            ops.append("hue")
+        if self.augment_sharpness_check.isChecked() and self.augment_sharpness_spin.value() > 0:
+            ops.append("sharpness")
+        if self.augment_blur_check.isChecked() and self.augment_blur_spin.value() > 0:
+            ops.append("blur")
+        return ops
+
+    def _format_recipe_label(self, ops: tuple[str, ...], enabled_ops: set[str] | None = None) -> str:
+        """Format a tuple of operation keys into a display string.
+
+        If *enabled_ops* is provided, disabled operations are shown with
+        strikethrough-style markers so the user can see they won't run.
+        """
+        parts: list[str] = []
+        for op in ops:
+            key = self._OP_TO_KEY.get(op, op)
+            meta = AUGMENT_ITEMS.get(key, {})
+            icon = meta.get("icon", "")
+            name = meta.get("name", op)
+            if enabled_ops is not None and op not in enabled_ops:
+                parts.append(f"[{icon} {name}]")
+            else:
+                parts.append(f"{icon} {name}")
+        return " + ".join(parts)
+
+    def _get_recipe_tuples(self) -> list[tuple[str, ...]]:
+        """Read all recipe tuples from the QListWidget."""
+        recipes: list[tuple[str, ...]] = []
+        for i in range(self._recipe_list.count()):
+            item = self._recipe_list.item(i)
+            data = item.data(Qt.ItemDataRole.UserRole)
+            if data:
+                recipes.append(tuple(data))
+        return recipes
+
+    def _add_recipe_if_new(self, ops: tuple[str, ...]) -> bool:
+        """Add a recipe to the list if not already present. Returns True if added."""
+        existing = self._get_recipe_tuples()
+        if ops in existing:
+            return False
+        item = QListWidgetItem(self._format_recipe_label(ops))
+        item.setData(Qt.ItemDataRole.UserRole, list(ops))
+        self._recipe_list.addItem(item)
+        return True
+
+    def _on_add_recipe(self) -> None:
+        """Open a dialog to pick augment items for a custom combination."""
+        enabled_ops = self._get_enabled_operation_keys()
+        if not enabled_ops:
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("添加增强组合")
+        dialog.setMinimumWidth(280)
+        dlg_layout = QVBoxLayout(dialog)
+        dlg_layout.setSpacing(8)
+
+        hint = QLabel("选择要组合的增强项:")
+        dlg_layout.addWidget(hint)
+
+        checkboxes: list[tuple[str, QCheckBox]] = []
+        for op in enabled_ops:
+            key = self._OP_TO_KEY.get(op, op)
+            meta = AUGMENT_ITEMS.get(key, {})
+            cb = QCheckBox(f"{meta.get('icon', '')} {meta.get('name', op)}")
+            dlg_layout.addWidget(cb)
+            checkboxes.append((op, cb))
+
+        button_box = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        dlg_layout.addWidget(button_box)
+
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            selected = tuple(op for op, cb in checkboxes if cb.isChecked())
+            if selected:
+                self._add_recipe_if_new(selected)
+                self._update_augment_action_states()
+
+    def _on_add_all_singles(self) -> None:
+        """Add individual recipes for each enabled augment item."""
+        enabled_ops = self._get_enabled_operation_keys()
+        added = False
+        for op in enabled_ops:
+            if self._add_recipe_if_new((op,)):
+                added = True
+        if added:
+            self._update_augment_action_states()
+
+    def _on_add_all_combo(self) -> None:
+        """Add one recipe combining all enabled augment items."""
+        enabled_ops = self._get_enabled_operation_keys()
+        if len(enabled_ops) >= 1:
+            ops = tuple(enabled_ops)
+            if self._add_recipe_if_new(ops):
+                self._update_augment_action_states()
+
+    def _sync_recipe_display(self) -> None:
+        """Update recipe list display to reflect currently enabled operations.
+
+        Disabled operations in a recipe are shown with [brackets] so the user
+        can see them at a glance.  Fully disabled recipes are dimmed.
+        """
+        enabled_set = set(self._get_enabled_operation_keys())
+        for i in range(self._recipe_list.count()):
+            item = self._recipe_list.item(i)
+            data = item.data(Qt.ItemDataRole.UserRole)
+            if not data:
+                continue
+            ops = tuple(data)
+            item.setText(self._format_recipe_label(ops, enabled_set))
+            # Dim fully-disabled recipes
+            active_count = sum(1 for op in ops if op in enabled_set)
+            if active_count == 0:
+                item.setForeground(Qt.GlobalColor.darkGray)
+            else:
+                item.setData(Qt.ItemDataRole.ForegroundRole, None)
+
+    def _count_effective_recipes(self) -> int:
+        """Count recipes that have at least one currently enabled operation."""
+        enabled_set = set(self._get_enabled_operation_keys())
+        count = 0
+        for i in range(self._recipe_list.count()):
+            item = self._recipe_list.item(i)
+            data = item.data(Qt.ItemDataRole.UserRole)
+            if data and any(op in enabled_set for op in data):
+                count += 1
+        return count
+
+    def _on_clear_recipes(self) -> None:
+        """Clear all recipes from the list."""
+        self._recipe_list.clear()
+        self._update_augment_action_states()
+
+    def _on_delete_selected_recipe(self) -> None:
+        """Delete the selected recipe from the list."""
+        current_row = self._recipe_list.currentRow()
+        if current_row >= 0:
+            self._recipe_list.takeItem(current_row)
+            self._update_augment_action_states()
 
     # ==================== 槽函数 ====================
 

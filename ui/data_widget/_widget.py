@@ -204,8 +204,14 @@ class DataWidget(
         self.augment_output_browse_btn.clicked.connect(self._on_browse_augment_output_dir)
         self.augment_btn.clicked.connect(self._on_augment)
         self.augment_mode_combo.currentIndexChanged.connect(self._on_augment_mode_changed)
-        self.augment_fixed_single_check.toggled.connect(self._update_augment_action_states)
-        self.augment_fixed_combo_check.toggled.connect(self._update_augment_action_states)
+        # 配方列表操作按钮
+        self._recipe_add_btn.clicked.connect(self._on_add_recipe)
+        self._recipe_all_singles_btn.clicked.connect(self._on_add_all_singles)
+        self._recipe_all_combo_btn.clicked.connect(self._on_add_all_combo)
+        self._recipe_clear_btn.clicked.connect(self._on_clear_recipes)
+        self._recipe_list.itemDoubleClicked.connect(
+            lambda: self._on_delete_selected_recipe()
+        )
         # 预设方案按钮
         for key, btn in self._preset_buttons.items():
             btn.clicked.connect(lambda _, k=key: self._apply_preset(k))

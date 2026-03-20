@@ -1,4 +1,4 @@
-﻿import shutil
+import shutil
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -111,8 +111,12 @@ def test_augment_dataset_fixed_mode_outputs_individual_and_combo_variants() -> N
             include_original=False,
             seed=23,
             mode="fixed",
-            fixed_include_individual=True,
-            fixed_include_combo=True,
+            custom_recipes=[
+                ("rotate",),
+                ("brightness",),
+                ("noise",),
+                ("rotate", "brightness", "noise"),
+            ],
             enable_rotate=True,
             rotate_mode="counterclockwise",
             rotate_degrees=90.0,
@@ -136,7 +140,7 @@ def test_augment_dataset_fixed_mode_outputs_individual_and_combo_variants() -> N
         rotate_image = output_dir / "images" / "a_rotate_001.jpg"
         brightness_image = output_dir / "images" / "a_brightness_001.jpg"
         noise_image = output_dir / "images" / "a_noise_001.jpg"
-        combo_image = output_dir / "images" / "a_combo_001.jpg"
+        combo_image = output_dir / "images" / "a_combo_rotate_brightness_noise_001.jpg"
         for path in (rotate_image, brightness_image, noise_image, combo_image):
             assert path.exists()
 
@@ -148,7 +152,7 @@ def test_augment_dataset_fixed_mode_outputs_individual_and_combo_variants() -> N
         rotate_label = (output_dir / "labels" / "a_rotate_001.txt").read_text(encoding="utf-8").strip()
         brightness_label = (output_dir / "labels" / "a_brightness_001.txt").read_text(encoding="utf-8").strip()
         noise_label = (output_dir / "labels" / "a_noise_001.txt").read_text(encoding="utf-8").strip()
-        combo_label = (output_dir / "labels" / "a_combo_001.txt").read_text(encoding="utf-8").strip()
+        combo_label = (output_dir / "labels" / "a_combo_rotate_brightness_noise_001.txt").read_text(encoding="utf-8").strip()
 
         assert brightness_label == source_label.strip()
         assert noise_label == source_label.strip()
