@@ -22,6 +22,7 @@ except ImportError:
 
 from PySide6.QtCore import QObject, Signal, Slot
 
+from core.predict_handler._frame_decoder import extract_detections_fast
 from core.predict_handler._inference_utils import run_inference, draw_detections
 
 from core.predict_handler._models import InputSourceType, PlaybackState
@@ -326,22 +327,13 @@ class PredictWorker(QObject):
                 with self._params_lock:
                     conf, iou = self._conf, self._iou
 
-                # 推理: 只提取检测数据, 不画框 (节省 CPU 时间)
+                # 推理 (GPU)
                 results = self._model(frame, conf=conf, iou=iou, half=True, verbose=False)
-                boxes = results[0].boxes
-                detections: list[dict] = []
-                if boxes is not None and len(boxes) > 0:
-                    for i in range(len(boxes)):
-                        xyxy = boxes.xyxy[i].cpu().numpy()
-                        det = {
-                            "class_id": int(boxes.cls[i].cpu().numpy()),
-                            "class_name": self._model.names.get(
-                                int(boxes.cls[i].cpu().numpy()), ""
-                            ),
-                            "confidence": float(boxes.conf[i].cpu().numpy()),
-                            "xyxy": [float(v) for v in xyxy],
-                        }
-                        detections.append(det)
+
+                # 向量化提取: 一次性 GPU→CPU 批量传输
+                detections = extract_detections_fast(
+                    results[0].boxes, self._model.names
+                )
 
                 if is_video_file:
                     self._detection_cache[self._current_frame] = detections

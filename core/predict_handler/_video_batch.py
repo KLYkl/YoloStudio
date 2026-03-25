@@ -16,7 +16,8 @@ import cv2
 
 from PySide6.QtCore import QObject, Signal
 
-from core.predict_handler._inference_utils import run_inference
+from core.predict_handler._frame_decoder import FrameDecoder, extract_detections_fast
+from core.predict_handler._inference_utils import draw_detections
 from utils.constants import VIDEO_EXTENSIONS
 from utils.file_utils import discover_files
 from utils.label_writer import write_voc_xml, write_yolo_txt_from_xyxy
@@ -278,36 +279,30 @@ class VideoBatchProcessor(QObject):
         frame_idx = 0
         keyframe_count = 0
 
+        # 异步解码: 解码线程提前读帧, GPU 推理不用等 CPU 解码
+        decoder = FrameDecoder(cap, queue_size=4, pause_event=self._pause_event)
+        decoder.start()
+
         try:
             while not self._stop_requested:
-                # 使用 Event 等待: 暂停时阻塞, 恢复时自动继续
-                while not self._pause_event.wait(timeout=0.1):
-                    if self._stop_requested:
-                        break
-
-                ret, frame = cap.read()
+                # 从解码队列读取 (解码已在后台并行完成)
+                ret, frame = decoder.read(timeout=0.5)
                 if not ret:
-                    break
+                    # 区分 "暂停导致超时" 和 "视频真正结束"
+                    if not self._pause_event.is_set():
+                        continue  # 暂停中, 继续等待
+                    break  # 视频真正结束
 
                 with self._params_lock:
                     conf, iou = self._conf, self._iou
 
-                # 推理: 只提取检测数据, 不画框 (节省 CPU 时间)
+                # GPU 推理 (此时解码线程已在读下一帧)
                 results = self._model(frame, conf=conf, iou=iou, half=True, verbose=False)
-                boxes = results[0].boxes
-                detections: list[dict] = []
-                if boxes is not None and len(boxes) > 0:
-                    for i in range(len(boxes)):
-                        xyxy = boxes.xyxy[i].cpu().numpy()
-                        det = {
-                            "class_id": int(boxes.cls[i].cpu().numpy()),
-                            "class_name": self._model.names.get(
-                                int(boxes.cls[i].cpu().numpy()), ""
-                            ),
-                            "confidence": float(boxes.conf[i].cpu().numpy()),
-                            "xyxy": [float(v) for v in xyxy],
-                        }
-                        detections.append(det)
+
+                # 向量化提取: 一次性 GPU→CPU 批量传输
+                detections = extract_detections_fast(
+                    results[0].boxes, self._model.names
+                )
 
                 if detections:
                     stats["detection_count/检测数量"] += len(detections)
@@ -369,6 +364,7 @@ class VideoBatchProcessor(QObject):
                     self.frame_progress.emit(frame_idx, total_frames)
 
         finally:
+            decoder.stop()
             cap.release()
             if video_writer:
                 video_writer.release()
@@ -385,19 +381,6 @@ class VideoBatchProcessor(QObject):
                 self.error_occurred.emit(f"保存视频报告失败: {e}")
 
         return stats
-
-    def stop(self) -> None:
-        """停止批量处理"""
-        self._stop_requested = True
-        self._pause_event.set()  # 唤醒暂停中的线程以退出
-
-    def pause(self) -> None:
-        """暂停批量处理"""
-        self._pause_event.clear()
-
-    def resume(self) -> None:
-        """继续批量处理"""
-        self._pause_event.set()
 
     def get_video_list(self) -> list[Path]:
         """获取视频列表"""
