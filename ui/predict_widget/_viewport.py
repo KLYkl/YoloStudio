@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from ui.focus_widgets import FocusSlider
+from ui.focus_widgets import FocusComboBox, FocusSlider
 from ui.image_result_browser import ImageResultBrowser, ImageProgressBar
 from ui.predict_preview import PreviewCanvas
 
@@ -82,6 +82,18 @@ class ViewportMixin:
         self._time_label.setObjectName("mutedLabel")
         self._time_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self._time_label)
+
+        # 播放速度选择器
+        self._speed_combo = FocusComboBox()
+        self._speed_combo.setFixedWidth(75)
+        self._speed_combo.setFixedHeight(22)
+        self._speed_combo.addItem("0.5x", 0.5)
+        self._speed_combo.addItem("1x", 1.0)
+        self._speed_combo.addItem("2x", 2.0)
+        self._speed_combo.addItem("🚀 不限速", 0.0)
+        self._speed_combo.setCurrentIndex(3)  # 默认: 不限速
+        self._speed_combo.setToolTip("播放速度 (0=全速推理)")
+        layout.addWidget(self._speed_combo)
 
         bar.setVisible(False)
         self._playback_bar = bar

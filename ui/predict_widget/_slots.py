@@ -5,6 +5,7 @@ _slots.py - SlotsMixin: 通用槽函数
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -331,6 +332,10 @@ class SlotsMixin:
             self._fps_frame_count = 0
             self._fps_timer.start(1000)
 
+            # 初始化显示节流
+            self._last_display_time = 0.0
+            self._update_display_interval()
+
             # B6-fix: 只有视频文件才显示进度条和时间标签
             is_video = source_type == InputSourceType.VIDEO
             self._playback_bar.setVisible(is_video)
@@ -419,7 +424,7 @@ class SlotsMixin:
 
     @Slot(np.ndarray, np.ndarray, list)
     def _on_frame_ready(self, annotated_frame: np.ndarray, raw_frame: np.ndarray, detections: list) -> None:
-        self._preview_canvas.update_frame(annotated_frame)
+        # 统计和录制始终全速执行
         self._frame_count += 1
         self._fps_frame_count += 1
         self._object_count = len(detections)
@@ -427,6 +432,17 @@ class SlotsMixin:
         self._object_display.setText(f"检测: {self._object_count} 个")
         if self._is_recording:
             self._output_manager.write_frame(annotated_frame)
+
+        # 画布刷新: 按播放速度节流
+        interval = self._display_interval
+        if interval <= 0:
+            # 不限速: 每帧都刷新
+            self._preview_canvas.update_frame(annotated_frame)
+        else:
+            now = time.time()
+            if (now - self._last_display_time) >= interval:
+                self._preview_canvas.update_frame(annotated_frame)
+                self._last_display_time = now
 
         save_annotated = self._save_keyframe_annotated_check.isChecked()
         save_raw = self._save_keyframe_raw_check.isChecked()
@@ -501,6 +517,20 @@ class SlotsMixin:
 
     # ==================== 播放控制 ====================
 
+    @Slot(int)
+    def _on_speed_changed(self, index: int) -> None:
+        """播放速度切换 (仅影响画面刷新频率，不影响推理速度)"""
+        self._update_display_interval()
+
+    def _update_display_interval(self) -> None:
+        """根据当前速度选项和视频帧率计算显示节流间隔"""
+        speed = self._speed_combo.currentData()
+        if speed is None or speed <= 0:
+            self._display_interval = 0  # 不限速
+        else:
+            video_fps = self._video_fps
+            self._display_interval = 1.0 / (video_fps * speed)
+
     @Slot()
     def _on_progress_seek(self) -> None:
         """处理进度条拖动释放"""
@@ -542,7 +572,7 @@ class SlotsMixin:
             progress = int(current / total * 10000)
             self._progress_slider.setValue(progress)
 
-        fps = getattr(self, '_video_fps', 30.0)
+        fps = self._video_fps
         current_sec = current / fps
         total_sec = total / fps
         self._time_label.setText(f"{self._format_time(current_sec)} / {self._format_time(total_sec)}")

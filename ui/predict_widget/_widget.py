@@ -99,6 +99,13 @@ class PredictWidget(
         self._fps_timer.timeout.connect(self._update_fps_display)
         self._fps_frame_count = 0
 
+        # 视频帧率 (用于显示节流计算)
+        self._video_fps: float = 30.0
+
+        # 显示节流: 0 = 不限速(每帧刷新), >0 = 按间隔刷新
+        self._display_interval: float = 0
+        self._last_display_time: float = 0.0
+
         self._setup_ui()
         self._connect_signals()
         self._apply_styles()
@@ -151,6 +158,7 @@ class PredictWidget(
 
         # 播放控制
         self._progress_slider.sliderReleased.connect(self._on_progress_seek)
+        self._speed_combo.currentIndexChanged.connect(self._on_speed_changed)
 
         self._predict_manager.frame_ready.connect(self._on_frame_ready)
         self._predict_manager.stats_updated.connect(self._on_stats_updated)
