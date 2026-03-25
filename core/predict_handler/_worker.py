@@ -326,7 +326,22 @@ class PredictWorker(QObject):
                 with self._params_lock:
                     conf, iou = self._conf, self._iou
 
-                annotated_frame, detections = run_inference(self._model, frame, conf, iou)
+                # 推理: 只提取检测数据, 不画框 (节省 CPU 时间)
+                results = self._model(frame, conf=conf, iou=iou, half=True, verbose=False)
+                boxes = results[0].boxes
+                detections: list[dict] = []
+                if boxes is not None and len(boxes) > 0:
+                    for i in range(len(boxes)):
+                        xyxy = boxes.xyxy[i].cpu().numpy()
+                        det = {
+                            "class_id": int(boxes.cls[i].cpu().numpy()),
+                            "class_name": self._model.names.get(
+                                int(boxes.cls[i].cpu().numpy()), ""
+                            ),
+                            "confidence": float(boxes.conf[i].cpu().numpy()),
+                            "xyxy": [float(v) for v in xyxy],
+                        }
+                        detections.append(det)
 
                 if is_video_file:
                     self._detection_cache[self._current_frame] = detections
@@ -342,23 +357,20 @@ class PredictWorker(QObject):
                     last_fps_time = current_time
                     fps_frame_count = 0
 
-                self.frame_ready.emit(annotated_frame, frame, detections)
-                self.stats_updated.emit({
-                    "fps": round(current_fps, 1),
-                    "frame_count": frame_count,
-                    "object_count": len(detections),
-                })
-
-                if is_video_file and current_time - last_progress_time >= progress_update_interval:
-                    self.progress_updated.emit(self._current_frame, self._total_frames)
+                # 信号节流: 最多约 60fps 发射一次, 减少跨线程开销
+                # 只在需要发射时才画框 (plot 是纯 CPU 操作)
+                emit_interval = 0.016  # ~60fps 上限
+                if current_time - last_progress_time >= emit_interval:
+                    annotated_frame = draw_detections(frame, detections) if detections else frame
+                    self.frame_ready.emit(annotated_frame, frame, detections)
+                    self.stats_updated.emit({
+                        "fps": round(current_fps, 1),
+                        "frame_count": frame_count,
+                        "object_count": len(detections),
+                    })
+                    if is_video_file:
+                        self.progress_updated.emit(self._current_frame, self._total_frames)
                     last_progress_time = current_time
-
-                # B5-fix: 视频文件按原始帧率限速，避免加速播放
-                if is_video_file:
-                    elapsed = time.time() - frame_start_time
-                    target_delay = 1.0 / video_fps
-                    if elapsed < target_delay:
-                        time.sleep(target_delay - elapsed)
 
         finally:
             self._playback_state = PlaybackState.IDLE

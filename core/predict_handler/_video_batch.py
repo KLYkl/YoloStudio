@@ -291,50 +291,76 @@ class VideoBatchProcessor(QObject):
 
                 with self._params_lock:
                     conf, iou = self._conf, self._iou
-                annotated_frame, detections = run_inference(
-                    self._model, frame, conf, iou, include_bbox=False
-                )
+
+                # 推理: 只提取检测数据, 不画框 (节省 CPU 时间)
+                results = self._model(frame, conf=conf, iou=iou, half=True, verbose=False)
+                boxes = results[0].boxes
+                detections: list[dict] = []
+                if boxes is not None and len(boxes) > 0:
+                    for i in range(len(boxes)):
+                        xyxy = boxes.xyxy[i].cpu().numpy()
+                        det = {
+                            "class_id": int(boxes.cls[i].cpu().numpy()),
+                            "class_name": self._model.names.get(
+                                int(boxes.cls[i].cpu().numpy()), ""
+                            ),
+                            "confidence": float(boxes.conf[i].cpu().numpy()),
+                            "xyxy": [float(v) for v in xyxy],
+                        }
+                        detections.append(det)
 
                 if detections:
                     stats["detection_count/检测数量"] += len(detections)
 
-                if video_writer:
-                    video_writer.write(annotated_frame)
-
+                # 判断此帧是否需要保存关键帧
+                save_keyframe = False
                 if (keyframe_dir or raw_keyframe_dir) and detections:
-                    should_save = True
+                    save_keyframe = True
                     if self._high_conf_only:
-                        should_save = any(
+                        save_keyframe = any(
                             d["confidence"] >= self._high_conf_threshold
                             for d in detections
                         )
 
-                    if should_save:
-                        if keyframe_dir:
-                            keyframe_path = keyframe_dir / f"frame_{frame_idx:06d}.jpg"
-                            cv2.imwrite(str(keyframe_path), annotated_frame)
+                # 按需画框: 只在需要标注图时才调用 draw_detections
+                annotated_frame = None
+                need_annotated = video_writer or (save_keyframe and keyframe_dir)
+                if need_annotated and detections:
+                    from core.predict_handler._inference_utils import draw_detections
+                    annotated_frame = draw_detections(frame, detections)
 
-                        if raw_keyframe_dir:
-                            frame_name = f"frame_{frame_idx:06d}"
-                            raw_path = raw_keyframe_dir / f"{frame_name}.jpg"
-                            cv2.imwrite(str(raw_path), frame)
+                # 录制视频
+                if video_writer:
+                    video_writer.write(annotated_frame if annotated_frame is not None else frame)
 
-                            h_frame, w_frame = frame.shape[:2]
+                # 保存关键帧
+                if save_keyframe:
+                    if keyframe_dir:
+                        keyframe_path = keyframe_dir / f"frame_{frame_idx:06d}.jpg"
+                        cv2.imwrite(str(keyframe_path),
+                                    annotated_frame if annotated_frame is not None else frame)
 
-                            # YOLO TXT
-                            label_path = raw_labels_dir / f"{frame_name}.txt"
-                            write_yolo_txt_from_xyxy(
-                                label_path, detections, w_frame, h_frame
+                    if raw_keyframe_dir:
+                        frame_name = f"frame_{frame_idx:06d}"
+                        raw_path = raw_keyframe_dir / f"{frame_name}.jpg"
+                        cv2.imwrite(str(raw_path), frame)
+
+                        h_frame, w_frame = frame.shape[:2]
+
+                        # YOLO TXT
+                        label_path = raw_labels_dir / f"{frame_name}.txt"
+                        write_yolo_txt_from_xyxy(
+                            label_path, detections, w_frame, h_frame
+                        )
+
+                        # VOC XML
+                        if raw_labels_voc_dir:
+                            write_voc_xml(
+                                raw_labels_voc_dir / f"{frame_name}.xml",
+                                frame_name, w_frame, h_frame, detections
                             )
 
-                            # VOC XML
-                            if raw_labels_voc_dir:
-                                write_voc_xml(
-                                    raw_labels_voc_dir / f"{frame_name}.xml",
-                                    frame_name, w_frame, h_frame, detections
-                                )
-
-                        keyframe_count += 1
+                    keyframe_count += 1
 
                 frame_idx += 1
                 stats["processed_frames/已处理帧数"] = frame_idx

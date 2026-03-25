@@ -424,25 +424,25 @@ class SlotsMixin:
 
     @Slot(np.ndarray, np.ndarray, list)
     def _on_frame_ready(self, annotated_frame: np.ndarray, raw_frame: np.ndarray, detections: list) -> None:
-        # 统计和录制始终全速执行
+        # 统计始终全速累加
         self._frame_count += 1
         self._fps_frame_count += 1
         self._object_count = len(detections)
-        self._frame_display.setText(f"已处理: {self._frame_count} 帧")
-        self._object_display.setText(f"检测: {self._object_count} 个")
+
+        # 录制全速写入
         if self._is_recording:
             self._output_manager.write_frame(annotated_frame)
 
-        # 画布刷新: 按播放速度节流
+        # UI 文本和画布刷新: 节流更新 (避免高帧率下大量 Qt 重绘)
+        now = time.time()
         interval = self._display_interval
-        if interval <= 0:
-            # 不限速: 每帧都刷新
+        should_display = (interval <= 0) or (now - self._last_display_time >= interval)
+
+        if should_display:
             self._preview_canvas.update_frame(annotated_frame)
-        else:
-            now = time.time()
-            if (now - self._last_display_time) >= interval:
-                self._preview_canvas.update_frame(annotated_frame)
-                self._last_display_time = now
+            self._frame_display.setText(f"已处理: {self._frame_count} 帧")
+            self._object_display.setText(f"检测: {self._object_count} 个")
+            self._last_display_time = now
 
         save_annotated = self._save_keyframe_annotated_check.isChecked()
         save_raw = self._save_keyframe_raw_check.isChecked()

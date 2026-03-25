@@ -44,7 +44,7 @@ def run_inference(
     Returns:
         (标注后的帧, 检测结果列表)
     """
-    results = model(frame, conf=conf, iou=iou, verbose=False)
+    results = model(frame, conf=conf, iou=iou, half=True, verbose=False)
 
     annotated_frame = results[0].plot()
 
