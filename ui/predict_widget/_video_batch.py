@@ -11,6 +11,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Slot
 
+from ui.base_ui import set_button_class
 from ui.styled_message_box import StyledMessageBox
 
 
@@ -38,6 +39,11 @@ class VideoBatchMixin:
     def _on_video_batch_progress(self, completed: int, total: int) -> None:
         """整体批量进度更新"""
         pass
+
+    @Slot(float)
+    def _on_video_speed_updated(self, fps: float) -> None:
+        """Bug7-fix: 视频批量处理 FPS 更新"""
+        self._fps_display.setText(f"FPS: {fps:.1f}")
 
     @Slot()
     def _on_video_batch_finished(self) -> None:
@@ -128,9 +134,20 @@ class VideoBatchMixin:
             high_conf_only=self._high_conf_check.isChecked()
         )
 
+        # 读取性能模式，计算最佳 batch size
+        from utils.batch_optimizer import compute_optimal_batch, PerformanceMode
+        perf_idx = self._performance_combo.currentIndex()
+        perf_mode = PerformanceMode.HIGH if perf_idx == 1 else PerformanceMode.OPTIMAL
+        batch_config = compute_optimal_batch(mode=perf_mode)
+        self._video_batch_processor.set_batch_size(batch_config.video_batch_size)
+        self.log_message.emit(
+            f"性能模式: {'高性能' if perf_idx == 1 else '最优性能'} | "
+            f"batch_size={batch_config.video_batch_size}"
+        )
+
         # 通过所有验证后再修改 UI 状态
-        self._start_btn.setText("处理中...")
-        self._start_btn.setEnabled(False)
+        self._start_btn.setText("⏸ 暂停")
+        set_button_class(self._start_btn, "warning")
         self._stop_btn.setEnabled(True)
         self._playback_bar.setVisible(False)
 

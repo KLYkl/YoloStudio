@@ -364,6 +364,18 @@ class PredictWorker(QObject):
                         self.progress_updated.emit(self._current_frame, self._total_frames)
                     last_progress_time = current_time
 
+            # Bug9-fix: 循环退出后补发最终帧, 避免节流跳过最后几帧
+            if frame_count > 0:
+                annotated_frame = draw_detections(frame, detections) if detections else frame
+                self.frame_ready.emit(annotated_frame, frame, detections)
+                self.stats_updated.emit({
+                    "fps": round(current_fps, 1),
+                    "frame_count": frame_count,
+                    "object_count": len(detections),
+                })
+                if is_video_file:
+                    self.progress_updated.emit(self._current_frame, self._total_frames)
+
         finally:
             self._playback_state = PlaybackState.IDLE
             self.state_changed.emit(PlaybackState.IDLE.value)

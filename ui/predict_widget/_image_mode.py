@@ -161,6 +161,17 @@ class ImageModeMixin:
             else:
                 condition = SaveCondition.ALL
 
+            # 读取性能模式，计算最佳 batch size
+            from utils.batch_optimizer import compute_optimal_batch, PerformanceMode
+            perf_idx = self._performance_combo.currentIndex()
+            perf_mode = PerformanceMode.HIGH if perf_idx == 1 else PerformanceMode.OPTIMAL
+            batch_config = compute_optimal_batch(mode=perf_mode)
+            self._image_processor.set_batch_size(batch_config.image_batch_size)
+            self.log_message.emit(
+                f"性能模式: {'高性能' if perf_idx == 1 else '最优性能'} | "
+                f"batch_size={batch_config.image_batch_size}"
+            )
+
             from PySide6.QtCore import QThread
 
             class BatchProcessThread(QThread):
@@ -249,6 +260,10 @@ class ImageModeMixin:
             "save_labels": self._save_labels_check.isChecked(),
             "save_report": self._save_image_report_check.isChecked(),
         }
+
+        # Bug6-fix: 启动新输出线程前，等待旧线程完成
+        if hasattr(self, '_output_thread') and self._output_thread and self._output_thread.isRunning():
+            self._output_thread.wait(5000)
 
         self._output_thread = ImageOutputThread(
             self._image_processor, self._output_manager, options

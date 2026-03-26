@@ -13,6 +13,8 @@ from typing import Any
 import cv2
 import numpy as np
 
+from core.predict_handler._frame_decoder import extract_detections_fast
+
 
 # 20 种预定义的类别颜色 (BGR 格式)
 DETECTION_COLORS: list[tuple[int, int, int]] = [
@@ -46,39 +48,71 @@ def run_inference(
     """
     results = model(frame, conf=conf, iou=iou, half=True, verbose=False)
 
-    annotated_frame = results[0].plot()
+    # 向量化批量提取: 3 次 GPU→CPU 传输, 替代逐 box 的 3N 次拷贝
+    detections = extract_detections_fast(results[0].boxes, model.names)
 
-    detections: list[dict] = []
-    boxes = results[0].boxes
-
-    if boxes is not None and len(boxes) > 0:
+    # 按需补充归一化 bbox (仅图片批量处理需要)
+    if include_bbox and detections:
         h, w = frame.shape[:2]
+        for det in detections:
+            x1, y1, x2, y2 = det["xyxy"]
+            det["bbox"] = [
+                (x1 + x2) / 2 / w,
+                (y1 + y2) / 2 / h,
+                (x2 - x1) / w,
+                (y2 - y1) / h,
+            ]
 
-        for i in range(len(boxes)):
-            xyxy = boxes.xyxy[i].cpu().numpy()
-            x1, y1, x2, y2 = xyxy
-
-            class_id = int(boxes.cls[i].cpu().numpy())
-            confidence = float(boxes.conf[i].cpu().numpy())
-            class_name = model.names.get(class_id, str(class_id))
-
-            det: dict = {
-                "class_id": class_id,
-                "class_name": class_name,
-                "confidence": confidence,
-                "xyxy": [float(x1), float(y1), float(x2), float(y2)],
-            }
-
-            if include_bbox:
-                x_center = (x1 + x2) / 2 / w
-                y_center = (y1 + y2) / 2 / h
-                box_w = (x2 - x1) / w
-                box_h = (y2 - y1) / h
-                det["bbox"] = [x_center, y_center, box_w, box_h]
-
-            detections.append(det)
+    # 按需绘制标注帧 (替代之前的 results[0].plot() 全量绘制)
+    annotated_frame = draw_detections(frame, detections) if detections else frame.copy()
 
     return annotated_frame, detections
+
+
+def run_batch_inference(
+    model: Any,
+    frames: list[np.ndarray],
+    conf: float,
+    iou: float,
+) -> list[list[dict]]:
+    """批量多帧 YOLO 推理
+
+    一次将多张图送入模型，GPU 并行处理，显著提高利用率。
+
+    Args:
+        model: YOLO 模型实例
+        frames: BGR 格式的输入帧列表
+        conf: 置信度阈值
+        iou: IoU 阈值
+
+    Returns:
+        每张图对应的检测结果列表，长度与 frames 相同
+    """
+    if not frames:
+        return []
+
+    # YOLO model() 支持传入 list[ndarray]，自动 batch 推理
+    results = model(frames, conf=conf, iou=iou, half=True, verbose=False)
+
+    batch_detections: list[list[dict]] = []
+    for i, result in enumerate(results):
+        detections = extract_detections_fast(result.boxes, model.names)
+
+        # 补充归一化 bbox (图片批量处理需要)
+        if detections:
+            h, w = frames[i].shape[:2]
+            for det in detections:
+                x1, y1, x2, y2 = det["xyxy"]
+                det["bbox"] = [
+                    (x1 + x2) / 2 / w,
+                    (y1 + y2) / 2 / h,
+                    (x2 - x1) / w,
+                    (y2 - y1) / h,
+                ]
+
+        batch_detections.append(detections)
+
+    return batch_detections
 
 
 def draw_detections(

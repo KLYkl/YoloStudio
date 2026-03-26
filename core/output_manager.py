@@ -47,7 +47,7 @@ class OutputManager(QObject):
         super().__init__(parent)
         
         self._output_dir: Optional[Path] = None
-        self._video_writer: Optional[cv2.VideoWriter] = None
+        self._video_writer: Any = None  # Bug10-fix: FFmpegVideoWriter 或 None
         self._video_path: Optional[Path] = None
         
         # 统计数据
@@ -91,13 +91,13 @@ class OutputManager(QObject):
         codec: str = "mp4v"
     ) -> bool:
         """
-        开始录制视频
+        开始录制视频 (使用 FFmpegVideoWriter H.264 编码)
         
         Args:
             filename: 视频文件名 (不含扩展名)，默认使用时间戳
             fps: 帧率
             size: 视频尺寸 (width, height)
-            codec: 编码器
+            codec: 编码器 (保留参数, 实际优先用 FFmpeg H.264)
             
         Returns:
             是否成功开始录制
@@ -117,14 +117,13 @@ class OutputManager(QObject):
         self._video_path = self._output_dir / f"{filename}.mp4"
         
         try:
-            fourcc = cv2.VideoWriter_fourcc(*codec)
-            self._video_writer = cv2.VideoWriter(
-                str(self._video_path),
-                fourcc,
-                fps,
-                size
+            # Bug10-fix: 统一使用 FFmpegVideoWriter (H.264 编码, 体积小 5-10 倍)
+            # FFmpegVideoWriter 内部已有无 ffmpeg 时自动回退 cv2.VideoWriter 的机制
+            from core.predict_handler._ffmpeg_writer import FFmpegVideoWriter
+            self._video_writer = FFmpegVideoWriter(
+                str(self._video_path), fps=fps, size=size
             )
-            self._video_size = size  # 保存尺寸供 write_frame 校验
+            self._video_size = size
             
             if not self._video_writer.isOpened():
                 self.error_occurred.emit("无法创建视频文件")
@@ -423,25 +422,33 @@ class OutputManager(QObject):
     ) -> None:
         """
         保存路径列表文件
-        
+
         Args:
-            detected_paths: 有检测结果的图片路径列表
+            detected_paths: 有检测结果的图片列表，
+                支持两种格式:
+                - list[tuple[Path, float]]: (路径, 最大置信度)
+                - list[Path]: 仅路径（向后兼容）
             empty_paths: 无检测结果的图片路径列表
         """
         if self._output_dir is None:
             return
-        
+
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        
+
         try:
             # 保存有检测结果列表
             detected_path = self._output_dir / "detected.txt"
             with open(detected_path, "w", encoding="utf-8") as f:
                 f.write(f"# 有检测结果的图片列表\n")
                 f.write(f"# 生成时间: {timestamp}\n")
+                f.write(f"# 格式: 文件路径 | 最大置信度\n")
                 f.write(f"# 总数: {len(detected_paths)}\n")
-                for p in detected_paths:
-                    f.write(f"{p}\n")
+                for item in detected_paths:
+                    if isinstance(item, tuple):
+                        path, conf = item
+                        f.write(f"{path} | {conf:.4f}\n")
+                    else:
+                        f.write(f"{item}\n")
             
             # 保存无检测结果列表
             empty_path = self._output_dir / "empty.txt"

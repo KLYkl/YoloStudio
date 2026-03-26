@@ -203,6 +203,10 @@ class PredictWidget(
             self._on_video_batch_finished, Qt.ConnectionType.QueuedConnection
         )
         self._video_batch_processor.error_occurred.connect(self._on_error)
+        # Bug7-fix: 连接 speed_updated 信号, 让批量处理时 FPS 显示更新
+        self._video_batch_processor.speed_updated.connect(
+            self._on_video_speed_updated, Qt.ConnectionType.QueuedConnection
+        )
 
     def _apply_styles(self) -> None:
         """应用语义化样式"""

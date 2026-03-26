@@ -14,7 +14,11 @@ import numpy as np
 
 from PySide6.QtCore import QObject, Signal
 
-from core.predict_handler._inference_utils import run_inference, draw_detections
+from core.predict_handler._inference_utils import (
+    run_inference,
+    run_batch_inference,
+    draw_detections,
+)
 from core.predict_handler._models import SaveCondition
 from utils.constants import IMAGE_EXTENSIONS
 from utils.file_utils import discover_files
@@ -77,11 +81,23 @@ class ImageBatchProcessor(QObject):
         # C1-fix: 参数锁（保护主线程写入和工作线程读取）
         self._params_lock = Lock()
 
+        # batch 推理大小 (由 batch_optimizer 动态计算)
+        self._batch_size: int = 1
+
         self._logger = get_logger()
 
     def set_model(self, model: Any) -> None:
         """设置 YOLO 模型实例"""
         self._model = model
+
+    def set_batch_size(self, batch_size: int) -> None:
+        """设置 batch 推理大小
+
+        Args:
+            batch_size: 每次送入 GPU 的图片数量，>= 1
+        """
+        self._batch_size = max(1, batch_size)
+        self._logger.info(f"图片 batch size 设置为: {self._batch_size}")
 
     def update_params(
         self,
@@ -172,7 +188,7 @@ class ImageBatchProcessor(QObject):
         return original, annotated, detections
 
     def process_all(self, save_condition: SaveCondition = SaveCondition.ALL) -> None:
-        """批量处理所有图片"""
+        """批量处理所有图片 (支持 multi-batch GPU 推理)"""
         if self._model is None:
             self.error_occurred.emit("模型未加载")
             return
@@ -185,48 +201,85 @@ class ImageBatchProcessor(QObject):
         self._current_index = -1
 
         total = len(self._image_list)
+        bs = self._batch_size
+        self._logger.info(f"开始批量处理: {total} 张图, batch_size={bs}")
 
-        for i, image_path in enumerate(self._image_list):
+        processed_count = 0  # 已处理帧计数 (含跳过的)
+
+        # 按 batch 分组处理
+        for batch_start in range(0, total, bs):
             if self._stop_requested:
                 self._logger.info("批量处理被用户中止")
                 break
 
-            # 使用 Event 等待: 暂停时阻塞, 恢复时自动继续
+            # 暂停检查: 每个 batch 之间检查
             while not self._pause_event.wait(timeout=0.1):
                 if self._stop_requested:
                     break
-
             if self._stop_requested:
                 break
 
-            original = cv2.imread(str(image_path))
-            if original is None:
-                self._logger.warning(f"无法读取图片: {image_path}")
+            # 预加载本批次的图片
+            batch_end = min(batch_start + bs, total)
+            batch_paths: list[Path] = []
+            batch_frames: list[np.ndarray] = []
+
+            for idx in range(batch_start, batch_end):
+                image_path = self._image_list[idx]
+                original = cv2.imread(str(image_path))
+                if original is None:
+                    self._logger.warning(f"无法读取图片: {image_path}")
+                    processed_count += 1
+                    self.progress_updated.emit(processed_count, total)
+                    continue
+                batch_paths.append(image_path)
+                batch_frames.append(original)
+
+            if not batch_frames:
                 continue
 
+            # 批量推理: 一次性送入 GPU
             try:
                 with self._params_lock:
                     conf, iou = self._conf, self._iou
-                annotated, detections = run_inference(self._model, original, conf, iou)
+                if len(batch_frames) == 1:
+                    # 单张时走原路径 (避免不必要的 list 包装)
+                    _, single_dets = run_inference(
+                        self._model, batch_frames[0], conf, iou
+                    )
+                    batch_detections = [single_dets]
+                else:
+                    batch_detections = run_batch_inference(
+                        self._model, batch_frames, conf, iou
+                    )
             except Exception as e:
-                self._logger.error(f"推理失败 {image_path.name}: {e}")
-                self.error_occurred.emit(f"推理失败 {image_path.name}: {e}")
+                self._logger.error(f"批量推理失败: {e}")
+                self.error_occurred.emit(f"批量推理失败: {e}")
+                processed_count += len(batch_frames)
+                self.progress_updated.emit(processed_count, total)
                 continue
 
-            self._results_cache[image_path] = detections
+            # 逐张后处理
+            for j, (image_path, detections) in enumerate(
+                zip(batch_paths, batch_detections)
+            ):
+                self._results_cache[image_path] = detections
 
-            if self.should_save(detections):
-                self._processed_list.append(image_path)
+                if self.should_save(detections):
+                    self._processed_list.append(image_path)
 
-            self.progress_updated.emit(i + 1, total)
-            self.image_processed.emit(str(image_path), detections)
+                processed_count += 1
+                self.progress_updated.emit(processed_count, total)
+                self.image_processed.emit(str(image_path), detections)
 
         if self._processed_list:
             self._current_index = 0
             self.current_changed.emit(0, len(self._processed_list))
 
         self.batch_finished.emit()
-        self._logger.info(f"批量处理完成: {len(self._processed_list)} / {total} 张已保存")
+        self._logger.info(
+            f"批量处理完成: {len(self._processed_list)} / {total} 张已保存"
+        )
 
     def stop(self) -> None:
         """停止批量处理"""
@@ -303,9 +356,19 @@ class ImageBatchProcessor(QObject):
         """获取指定图片的检测结果"""
         return self._results_cache.get(image_path, [])
 
-    def get_detected_list(self) -> list[Path]:
-        """获取有检测结果的图片列表"""
-        return [p for p in self._processed_list if self._results_cache.get(p)]
+    def get_detected_list(self) -> list[tuple[Path, float]]:
+        """获取有检测结果的图片列表（含最大置信度）
+
+        Returns:
+            列表，每项为 (图片路径, 最大置信度)
+        """
+        result = []
+        for p in self._processed_list:
+            dets = self._results_cache.get(p)
+            if dets:
+                max_conf = max(d.get("confidence", 0.0) for d in dets)
+                result.append((p, max_conf))
+        return result
 
     def get_empty_list(self) -> list[Path]:
         """获取无检测结果的图片列表"""

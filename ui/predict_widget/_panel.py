@@ -341,6 +341,21 @@ class PanelMixin:
         iou_row.addWidget(self._iou_label)
         parent_layout.addLayout(iou_row)
 
+        # 性能模式选择
+        perf_row = QHBoxLayout()
+        perf_row.setSpacing(4)
+        perf_label = QLabel("性能:")
+        perf_label.setFixedWidth(50)
+        self._performance_combo = FocusComboBox()
+        self._performance_combo.addItem("最优性能")
+        self._performance_combo.addItem("高性能")
+        self._performance_combo.setCurrentIndex(0)
+        self._performance_combo.setFixedHeight(32)
+
+        perf_row.addWidget(perf_label)
+        perf_row.addWidget(self._performance_combo)
+        parent_layout.addLayout(perf_row)
+
         # 类别过滤
         filter_row = QHBoxLayout()
         filter_row.setSpacing(4)

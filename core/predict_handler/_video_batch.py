@@ -13,14 +13,16 @@ from threading import Event, Lock
 from typing import Any, Optional
 
 import cv2
+import numpy as np
 
 from PySide6.QtCore import QObject, Signal
 
 from core.predict_handler._frame_decoder import FrameDecoder, extract_detections_fast
 from core.predict_handler._inference_utils import draw_detections
+from core.predict_handler._ffmpeg_writer import FFmpegVideoWriter
+from core.predict_handler._io_worker import IOWriter
 from utils.constants import VIDEO_EXTENSIONS
 from utils.file_utils import discover_files
-from utils.label_writer import write_voc_xml, write_yolo_txt_from_xyxy
 from utils.logger import get_logger
 
 
@@ -50,6 +52,7 @@ class VideoBatchProcessor(QObject):
     batch_progress = Signal(int, int)
     batch_finished = Signal()
     error_occurred = Signal(str)
+    speed_updated = Signal(float)  # 实时推理 FPS
 
 
 
@@ -87,11 +90,23 @@ class VideoBatchProcessor(QObject):
         # C1-fix: 参数锁
         self._params_lock = Lock()
 
+        # batch 推理大小 (由 batch_optimizer 动态计算)
+        self._batch_size: int = 1
+
         self._logger = get_logger()
 
     def set_model(self, model: Any) -> None:
         """设置 YOLO 模型实例（共享，避免重复加载）"""
         self._model = model
+
+    def set_batch_size(self, batch_size: int) -> None:
+        """设置视频 batch 推理大小
+
+        Args:
+            batch_size: 每次送入 GPU 的帧数，>= 1
+        """
+        self._batch_size = max(1, batch_size)
+        self._logger.info(f"视频 batch size 设置为: {self._batch_size}")
 
     def update_params(
         self,
@@ -192,34 +207,54 @@ class VideoBatchProcessor(QObject):
 
         total = len(self._video_list)
 
-        for i, video_path in enumerate(self._video_list):
-            if self._stop_requested:
-                self._logger.info("批量处理被用户中止")
-                break
+        # GPU warmup: 消除首帧 CUDA JIT 编译和内存分配的延迟尖峰
+        # 不做 warmup 时首帧推理可能需要 2+ 秒, 之后稳定在 10~15ms
+        warmup_frame = np.zeros((640, 640, 3), dtype=np.uint8)
+        self._model(warmup_frame, conf=0.5, iou=0.45, half=True, verbose=False)
+        del warmup_frame
+        self._logger.info("GPU warmup 完成")
 
-            self._current_index = i
-            self.video_started.emit(str(video_path), i, total)
-            self._logger.info(f"开始处理视频 [{i+1}/{total}]: {video_path.name}")
+        # 创建共享的 IOWriter, 跨视频复用 (避免每个视频重建线程)
+        io_writer = IOWriter(queue_size=64, video_queue_size=32)
+        io_writer.start()
 
-            try:
-                stats = self._process_single_video(video_path)
-            except Exception as e:
-                self._logger.error(f"处理视频失败 [{video_path.name}]: {e}")
-                self.error_occurred.emit(f"视频处理失败 [{video_path.name}]: {e}")
-                stats = None
+        try:
+            for i, video_path in enumerate(self._video_list):
+                if self._stop_requested:
+                    self._logger.info("批量处理被用户中止")
+                    break
 
-            if stats:
-                self._video_stats[video_path] = stats
-                self.video_finished.emit(str(video_path), stats)
+                self._current_index = i
+                self.video_started.emit(str(video_path), i, total)
+                self._logger.info(f"开始处理视频 [{i+1}/{total}]: {video_path.name}")
 
-            self.batch_progress.emit(i + 1, total)
+                try:
+                    stats = self._process_single_video(video_path, io_writer)
+                except Exception as e:
+                    self._logger.error(f"处理视频失败 [{video_path.name}]: {e}")
+                    self.error_occurred.emit(f"视频处理失败 [{video_path.name}]: {e}")
+                    stats = None
 
-        self._is_running = False
-        self.batch_finished.emit()
-        self._logger.info(f"批量处理完成: {len(self._video_stats)}/{total} 个视频")
+                if stats:
+                    self._video_stats[video_path] = stats
+                    self.video_finished.emit(str(video_path), stats)
 
-    def _process_single_video(self, video_path: Path) -> dict | None:
-        """处理单个视频"""
+                self.batch_progress.emit(i + 1, total)
+        finally:
+            io_writer.stop()
+            self._is_running = False
+            self.batch_finished.emit()
+            self._logger.info(f"批量处理完成: {len(self._video_stats)}/{total} 个视频")
+
+    def _process_single_video(
+        self, video_path: Path, io_writer: IOWriter
+    ) -> dict | None:
+        """处理单个视频
+
+        Args:
+            video_path: 视频文件路径
+            io_writer: 共享的 IOWriter 实例 (跨视频复用)
+        """
         cap = cv2.VideoCapture(str(video_path))
 
         if not cap.isOpened():
@@ -249,9 +284,8 @@ class VideoBatchProcessor(QObject):
 
             if self._save_video:
                 output_video_path = video_output_dir / f"{video_path.stem}_result.mp4"
-                fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-                video_writer = cv2.VideoWriter(
-                    str(output_video_path), fourcc, fps, (width, height)
+                video_writer = FFmpegVideoWriter(
+                    str(output_video_path), fps=fps, size=(width, height)
                 )
 
             if self._save_keyframes_annotated:
@@ -278,93 +312,133 @@ class VideoBatchProcessor(QObject):
 
         frame_idx = 0
         keyframe_count = 0
+        fps_last_time = time.time()  # FPS 统计: 上次发射时间
+        fps_last_count = 0           # FPS 统计: 上次发射时的帧数
 
         # 异步解码: 解码线程提前读帧, GPU 推理不用等 CPU 解码
-        decoder = FrameDecoder(cap, queue_size=4, pause_event=self._pause_event)
+        # 解码队列大小自动适配 batch size
+        decoder_queue_size = max(4, self._batch_size * 3)
+        decoder = FrameDecoder(
+            cap, queue_size=decoder_queue_size, pause_event=self._pause_event
+        )
         decoder.start()
+
+        bs = self._batch_size
+        self._logger.info(f"视频 batch 推理: batch_size={bs}, 解码队列={decoder_queue_size}")
+
+        # 复用共享的 IOWriter: 重置计数器并切换视频写入器
+        io_writer.reset(video_writer)
 
         try:
             while not self._stop_requested:
-                # 从解码队列读取 (解码已在后台并行完成)
-                ret, frame = decoder.read(timeout=0.5)
-                if not ret:
-                    # 区分 "暂停导致超时" 和 "视频真正结束"
-                    if not self._pause_event.is_set():
-                        continue  # 暂停中, 继续等待
-                    break  # 视频真正结束
+                # 批量读取多帧
+                if bs > 1:
+                    batch_frames = decoder.read_batch(bs, timeout=0.5)
+                    if not batch_frames:
+                        # Bug3-fix: 区分 "暂停/恢复刚完成" 和 "视频真正结束"
+                        if not self._pause_event.is_set():
+                            continue  # 暂停中, 继续等待
+                        # 解码线程仍活着说明只是暂时队列为空 (恢复后还没来得及解码)
+                        if decoder.is_alive():
+                            continue
+                        break  # 解码线程已退出 = 视频真正结束
+                else:
+                    # batch=1 时走原始单帧路径
+                    ret, frame = decoder.read(timeout=0.5)
+                    if not ret:
+                        if not self._pause_event.is_set():
+                            continue
+                        if decoder.is_alive():
+                            continue
+                        break
+                    batch_frames = [frame]
 
                 with self._params_lock:
                     conf, iou = self._conf, self._iou
 
-                # GPU 推理 (此时解码线程已在读下一帧)
-                results = self._model(frame, conf=conf, iou=iou, half=True, verbose=False)
-
-                # 向量化提取: 一次性 GPU→CPU 批量传输
-                detections = extract_detections_fast(
-                    results[0].boxes, self._model.names
+                # GPU 推理: 批量多帧
+                results = self._model(
+                    batch_frames, conf=conf, iou=iou, half=True, verbose=False
                 )
 
-                if detections:
-                    stats["detection_count/检测数量"] += len(detections)
+                # 逐帧后处理
+                for bi, result in enumerate(results):
+                    detections = extract_detections_fast(
+                        result.boxes, self._model.names
+                    )
 
-                # 判断此帧是否需要保存关键帧
-                save_keyframe = False
-                if (keyframe_dir or raw_keyframe_dir) and detections:
-                    save_keyframe = True
-                    if self._high_conf_only:
-                        save_keyframe = any(
-                            d["confidence"] >= self._high_conf_threshold
-                            for d in detections
-                        )
+                    current_frame = batch_frames[bi]
 
-                # 按需画框: 只在需要标注图时才调用 draw_detections
-                annotated_frame = None
-                need_annotated = video_writer or (save_keyframe and keyframe_dir)
-                if need_annotated and detections:
-                    from core.predict_handler._inference_utils import draw_detections
-                    annotated_frame = draw_detections(frame, detections)
+                    if detections:
+                        stats["detection_count/检测数量"] += len(detections)
 
-                # 录制视频
-                if video_writer:
-                    video_writer.write(annotated_frame if annotated_frame is not None else frame)
-
-                # 保存关键帧
-                if save_keyframe:
-                    if keyframe_dir:
-                        keyframe_path = keyframe_dir / f"frame_{frame_idx:06d}.jpg"
-                        cv2.imwrite(str(keyframe_path),
-                                    annotated_frame if annotated_frame is not None else frame)
-
-                    if raw_keyframe_dir:
-                        frame_name = f"frame_{frame_idx:06d}"
-                        raw_path = raw_keyframe_dir / f"{frame_name}.jpg"
-                        cv2.imwrite(str(raw_path), frame)
-
-                        h_frame, w_frame = frame.shape[:2]
-
-                        # YOLO TXT
-                        label_path = raw_labels_dir / f"{frame_name}.txt"
-                        write_yolo_txt_from_xyxy(
-                            label_path, detections, w_frame, h_frame
-                        )
-
-                        # VOC XML
-                        if raw_labels_voc_dir:
-                            write_voc_xml(
-                                raw_labels_voc_dir / f"{frame_name}.xml",
-                                frame_name, w_frame, h_frame, detections
+                    # 判断此帧是否需要保存关键帧
+                    save_keyframe = False
+                    if (keyframe_dir or raw_keyframe_dir) and detections:
+                        save_keyframe = True
+                        if self._high_conf_only:
+                            save_keyframe = any(
+                                d["confidence"] >= self._high_conf_threshold
+                                for d in detections
                             )
 
-                    keyframe_count += 1
+                    # Bug2-fix: 按需画框逻辑说明:
+                    # - need_annotated 为 True 但 detections 为空时,
+                    #   annotated_frame 保持 None, 下方三元表达式会回退到原帧
+                    annotated_frame = None
+                    need_annotated = video_writer or (
+                        save_keyframe and keyframe_dir
+                    )
+                    if need_annotated and detections:
+                        annotated_frame = draw_detections(
+                            current_frame, detections
+                        )
 
-                frame_idx += 1
-                stats["processed_frames/已处理帧数"] = frame_idx
+                    # 录制视频: 有标注用标注帧, 无检测时直接写原帧
+                    if video_writer:
+                        io_writer.submit_video_frame(
+                            annotated_frame
+                            if annotated_frame is not None
+                            else current_frame
+                        )
+
+                    # 保存关键帧
+                    if save_keyframe:
+                        io_writer.submit_keyframe(
+                            frame_idx=frame_idx,
+                            annotated_frame=annotated_frame,
+                            raw_frame=current_frame,
+                            detections=detections,
+                            keyframe_dir=keyframe_dir,
+                            raw_keyframe_dir=raw_keyframe_dir,
+                            raw_labels_dir=raw_labels_dir,
+                            raw_labels_voc_dir=raw_labels_voc_dir,
+                        )
+
+                    frame_idx += 1
+                    stats["processed_frames/已处理帧数"] = frame_idx
+
+                # FPS 统计: 每秒发射一次
+                now = time.time()
+                if now - fps_last_time >= 1.0:
+                    current_fps = (frame_idx - fps_last_count) / (
+                        now - fps_last_time
+                    )
+                    self.speed_updated.emit(current_fps)
+                    fps_last_time = now
+                    fps_last_count = frame_idx
 
                 if frame_idx % 10 == 0 or frame_idx == total_frames:
                     self.frame_progress.emit(frame_idx, total_frames)
 
+            # 确保最后一帧进度 100%
+            self.frame_progress.emit(frame_idx, total_frames)
+
         finally:
             decoder.stop()
+            # 等待 I/O 队列排空 (不终止线程, 留给 process_all 复用)
+            io_writer.drain()
+            keyframe_count = io_writer.keyframe_count
             cap.release()
             if video_writer:
                 video_writer.release()

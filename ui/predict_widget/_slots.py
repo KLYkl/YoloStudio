@@ -375,6 +375,10 @@ class SlotsMixin:
             if self._video_batch_thread and self._video_batch_thread.isRunning():
                 if not self._video_batch_thread.wait(5000):
                     self.log_message.emit("[警告] 视频批量处理线程超时未结束")
+            # Bug8-fix: 手动停止时也要清理线程引用 (与图片批量分支一致)
+            if self._video_batch_thread:
+                self._video_batch_thread.deleteLater()
+                self._video_batch_thread = None
             self.log_message.emit("视频批量处理已停止")
         elif self._predict_manager.is_running:
             self._predict_manager.stop()
