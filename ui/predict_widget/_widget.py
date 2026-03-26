@@ -89,6 +89,7 @@ class PredictWidget(
         # 视频批量模式状态
         self._is_video_batch_mode: bool = False
         self._video_batch_thread = None
+        self._output_thread = None  # Issue13-fix: 在 __init__ 中声明
 
         # 设备缓存
         self._cameras: list[dict] = []
@@ -225,13 +226,23 @@ class PredictWidget(
             if self._batch_thread and self._batch_thread.isRunning():
                 self._batch_thread.wait(3000)
 
-        # 停止视频批量处理线程
+        # R5-fix: 视频批量线程内部有 IOWriter.stop() + FFmpegVideoWriter.release(),
+        # 需要足够的等待时间让编码完成, 防止视频文件损坏 (缺 moov atom)
         if self._video_batch_processor.is_running:
             self._video_batch_processor.stop()
             if self._video_batch_thread and self._video_batch_thread.isRunning():
-                self._video_batch_thread.wait(3000)
+                self._video_batch_thread.wait(10000)  # 10 秒, 给 ffmpeg flush 足够时间
 
         # 停止 FPS 计时器
         self._fps_timer.stop()
+
+        # R5-fix: 如果正在录制, 确保视频正常关闭 (写入 moov atom)
+        if self._is_recording:
+            self._output_manager.stop_video()
+            self._is_recording = False
+
+        # Issue14-fix: 停止图片输出保存线程
+        if self._output_thread and self._output_thread.isRunning():
+            self._output_thread.wait(3000)
 
         super().closeEvent(event)

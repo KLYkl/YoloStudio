@@ -242,16 +242,10 @@ class ImageBatchProcessor(QObject):
             try:
                 with self._params_lock:
                     conf, iou = self._conf, self._iou
-                if len(batch_frames) == 1:
-                    # 单张时走原路径 (避免不必要的 list 包装)
-                    _, single_dets = run_inference(
-                        self._model, batch_frames[0], conf, iou
-                    )
-                    batch_detections = [single_dets]
-                else:
-                    batch_detections = run_batch_inference(
-                        self._model, batch_frames, conf, iou
-                    )
+                # Bug5-fix: 统一走 batch 路径 (移除冗余 if/else 分支)
+                batch_detections = run_batch_inference(
+                    self._model, batch_frames, conf, iou
+                )
             except Exception as e:
                 self._logger.error(f"批量推理失败: {e}")
                 self.error_occurred.emit(f"批量推理失败: {e}")

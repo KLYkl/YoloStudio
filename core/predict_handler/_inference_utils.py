@@ -64,7 +64,9 @@ def run_inference(
             ]
 
     # 按需绘制标注帧 (替代之前的 results[0].plot() 全量绘制)
-    annotated_frame = draw_detections(frame, detections) if detections else frame.copy()
+    # Issue6-fix: 无检测时不做 frame.copy(), 节省高帧率场景的内存分配
+    # draw_detections() 内部已有 copy() 保证不修改原帧
+    annotated_frame = draw_detections(frame, detections) if detections else frame
 
     return annotated_frame, detections
 

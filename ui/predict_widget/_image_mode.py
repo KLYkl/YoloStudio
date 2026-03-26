@@ -68,6 +68,11 @@ class ImageModeMixin:
                 self._image_browser.show_result(original, annotated, detections)
                 self._image_browser.update_navigation(0, processed)
 
+        # R4-fix: 正常完成时也要清理线程对象 (与 _on_stop 路径一致)
+        if self._batch_thread:
+            self._batch_thread.deleteLater()
+            self._batch_thread = None
+
         self._finalize_image_output()
 
         self.log_message.emit(f"图片批量处理完成: {processed}/{total}")
@@ -271,7 +276,11 @@ class ImageModeMixin:
         self._output_thread.finished.connect(
             lambda: self.log_message.emit("图片输出保存完成")
         )
+        # R3-fix: 补充 deleteLater 清理 QObject, 避免孤儿对象泄漏
         self._output_thread.finished.connect(
-            lambda: setattr(self, '_output_thread', None)
+            lambda: (
+                self._output_thread.deleteLater() if self._output_thread else None,
+                setattr(self, '_output_thread', None)
+            )
         )
         self._output_thread.start()

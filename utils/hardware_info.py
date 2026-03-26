@@ -12,7 +12,7 @@ hardware_info.py - 系统硬件信息检测
 from __future__ import annotations
 
 import platform
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import psutil
 
@@ -73,12 +73,12 @@ def _detect_cpu() -> tuple[str, int, int]:
     if platform.system() == "Windows":
         try:
             import winreg
-            key = winreg.OpenKey(
+            # R6-fix: 使用 with 语句保证异常时也能释放注册表句柄
+            with winreg.OpenKey(
                 winreg.HKEY_LOCAL_MACHINE,
                 r"HARDWARE\DESCRIPTION\System\CentralProcessor\0"
-            )
-            cpu_name = winreg.QueryValueEx(key, "ProcessorNameString")[0].strip()
-            winreg.CloseKey(key)
+            ) as key:
+                cpu_name = winreg.QueryValueEx(key, "ProcessorNameString")[0].strip()
         except Exception:
             pass
 
@@ -115,7 +115,7 @@ def _detect_gpu() -> tuple[bool, str, int, int, int, str]:
         # 获取默认设备 (device 0) 信息
         props = torch.cuda.get_device_properties(0)
         gpu_name = props.name
-        vram_total_mb = props.total_mem // (1024 * 1024)
+        vram_total_mb = props.total_memory // (1024 * 1024)
 
         # 实时显存使用情况
         free_bytes, total_bytes = torch.cuda.mem_get_info(0)

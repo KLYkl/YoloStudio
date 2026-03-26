@@ -17,7 +17,7 @@ import numpy as np
 
 from PySide6.QtCore import QObject, Signal
 
-from core.predict_handler._frame_decoder import FrameDecoder, extract_detections_fast
+from core.predict_handler._frame_decoder import FrameDecoder, create_decoder, extract_detections_fast
 from core.predict_handler._inference_utils import draw_detections
 from core.predict_handler._ffmpeg_writer import FFmpegVideoWriter
 from core.predict_handler._io_worker import IOWriter
@@ -93,6 +93,10 @@ class VideoBatchProcessor(QObject):
         # batch 推理大小 (由 batch_optimizer 动态计算)
         self._batch_size: int = 1
 
+        # 解码模式配置
+        self._decode_mode: str = "cpu"      # "cpu" / "multi" / "nvdec"
+        self._decode_workers: int = 2       # 多线程解码 worker 数
+
         self._logger = get_logger()
 
     def set_model(self, model: Any) -> None:
@@ -107,6 +111,17 @@ class VideoBatchProcessor(QObject):
         """
         self._batch_size = max(1, batch_size)
         self._logger.info(f"视频 batch size 设置为: {self._batch_size}")
+
+    def set_decode_mode(self, mode: str, workers: int = 2) -> None:
+        """设置解码模式
+
+        Args:
+            mode: "cpu" / "multi" / "nvdec"
+            workers: 多线程解码的 worker 数量
+        """
+        self._decode_mode = mode
+        self._decode_workers = max(1, workers)
+        self._logger.info(f"解码模式设置为: {mode}, workers={self._decode_workers}")
 
     def update_params(
         self,
@@ -258,6 +273,7 @@ class VideoBatchProcessor(QObject):
         cap = cv2.VideoCapture(str(video_path))
 
         if not cap.isOpened():
+            cap.release()  # R1-fix: 即使打开失败也显式释放, 防止句柄泄漏
             self.error_occurred.emit(f"无法打开视频: {video_path}")
             return None
 
@@ -315,22 +331,46 @@ class VideoBatchProcessor(QObject):
         fps_last_time = time.time()  # FPS 统计: 上次发射时间
         fps_last_count = 0           # FPS 统计: 上次发射时的帧数
 
-        # 异步解码: 解码线程提前读帧, GPU 推理不用等 CPU 解码
-        # 解码队列大小自动适配 batch size
+        # 异步解码: 根据性能模式选择解码器
+        # cpu=单线程, multi=多线程 CPU, nvdec=GPU 硬件解码
         decoder_queue_size = max(4, self._batch_size * 3)
-        decoder = FrameDecoder(
-            cap, queue_size=decoder_queue_size, pause_event=self._pause_event
+        decoder = create_decoder(
+            video_path=video_path,
+            cap=cap,
+            mode=self._decode_mode,
+            num_workers=self._decode_workers,
+            queue_size=decoder_queue_size,
+            pause_event=self._pause_event,
         )
         decoder.start()
 
+        # R2-fix: NVDEC 模式下 decoder 使用 ffmpeg subprocess, 不需要 cap
+        # 提前释放 cap 避免与 ffmpeg 对同一文件的锁冲突 (Windows SMB/网络驱动器)
+        if self._decode_mode == "nvdec":
+            cap.release()
+            cap = None  # 标记已释放, 避免 finally 中二次释放
+
         bs = self._batch_size
-        self._logger.info(f"视频 batch 推理: batch_size={bs}, 解码队列={decoder_queue_size}")
+        self._logger.info(
+            f"视频 batch 推理: batch_size={bs}, "
+            f"解码={self._decode_mode}, 队列={decoder_queue_size}"
+        )
 
         # 复用共享的 IOWriter: 重置计数器并切换视频写入器
         io_writer.reset(video_writer)
 
         try:
             while not self._stop_requested:
+                # Bug8-fix: 暂停等待 (在读帧之前检查),
+                # 恢复后重置 FPS 计时器避免统计失真
+                if not self._pause_event.is_set():
+                    self._pause_event.wait()
+                    if self._stop_requested:
+                        break
+                    # 恢复后重置 FPS 基准
+                    fps_last_time = time.time()
+                    fps_last_count = frame_idx
+
                 # 批量读取多帧
                 if bs > 1:
                     batch_frames = decoder.read_batch(bs, timeout=0.5)
@@ -376,9 +416,13 @@ class VideoBatchProcessor(QObject):
                     save_keyframe = False
                     if (keyframe_dir or raw_keyframe_dir) and detections:
                         save_keyframe = True
-                        if self._high_conf_only:
+                        # Issue17-fix: 在锁内读取参数 (与 _conf/_iou 一致)
+                        with self._params_lock:
+                            high_conf_only = self._high_conf_only
+                            high_conf_threshold = self._high_conf_threshold
+                        if high_conf_only:
                             save_keyframe = any(
-                                d["confidence"] >= self._high_conf_threshold
+                                d["confidence"] >= high_conf_threshold
                                 for d in detections
                             )
 
@@ -439,7 +483,9 @@ class VideoBatchProcessor(QObject):
             # 等待 I/O 队列排空 (不终止线程, 留给 process_all 复用)
             io_writer.drain()
             keyframe_count = io_writer.keyframe_count
-            cap.release()
+            # R2-fix: NVDEC 模式下 cap 已提前释放 (cap=None)
+            if cap is not None:
+                cap.release()
             if video_writer:
                 video_writer.release()
 

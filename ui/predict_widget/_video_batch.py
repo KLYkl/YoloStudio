@@ -22,18 +22,20 @@ class VideoBatchMixin:
     def _on_video_batch_started(self, video_path: str, index: int, total: int) -> None:
         """单个视频开始处理"""
         video_name = Path(video_path).name
-        self._frame_display.setText(f"视频 [{index+1}/{total}]: {video_name}")
-        self._object_display.setText(f"进度: {index+1}/{total} 个视频")
+        # 帧进度和FPS分别使用独立控件，避免信号竞争导致闪跳
+        self._frame_display.setText(f"帧: 0/0 (0%)")
+        self._object_display.setText(f"视频 [{index+1}/{total}]: {video_name}")
+        self._fps_display.setText(f"FPS: --")
         self._progress_slider.setValue(0)
         self._time_label.setText("00:00 / 00:00")
         self.log_message.emit(f"开始处理视频: {video_name}")
 
     @Slot(int, int)
     def _on_video_frame_progress(self, current: int, total: int) -> None:
-        """当前视频帧进度更新"""
+        """当前视频帧进度更新 → 写入 _frame_display (不与 FPS 竞争)"""
         if total > 0:
             percent = int(current / total * 100)
-            self._fps_display.setText(f"帧: {current}/{total} ({percent}%)")
+            self._frame_display.setText(f"帧: {current}/{total} ({percent}%)")
 
     @Slot(int, int)
     def _on_video_batch_progress(self, completed: int, total: int) -> None:
@@ -42,7 +44,7 @@ class VideoBatchMixin:
 
     @Slot(float)
     def _on_video_speed_updated(self, fps: float) -> None:
-        """Bug7-fix: 视频批量处理 FPS 更新"""
+        """视频批量处理 FPS 更新 → 写入 _fps_display (专用控件)"""
         self._fps_display.setText(f"FPS: {fps:.1f}")
 
     @Slot()
@@ -54,6 +56,7 @@ class VideoBatchMixin:
             self._video_batch_thread.deleteLater()
             self._video_batch_thread = None
         self._start_btn.setText("▶ 开始")
+        set_button_class(self._start_btn, "success")  # Issue15-fix: 重置按钮样式
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
 
@@ -134,15 +137,19 @@ class VideoBatchMixin:
             high_conf_only=self._high_conf_check.isChecked()
         )
 
-        # 读取性能模式，计算最佳 batch size
+        # 读取性能模式，计算最佳 batch size 和解码策略
         from utils.batch_optimizer import compute_optimal_batch, PerformanceMode
         perf_idx = self._performance_combo.currentIndex()
         perf_mode = PerformanceMode.HIGH if perf_idx == 1 else PerformanceMode.OPTIMAL
         batch_config = compute_optimal_batch(mode=perf_mode)
         self._video_batch_processor.set_batch_size(batch_config.video_batch_size)
+        self._video_batch_processor.set_decode_mode(
+            batch_config.decode_mode, batch_config.decode_workers
+        )
         self.log_message.emit(
             f"性能模式: {'高性能' if perf_idx == 1 else '最优性能'} | "
-            f"batch_size={batch_config.video_batch_size}"
+            f"batch_size={batch_config.video_batch_size}, "
+            f"解码={batch_config.decode_mode}"
         )
 
         # 通过所有验证后再修改 UI 状态

@@ -257,6 +257,10 @@ class PredictWorker(QObject):
         self._playback_state = PlaybackState.PLAYING
         self.state_changed.emit(PlaybackState.PLAYING.value)
 
+        # Bug1-fix: 初始化变量, 防止 seek 分支导致补发逻辑引用未定义变量
+        frame: Optional[np.ndarray] = None
+        detections: list = []
+
         try:
             while not self._stop_requested:
                 if not self._pause_event.wait(timeout=0.1):
@@ -365,7 +369,8 @@ class PredictWorker(QObject):
                     last_progress_time = current_time
 
             # Bug9-fix: 循环退出后补发最终帧, 避免节流跳过最后几帧
-            if frame_count > 0:
+            # Bug1-fix: 增加 frame is not None 保护
+            if frame_count > 0 and frame is not None:
                 annotated_frame = draw_detections(frame, detections) if detections else frame
                 self.frame_ready.emit(annotated_frame, frame, detections)
                 self.stats_updated.emit({

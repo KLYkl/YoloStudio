@@ -25,7 +25,7 @@ import numpy as np
 from PySide6.QtCore import QObject, Signal
 
 from utils.file_utils import get_unique_dir
-from utils.label_writer import write_voc_xml, write_yolo_txt
+from utils.label_writer import write_voc_xml, write_yolo_txt_from_xyxy
 
 
 class OutputManager(QObject):
@@ -225,9 +225,9 @@ class OutputManager(QObject):
                 # 获取图片尺寸 (用于 VOC XML)
                 h, w = raw_frame.shape[:2]
                 
-                # 保存 YOLO TXT 格式标签
+                # 保存 YOLO TXT 格式标签 (从 xyxy 自动归一化)
                 yolo_label_path = labels_yolo_dir / f"{base_name}.txt"
-                write_yolo_txt(yolo_label_path, detections)
+                write_yolo_txt_from_xyxy(yolo_label_path, detections, w, h)
                 
                 # 保存 VOC XML 格式标签
                 voc_label_path = labels_voc_dir / f"{base_name}.xml"
@@ -398,7 +398,9 @@ class OutputManager(QObject):
             # 生成标签文件
             if save_labels and detections:
                 txt_path = self._output_dir / "labels_txt" / f"{image_name}.txt"
-                write_yolo_txt(txt_path, detections)
+                write_yolo_txt_from_xyxy(
+                    txt_path, detections, image_size[0], image_size[1]
+                )
                 xml_path = self._output_dir / "labels_xml" / f"{image_name}.xml"
                 write_voc_xml(xml_path, image_name, image_size[0], image_size[1], detections)
             

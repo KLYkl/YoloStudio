@@ -95,6 +95,12 @@ class IOWriter:
             self._keyframe_count = 0
             self._video_dropped = 0
         self._video_writer = video_writer
+        # Bug2-fix: 显式清除 stop 信号, 避免残留状态影响新视频处理
+        self._kf_stop.clear()
+        self._video_stop.clear()
+        # Bug7-fix: 重置错误日志标记 (新视频重新检测)
+        if hasattr(self, '_video_writer_error_logged'):
+            del self._video_writer_error_logged
 
     def drain(self) -> None:
         """等待两个队列排空, 但不停止线程 (用于视频切换间隙)"""
@@ -105,8 +111,14 @@ class IOWriter:
         """启动双线程"""
         self._kf_stop.clear()
         self._video_stop.clear()
-        self._keyframe_count = 0
-        self._video_dropped = 0
+        # Issue3-fix: 在锁内重置计数器
+        with self._counter_lock:
+            self._keyframe_count = 0
+            self._video_dropped = 0
+
+        # Bug4-fix: 清空队列, 防止上次 stop() 残留的哨兵导致新线程立即退出
+        self._drain_queue(self._kf_queue)
+        self._drain_queue(self._video_queue)
 
         self._kf_thread = threading.Thread(
             target=self._kf_loop, daemon=True, name="IOWriter-Keyframe"
@@ -117,6 +129,15 @@ class IOWriter:
             target=self._video_loop, daemon=True, name="IOWriter-Video"
         )
         self._video_thread.start()
+
+    @staticmethod
+    def _drain_queue(q: queue.Queue) -> None:
+        """清空队列中的残留项"""
+        while not q.empty():
+            try:
+                q.get_nowait()
+            except queue.Empty:
+                break
 
     def submit_keyframe(
         self,
@@ -246,6 +267,13 @@ class IOWriter:
             try:
                 if self._video_writer and self._video_writer.isOpened():
                     self._video_writer.write(frame)
+                elif self._video_writer and not hasattr(self, '_video_writer_error_logged'):
+                    # Bug7-fix: 首次检测到 ffmpeg 异常退出时记录日志, 避免静默丢帧
+                    self._video_writer_error_logged = True
+                    self._logger.error(
+                        "IOWriter 视频写入器已关闭 (可能 ffmpeg 异常退出), "
+                        "后续视频帧将被丢弃"
+                    )
             except Exception as e:
                 self._logger.error(f"IOWriter 视频帧任务失败: {e}")
             finally:
