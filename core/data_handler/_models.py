@@ -12,7 +12,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Optional
 
-from utils.constants import IMAGE_EXTENSIONS, LABEL_EXTENSIONS  # noqa: F401
+from utils.constants import IMAGE_EXTENSIONS, LABEL_EXTENSIONS, VIDEO_EXTENSIONS  # noqa: F401
 from utils.file_utils import get_unique_dir as _get_unique_dir  # noqa: F401
 
 
@@ -356,4 +356,36 @@ class ExtractResult:
     labels_copied: int = 0
     dir_stats: dict[str, int] = field(default_factory=dict)
     conflicts: list[tuple[Path, Path]] = field(default_factory=list)
+
+
+@dataclass
+class VideoExtractConfig:
+    """视频抽帧配置"""
+    mode: str = "interval"  # 抽帧模式
+    frame_interval: int = 30  # 按帧间隔抽取时的间隔帧数
+    time_interval: float = 1.0  # 按时间间隔抽取时的间隔秒数
+    scene_threshold: float = 0.4  # 场景切换检测阈值
+    min_scene_gap: int = 15  # 相邻场景切换的最小帧间隔
+    enable_dedup: bool = True  # 是否启用去重
+    dedup_threshold: int = 8  # 去重相似度阈值
+    max_frames: int = 0  # 最大抽取帧数，0 表示不限制
+    start_time: float = 0.0  # 开始抽取时间（秒）
+    end_time: float = 0.0  # 结束抽取时间（秒），0 表示到视频末尾
+    output_format: str = "jpg"  # 输出图片格式
+    jpg_quality: int = 95  # JPG 输出质量
+    name_prefix: str = ""  # 输出文件名前缀
+    output_dir: Optional[Path] = None  # 输出目录
+
+
+@dataclass
+class VideoExtractResult:
+    """视频抽帧结果"""
+    output_dir: str = ""  # 输出目录路径
+    total_frames: int = 0  # 视频总帧数
+    extracted: int = 0  # 原始抽取帧数
+    dedup_removed: int = 0  # 去重移除帧数
+    final_count: int = 0  # 最终保留帧数
+    video_stats: dict[str, int] = field(default_factory=dict)  # 视频统计信息
+    duration: float = 0.0  # 视频时长（秒）
+    skipped: int = 0  # 跳过的帧数
 

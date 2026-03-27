@@ -14,6 +14,7 @@ from core.data_handler._split import SplitMixin
 from core.data_handler._augment import AugmentMixin
 from core.data_handler._extract import ExtractMixin
 from core.data_handler._image_check import ImageCheckMixin
+from core.data_handler._video_extract import VideoExtractMixin
 
 
 class DataHandler(
@@ -26,6 +27,7 @@ class DataHandler(
     AugmentMixin,
     ExtractMixin,
     ImageCheckMixin,
+    VideoExtractMixin,
 ):
     """
     数据处理核心逻辑 (纯 Python，不依赖 Qt GUI)
@@ -42,6 +44,7 @@ class DataHandler(
         - AugmentMixin: 数据增强 + 几何变换
         - ExtractMixin: 图片抽取 (随机/按类别/按目录)
         - ImageCheckMixin: 图像完整性校验 + 格式转换 + 尺寸分析 + 重复检测
+        - VideoExtractMixin: 视频抽帧 (间隔/时间/场景)
     """
 
     def __init__(self) -> None:

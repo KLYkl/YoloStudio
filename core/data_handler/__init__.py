@@ -14,6 +14,7 @@ import os  # noqa: F401
 from core.data_handler._models import (
     IMAGE_EXTENSIONS,
     LABEL_EXTENSIONS,
+    VIDEO_EXTENSIONS,
     AppliedGeometryOp,
     AugmentConfig,
     AugmentRecipe,
@@ -28,6 +29,8 @@ from core.data_handler._models import (
     ScanResult,
     SplitMode,
     SplitResult,
+    VideoExtractConfig,
+    VideoExtractResult,
     ValidateResult,
     _get_unique_dir,
 )
@@ -38,12 +41,15 @@ __all__ = [
     # 常量
     "IMAGE_EXTENSIONS",
     "LABEL_EXTENSIONS",
+    "VIDEO_EXTENSIONS",
     # 数据类型
     "LabelFormat",
     "SplitMode",
     "ModifyAction",
     "ScanResult",
     "SplitResult",
+    "VideoExtractConfig",
+    "VideoExtractResult",
     "AugmentConfig",
     "AugmentRecipe",
     "AppliedGeometryOp",

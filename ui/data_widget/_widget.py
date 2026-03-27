@@ -31,6 +31,7 @@ from ui.data_widget._tabs_augment import AugmentTabMixin
 from ui.data_widget._tabs_split import SplitTabMixin
 from ui.data_widget._tabs_extract import ExtractTabMixin
 from ui.data_widget._tabs_image_check import ImageCheckTabMixin
+from ui.data_widget._tabs_video_extract import VideoExtractTabMixin
 
 
 class DataWidget(
@@ -40,6 +41,7 @@ class DataWidget(
     AugmentTabMixin,
     SplitTabMixin,
     ImageCheckTabMixin,
+    VideoExtractTabMixin,
     QWidget,
 ):
     """
@@ -127,6 +129,7 @@ class DataWidget(
         self.tab_widget.addTab(self._create_augment_tab(), "🧪 增强")
         self.tab_widget.addTab(self._create_split_tab(), "📂 划分")
         self.tab_widget.addTab(self._create_image_check_tab(), "🖼️ 图像检查")
+        self.tab_widget.addTab(self._create_video_extract_tab(), "🎬 视频抽帧")
         main_layout.addWidget(self.tab_widget, 1)  # 拉伸因子 = 1
 
         # 进度条区
@@ -255,6 +258,17 @@ class DataWidget(
         # Tab 6 - 图像检查
         self._connect_image_check_signals()
 
+        # Tab 7 - 视频抽帧
+        self.ve_mode_group.buttonClicked.connect(lambda: self._on_ve_mode_changed())
+        self.ve_add_files_btn.clicked.connect(self._on_ve_add_files)
+        self.ve_scan_dir_btn.clicked.connect(self._on_ve_scan_dir)
+        self.ve_select_all_btn.clicked.connect(self._on_ve_select_all)
+        self.ve_clear_btn.clicked.connect(self._on_ve_clear)
+        self.ve_output_browse_btn.clicked.connect(self._on_ve_browse_output)
+        self.ve_dedup_check.toggled.connect(self._on_ve_dedup_toggled)
+        self.ve_estimate_btn.clicked.connect(self._on_ve_estimate)
+        self.ve_start_btn.clicked.connect(self._on_ve_start)
+
         # 取消按钮
         self.cancel_btn.clicked.connect(self._on_cancel)
 
@@ -263,6 +277,7 @@ class DataWidget(
         self._update_augment_action_states()
         self._update_extract_action_states()
         self._update_image_check_action_states()
+        self._update_video_extract_action_states()
 
     # ============================================================
     # 路径变更回调
@@ -276,6 +291,7 @@ class DataWidget(
         self._update_extract_action_states()
         self._update_augment_action_states()
         self._update_image_check_action_states()
+        self._update_video_extract_action_states()
         self._update_path_summary()
 
         image_dir = self.path_group.get_all_paths().get("image_dir", "")
@@ -355,6 +371,7 @@ class DataWidget(
         self._update_augment_action_states()
         self._update_extract_action_states()
         self._update_image_check_action_states()
+        self._update_video_extract_action_states()
 
     @Slot()
     def _on_cancel(self) -> None:
@@ -446,11 +463,15 @@ class DataWidget(
             self.ic_analyze_btn.setEnabled(False)
             self.ic_duplicate_btn.setEnabled(False)
             self.ic_health_btn.setEnabled(False)
+            self.ve_estimate_btn.setEnabled(False)
+            self.ve_start_btn.setEnabled(False)
+            self.ve_scan_dir_btn.setEnabled(False)
         else:
             self._update_edit_action_states()
             self._update_augment_action_states()
             self._update_extract_action_states()
             self._update_image_check_action_states()
+            self._update_video_extract_action_states()
 
         if not busy:
             self.progress_bar.setRange(0, 100)

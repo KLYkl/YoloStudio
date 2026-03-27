@@ -378,7 +378,7 @@ class VideoBatchProcessor(QObject):
                         # Bug3-fix: 区分 "暂停/恢复刚完成" 和 "视频真正结束"
                         if not self._pause_event.is_set():
                             continue  # 暂停中, 继续等待
-                        # 解码线程仍活着说明只是暂时队列为空 (恢复后还没来得及解码)
+                        # 解码线程仍活着说明只是暂时队列为空
                         if decoder.is_alive():
                             continue
                         break  # 解码线程已退出 = 视频真正结束
@@ -397,6 +397,8 @@ class VideoBatchProcessor(QObject):
                     conf, iou = self._conf, self._iou
 
                 # GPU 推理: 批量多帧
+                # 注意: predictor 拆分在 batch>1 时 postprocess 只返回 1 个 result
+                # 所以必须用 model() 以正确支持批量推理
                 results = self._model(
                     batch_frames, conf=conf, iou=iou, half=True, verbose=False
                 )
@@ -416,7 +418,7 @@ class VideoBatchProcessor(QObject):
                     save_keyframe = False
                     if (keyframe_dir or raw_keyframe_dir) and detections:
                         save_keyframe = True
-                        # Issue17-fix: 在锁内读取参数 (与 _conf/_iou 一致)
+                        # Issue17-fix: 在锁内读取参数
                         with self._params_lock:
                             high_conf_only = self._high_conf_only
                             high_conf_threshold = self._high_conf_threshold
@@ -426,9 +428,7 @@ class VideoBatchProcessor(QObject):
                                 for d in detections
                             )
 
-                    # Bug2-fix: 按需画框逻辑说明:
-                    # - need_annotated 为 True 但 detections 为空时,
-                    #   annotated_frame 保持 None, 下方三元表达式会回退到原帧
+                    # Bug2-fix: 按需画框逻辑
                     annotated_frame = None
                     need_annotated = video_writer or (
                         save_keyframe and keyframe_dir
