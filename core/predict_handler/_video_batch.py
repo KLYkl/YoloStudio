@@ -68,6 +68,7 @@ class VideoBatchProcessor(QObject):
 
         # 已处理的视频统计 {video_path: stats_dict}
         self._video_stats: dict[Path, dict] = {}
+        self._video_detection_summary: dict[Path, dict[str, Any]] = {}
 
         # 当前处理索引
         self._current_index: int = -1
@@ -156,6 +157,7 @@ class VideoBatchProcessor(QObject):
         """加载视频列表"""
         self._video_list.clear()
         self._video_stats.clear()
+        self._video_detection_summary.clear()
         self._current_index = -1
 
         self._video_list = discover_files(source, VIDEO_EXTENSIONS)
@@ -219,6 +221,7 @@ class VideoBatchProcessor(QObject):
         self._stop_requested = False
         self._pause_event.set()
         self._video_stats.clear()
+        self._video_detection_summary.clear()
 
         total = len(self._video_list)
 
@@ -257,6 +260,7 @@ class VideoBatchProcessor(QObject):
                 self.batch_progress.emit(i + 1, total)
         finally:
             io_writer.stop()
+            self._generate_path_lists()
             self._is_running = False
             self.batch_finished.emit()
             self._logger.info(f"批量处理完成: {len(self._video_stats)}/{total} 个视频")
@@ -330,6 +334,9 @@ class VideoBatchProcessor(QObject):
         keyframe_count = 0
         fps_last_time = time.time()  # FPS 统计: 上次发射时间
         fps_last_count = 0           # FPS 统计: 上次发射时的帧数
+        max_confidence = 0.0
+        seen_classes: set[str] = set()
+        class_names: list[str] = []
 
         # 异步解码: 根据性能模式选择解码器
         # cpu=单线程, multi=多线程 CPU, nvdec=GPU 硬件解码
@@ -413,6 +420,15 @@ class VideoBatchProcessor(QObject):
 
                     if detections:
                         stats["detection_count/检测数量"] += len(detections)
+                        max_confidence = max(
+                            max_confidence,
+                            max(d.get("confidence", 0.0) for d in detections),
+                        )
+                        for det in detections:
+                            class_name = det.get("class_name", "unknown") or "unknown"
+                            if class_name not in seen_classes:
+                                seen_classes.add(class_name)
+                                class_names.append(class_name)
 
                     # 判断此帧是否需要保存关键帧
                     save_keyframe = False
@@ -491,6 +507,12 @@ class VideoBatchProcessor(QObject):
 
         stats["keyframes_saved/已保存关键帧"] = keyframe_count
 
+        if class_names:
+            self._video_detection_summary[video_path] = {
+                "max_confidence": max_confidence,
+                "class_names": class_names.copy(),
+            }
+
         if self._save_report and video_output_dir:
             try:
                 report_path = video_output_dir / "report.json"
@@ -509,6 +531,67 @@ class VideoBatchProcessor(QObject):
     def get_all_stats(self) -> dict[str, dict]:
         """获取所有视频的统计数据"""
         return {str(k): v for k, v in self._video_stats.items()}
+
+    def get_detected_list(self) -> list[tuple[Path, float, str]]:
+        """获取有检测结果的视频列表（含最大置信度和类别名）"""
+        result: list[tuple[Path, float, str]] = []
+        for path in self._video_list:
+            if path not in self._video_stats:
+                continue
+            summary = self._video_detection_summary.get(path)
+            if not summary:
+                continue
+            result.append(
+                (
+                    path,
+                    float(summary["max_confidence"]),
+                    ", ".join(summary["class_names"]),
+                )
+            )
+        return result
+
+    def get_empty_list(self) -> list[Path]:
+        """获取已处理但无检测结果的视频列表"""
+        return [
+            path
+            for path in self._video_list
+            if path in self._video_stats
+            and path not in self._video_detection_summary
+        ]
+
+    def _generate_path_lists(self) -> None:
+        """生成 detected.txt / empty.txt 清单"""
+        if not self._output_dir or not self._video_stats:
+            return
+
+        detected_list = self.get_detected_list()
+        empty_list = self.get_empty_list()
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        detected_path = self._output_dir / "detected.txt"
+        empty_path = self._output_dir / "empty.txt"
+
+        try:
+            with open(detected_path, "w", encoding="utf-8") as f:
+                f.write("# 有检测结果的视频列表\n")
+                f.write(f"# 生成时间: {timestamp}\n")
+                f.write("# 格式: 文件路径 | 最大置信度 | 类别\n")
+                f.write(f"# 总数: {len(detected_list)}\n")
+                for path, conf, classes in detected_list:
+                    f.write(f"{path} | {conf:.4f} | {classes}\n")
+
+            with open(empty_path, "w", encoding="utf-8") as f:
+                f.write("# 无检测结果的视频列表\n")
+                f.write(f"# 生成时间: {timestamp}\n")
+                f.write(f"# 总数: {len(empty_list)}\n")
+                for path in empty_list:
+                    f.write(f"{path}\n")
+
+            self._logger.info(
+                f"视频批量检测清单已生成: {detected_path}, {empty_path}"
+            )
+        except OSError as e:
+            self._logger.error(f"保存视频清单失败: {e}")
+            self.error_occurred.emit(f"保存视频清单失败: {e}")
 
 
 
