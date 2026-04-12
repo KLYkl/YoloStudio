@@ -37,6 +37,7 @@ from core.data_handler import (
     ValidateResult,
 )
 from ui.styled_message_box import StyledMessageBox, StyledProgressDialog
+from utils.i18n import t
 
 
 class EditTabMixin:
@@ -78,7 +79,7 @@ class EditTabMixin:
         content_grid.setColumnStretch(1, 1)
 
         # ---- GroupBox 1: 生成空标签 ----
-        gen_group = QGroupBox("生成空标签")
+        gen_group = QGroupBox(t("edit_gen_empty_labels"))
         gen_layout = QVBoxLayout(gen_group)
 
         self.empty_txt_radio = QRadioButton("TXT (YOLO)")
@@ -95,7 +96,7 @@ class EditTabMixin:
         # 操作按钮 (右对齐)
         gen_btn_layout = QHBoxLayout()
         gen_btn_layout.addStretch()
-        self.gen_empty_btn = QPushButton("📝 生成空标签")
+        self.gen_empty_btn = QPushButton(t("edit_gen_empty_btn"))
         self.gen_empty_btn.setMinimumHeight(28)
         self.gen_empty_btn.setMinimumWidth(100)
         self.gen_empty_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -106,7 +107,7 @@ class EditTabMixin:
         content_grid.addWidget(gen_group, 0, 0)
 
         # ---- GroupBox 2: 格式互转 ----
-        convert_group = QGroupBox("格式互转")
+        convert_group = QGroupBox(t("edit_convert_format"))
         convert_layout = QVBoxLayout(convert_group)
 
         self.txt_to_xml_radio = QRadioButton("TXT (YOLO) → XML (VOC)")
@@ -123,7 +124,7 @@ class EditTabMixin:
         # 操作按钮 (右对齐)
         convert_btn_layout = QHBoxLayout()
         convert_btn_layout.addStretch()
-        self.convert_btn = QPushButton("🔄 执行转换")
+        self.convert_btn = QPushButton(t("edit_convert_btn"))
         self.convert_btn.setMinimumHeight(28)
         self.convert_btn.setMinimumWidth(100)
         self.convert_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -135,16 +136,16 @@ class EditTabMixin:
         content_grid.addWidget(convert_group, 1, 0)
 
         # ---- GroupBox 3: 修改/删除标签 ----
-        right_group = QGroupBox("修改/删除标签")
+        right_group = QGroupBox(t("edit_modify_labels"))
         right_layout = QVBoxLayout(right_group)
 
         # 操作类型
-        action_label = QLabel("操作类型:")
+        action_label = QLabel(t("edit_action_type"))
         right_layout.addWidget(action_label)
 
         action_row = QHBoxLayout()
-        self.replace_radio = QRadioButton("替换类别")
-        self.remove_radio = QRadioButton("删除类别")
+        self.replace_radio = QRadioButton(t("edit_replace_class"))
+        self.remove_radio = QRadioButton(t("edit_remove_class"))
         self.replace_radio.setChecked(True)
 
         self.action_group = QButtonGroup(self)
@@ -161,26 +162,26 @@ class EditTabMixin:
         self.old_name_input = FocusComboBox()
         self.old_name_input.setEditable(True)
         self.old_name_input.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.old_name_input.lineEdit().setPlaceholderText("原类别名称或 ID")
-        form_layout.addRow("原类别/ID:", self.old_name_input)
+        self.old_name_input.lineEdit().setPlaceholderText(t("edit_old_name_placeholder"))
+        form_layout.addRow(t("edit_old_name_label"), self.old_name_input)
 
-        self._new_name_label = QLabel("新类别/ID:")
+        self._new_name_label = QLabel(t("edit_new_name_label"))
         self.new_name_input = FocusComboBox()
         self.new_name_input.setEditable(True)
         self.new_name_input.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
-        self.new_name_input.lineEdit().setPlaceholderText("新类别名称或 ID (留空表示删除)")
+        self.new_name_input.lineEdit().setPlaceholderText(t("edit_new_name_placeholder"))
         form_layout.addRow(self._new_name_label, self.new_name_input)
         right_layout.addLayout(form_layout)
 
         # 备份选项
-        self.backup_check = QCheckBox("修改前备份原文件 (.bak)")
+        self.backup_check = QCheckBox(t("edit_backup_check"))
         self.backup_check.setChecked(True)
         right_layout.addWidget(self.backup_check)
 
         # 操作按钮 (右对齐)
         btn_layout2 = QHBoxLayout()
         btn_layout2.addStretch()
-        self.modify_btn = QPushButton("⚡ 执行修改")
+        self.modify_btn = QPushButton(t("edit_modify_btn"))
         self.modify_btn.setMinimumHeight(28)
         self.modify_btn.setMinimumWidth(100)
         self.modify_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -191,45 +192,33 @@ class EditTabMixin:
         content_grid.addWidget(right_group, 0, 1)
 
         # ---- GroupBox 4: 标签校验 ----
-        validate_group = QGroupBox("标签校验")
+        validate_group = QGroupBox(t("edit_validate_labels"))
         validate_layout = QVBoxLayout(validate_group)
 
-        self.validate_coords_check = QCheckBox("坐标越界检查")
+        self.validate_coords_check = QCheckBox(t("edit_validate_coords"))
         self.validate_coords_check.setChecked(True)
-        self.validate_coords_check.setToolTip(
-            "TXT: 检查 x, y, w, h ∈ [0, 1]\n"
-            "XML: 检查 bbox 不超出图片尺寸"
-        )
+        self.validate_coords_check.setToolTip(t("edit_validate_coords_tooltip"))
         validate_layout.addWidget(self.validate_coords_check)
 
-        self.validate_class_check = QCheckBox("类别 ID 无效检查")
+        self.validate_class_check = QCheckBox(t("edit_validate_class"))
         self.validate_class_check.setChecked(True)
-        self.validate_class_check.setToolTip(
-            "TXT: 类别 ID 超出 classes.txt 范围\n"
-            "XML: 类别名不在 classes.txt 中"
-        )
+        self.validate_class_check.setToolTip(t("edit_validate_class_tooltip"))
         validate_layout.addWidget(self.validate_class_check)
 
-        self.validate_format_check = QCheckBox("格式错误检查")
+        self.validate_format_check = QCheckBox(t("edit_validate_format"))
         self.validate_format_check.setChecked(True)
-        self.validate_format_check.setToolTip(
-            "TXT: 行字段数 ≠ 5\n"
-            "XML: 缺少必要节点 (size, bndbox)"
-        )
+        self.validate_format_check.setToolTip(t("edit_validate_format_tooltip"))
         validate_layout.addWidget(self.validate_format_check)
 
-        self.validate_orphan_check = QCheckBox("清理孤立标签")
+        self.validate_orphan_check = QCheckBox(t("edit_validate_orphan"))
         self.validate_orphan_check.setChecked(True)
-        self.validate_orphan_check.setToolTip(
-            "查找无对应图片的标签文件\n"
-            "校验后可选择备份清理"
-        )
+        self.validate_orphan_check.setToolTip(t("edit_validate_orphan_tooltip"))
         validate_layout.addWidget(self.validate_orphan_check)
 
         # 操作按钮 (右对齐)
         validate_btn_layout = QHBoxLayout()
         validate_btn_layout.addStretch()
-        self.validate_btn = QPushButton("🔍 开始校验")
+        self.validate_btn = QPushButton(t("edit_validate_btn"))
         self.validate_btn.setMinimumHeight(28)
         self.validate_btn.setMinimumWidth(100)
         self.validate_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -269,12 +258,9 @@ class EditTabMixin:
         self.validate_class_check.setEnabled(has_classes)
         if not has_classes:
             self.validate_class_check.setChecked(False)
-            self.validate_class_check.setToolTip("需要先加载 classes.txt 文件")
+            self.validate_class_check.setToolTip(t("edit_needs_classes_txt"))
         else:
-            self.validate_class_check.setToolTip(
-                "TXT: 类别 ID 超出 classes.txt 范围\n"
-                "XML: 类别名不在 classes.txt 中"
-            )
+            self.validate_class_check.setToolTip(t("edit_validate_class_tooltip"))
 
     def _apply_edit_class_options(self, options: list[str]) -> None:
         """应用修改标签下拉选项并保留当前输入"""
@@ -316,7 +302,7 @@ class EditTabMixin:
 
     def _show_modify_warning(self, message: str) -> None:
         """修改功能警告弹窗"""
-        StyledMessageBox.warning(self, "修改标签", message)
+        StyledMessageBox.warning(self, t("edit_modify_labels_title"), message)
 
     def _show_modify_info(self, title: str, message: str) -> None:
         """修改功能信息弹窗"""
@@ -362,7 +348,7 @@ class EditTabMixin:
 
         self._precheck_cancelled = True
         self._worker.request_interrupt()
-        self.log_message.emit("正在取消预检查...")
+        self.log_message.emit(t("edit_cancelling_precheck"))
 
     @Slot(int, int)
     def _on_precheck_progress(self, current: int, total: int) -> None:
@@ -426,11 +412,11 @@ class EditTabMixin:
             self._pending_precheck_cache_key = None
             self._pending_precheck_error = None
             self._pending_precheck_title = ""
-            self.log_message.emit("已取消预检查")
+            self.log_message.emit(t("edit_precheck_cancelled"))
             return
 
         if self._pending_precheck_error:
-            StyledMessageBox.warning(self, self._pending_precheck_title or "预检查", self._pending_precheck_error)
+            StyledMessageBox.warning(self, self._pending_precheck_title or t("edit_precheck"), self._pending_precheck_error)
             self._pending_precheck_result = None
             self._pending_precheck_handler = None
             self._pending_precheck_cache_key = None
@@ -469,7 +455,7 @@ class EditTabMixin:
             return
 
         if self._worker and self._worker.isRunning():
-            self.log_message.emit("已有任务在运行中")
+            self.log_message.emit(t("edit_task_running"))
             return
 
         self._precheck_cancelled = False
@@ -479,7 +465,7 @@ class EditTabMixin:
         self._pending_precheck_error = None
         self._pending_precheck_title = title
 
-        self._precheck_dialog = StyledProgressDialog(self, title, label_text, "取消")
+        self._precheck_dialog = StyledProgressDialog(self, title, label_text, t("cancel"))
         self._precheck_dialog.setWindowModality(Qt.WindowModality.WindowModal)
         self._precheck_dialog.setRange(0, 0)
         self._precheck_dialog.setValue(0)
@@ -513,20 +499,16 @@ class EditTabMixin:
         format_text = "TXT (YOLO)" if label_format == LabelFormat.TXT else "XML (VOC)"
 
         if total_images == 0:
-            StyledMessageBox.information(self, "生成空标签", "未找到可检查的图片文件。")
+            StyledMessageBox.information(self, t("edit_gen_empty_labels"), t("edit_no_images_found"))
             return
 
         if missing_labels == 0:
-            StyledMessageBox.information(self, "生成空标签", "未发现缺失标签图片，无需生成空标签。")
+            StyledMessageBox.information(self, t("edit_gen_empty_labels"), t("edit_no_missing_labels"))
             return
 
-        message = (
-            f"将检查 {total_images} 张图片。\n"
-            f"预计生成 {missing_labels} 个空标签。\n"
-            f"标签格式: {format_text}\n\n"
-            "是否继续执行？"
-        )
-        if not self._confirm_edit_action("生成空标签", message):
+        message = t("edit_gen_empty_confirm",
+            total=total_images, missing=missing_labels, format=format_text)
+        if not self._confirm_edit_action(t("edit_gen_empty_labels"), message):
             return
 
         self._start_worker(
@@ -555,16 +537,14 @@ class EditTabMixin:
         output_dir_name = preview.get("output_dir_name", "")
 
         if total_labels == 0:
-            StyledMessageBox.information(self, "格式互转", f"未找到可转换的 {source_type} 标签文件。")
+            StyledMessageBox.information(
+                self, t("edit_convert_format"), t("edit_no_convertible_labels", type=source_type))
             return
 
-        message = (
-            f"将转换 {total_labels} 个 {source_type} 标签文件。\n"
-            f"输出格式: {target_type}\n"
-            f"输出目录: {output_dir_name}\n\n"
-            "是否继续执行？"
-        )
-        if not self._confirm_edit_action("格式互转", message):
+        message = t("edit_convert_confirm",
+            total=total_labels, source=source_type,
+            target=target_type, dir=output_dir_name)
+        if not self._confirm_edit_action(t("edit_convert_format"), message):
             return
 
         classes = None
@@ -609,26 +589,22 @@ class EditTabMixin:
         backup_enabled = self.backup_check.isChecked()
 
         if total_label_files == 0:
-            self._show_modify_info("修改标签", "未找到可修改的标签文件。")
+            self._show_modify_info(t("edit_modify_labels_title"), t("edit_no_modifiable_labels"))
             return
 
         if matched_annotations == 0:
-            self._show_modify_info("修改标签", f"未找到与\u201c{old_value}\u201d匹配的标注。")
+            self._show_modify_info(t("edit_modify_labels_title"), t("edit_no_matching_annotations", value=old_value))
             return
 
-        action_text = "替换类别" if action == ModifyAction.REPLACE else "删除类别"
-        target_text = f"\n新类别/ID: {new_value}" if action == ModifyAction.REPLACE else ""
-        backup_text = "开" if backup_enabled else "关"
-        message = (
-            f"将检查 {total_label_files} 个标签文件 (TXT {txt_files} / XML {xml_files})。\n"
-            f"预计影响 {matched_files} 个文件 / {matched_annotations} 条标注。\n"
-            f"操作: {action_text}\n"
-            f"原类别/ID: {old_value}"
-            f"{target_text}\n"
-            f"备份: {backup_text}\n\n"
-            "是否继续执行？"
-        )
-        if not self._confirm_edit_action("修改标签", message):
+        action_text = t("edit_action_replace") if action == ModifyAction.REPLACE else t("edit_action_remove")
+        target_text = t("edit_target_new_class", value=new_value) if action == ModifyAction.REPLACE else ""
+        backup_text = t("edit_backup_on") if backup_enabled else t("edit_backup_off")
+        message = t("edit_modify_confirm",
+            total=total_label_files, txt=txt_files, xml=xml_files,
+            files=matched_files, annotations=matched_annotations,
+            action=action_text, old=old_value, target=target_text,
+            backup=backup_text)
+        if not self._confirm_edit_action(t("edit_modify_labels_title"), message):
             return
 
         self._start_worker(
@@ -655,11 +631,11 @@ class EditTabMixin:
         """生成空标签"""
         img_path = self.path_group.get_image_dir()
         if not img_path:
-            self.log_message.emit("请先选择图片目录")
+            self.log_message.emit(t("edit_select_image_dir_first"))
             return
 
         if not img_path.exists():
-            self.log_message.emit(f"图片目录不存在: {img_path}")
+            self.log_message.emit(t("edit_image_dir_not_exist", path=img_path))
             return
 
         label_path = self.path_group.get_label_dir()
@@ -672,8 +648,8 @@ class EditTabMixin:
         )
 
         self._start_precheck_worker(
-            title="生成空标签",
-            label_text="正在检查缺失标签...",
+            title=t("edit_gen_empty_labels"),
+            label_text=t("edit_checking_missing_labels"),
             cache_key=cache_key,
             task=lambda: self._handler.preview_generate_missing_labels(
                 img_path,
@@ -694,11 +670,11 @@ class EditTabMixin:
         """执行格式转换"""
         img_path = self.path_group.get_image_dir()
         if not img_path:
-            self.log_message.emit("请先选择图片目录")
+            self.log_message.emit(t("edit_select_image_dir_first"))
             return
 
         if not img_path.exists():
-            self.log_message.emit(f"图片目录不存在: {img_path}")
+            self.log_message.emit(t("edit_image_dir_not_exist", path=img_path))
             return
 
         label_path = self.path_group.get_label_dir()
@@ -712,8 +688,8 @@ class EditTabMixin:
         )
 
         self._start_precheck_worker(
-            title="格式互转",
-            label_text="正在检查可转换的标签文件...",
+            title=t("edit_convert_format"),
+            label_text=t("edit_checking_convertible_labels"),
             cache_key=cache_key,
             task=lambda: self._handler.preview_convert_format(
                 dataset_root,
@@ -735,16 +711,16 @@ class EditTabMixin:
         """修改标签"""
         img_path = self.path_group.get_image_dir()
         if not img_path:
-            self._show_modify_warning("请先选择图片目录")
+            self._show_modify_warning(t("edit_select_image_dir_first"))
             return
 
         if not img_path.exists():
-            self._show_modify_warning(f"图片目录不存在:\n{img_path}")
+            self._show_modify_warning(t("edit_image_dir_not_exist", path=img_path))
             return
 
         old_value = self.old_name_input.currentText().strip()
         if not old_value:
-            self._show_modify_warning("请输入原类别名称或 ID")
+            self._show_modify_warning(t("edit_input_old_class"))
             return
 
         new_value = self.new_name_input.currentText().strip()
@@ -769,8 +745,8 @@ class EditTabMixin:
         )
 
         self._start_precheck_worker(
-            title="修改标签",
-            label_text="正在检查将受影响的标签文件...",
+            title=t("edit_modify_labels_title"),
+            label_text=t("edit_checking_affected_labels"),
             cache_key=cache_key,
             task=lambda: self._handler.preview_modify_labels(
                 search_dir,
@@ -798,25 +774,25 @@ class EditTabMixin:
     def _on_generate_empty_finished(self, count: int) -> None:
         """生成空标签完成回调"""
         self._invalidate_edit_precheck_cache()
-        self.log_message.emit(f"已生成 {count} 个空标签文件")
+        self.log_message.emit(t("edit_generated_empty_labels", count=count))
 
     def _on_convert_format_finished(self, count: int) -> None:
         """格式转换完成回调"""
         self._invalidate_edit_precheck_cache()
-        self.log_message.emit(f"格式转换完成: 成功 {count} 个文件")
+        self.log_message.emit(t("edit_convert_complete", count=count))
 
     def _on_modify_labels_finished(self, count: int) -> None:
         """修改标签完成回调"""
         self._invalidate_edit_precheck_cache()
-        self.log_message.emit(f"已修改 {count} 个标签文件")
-        self._show_modify_info("修改完成", f"已修改 {count} 个标签文件。")
+        self.log_message.emit(t("edit_modified_files", count=count))
+        self._show_modify_info(t("edit_modify_complete"), t("edit_modified_files_msg", count=count))
 
     @Slot()
     def _on_validate_labels(self) -> None:
         """启动标签校验后台任务"""
         img_path = self.path_group.get_image_dir()
         if not img_path or not img_path.exists():
-            self.log_message.emit("请先选择有效的图片目录")
+            self.log_message.emit(t("edit_select_valid_img_dir"))
             return
 
         label_path = self.path_group.get_label_dir()
@@ -831,10 +807,10 @@ class EditTabMixin:
         check_orphans = self.validate_orphan_check.isChecked()
 
         if not any([check_coords, check_class_ids, check_format, check_orphans]):
-            self.log_message.emit("请至少勾选一项校验内容")
+            self.log_message.emit(t("edit_select_at_least_one_check"))
             return
 
-        self.log_message.emit("开始标签校验...")
+        self.log_message.emit(t("edit_starting_validation"))
 
         self._start_worker(
             lambda: self._handler.validate_labels(
@@ -854,72 +830,71 @@ class EditTabMixin:
 
     def _on_validate_finished(self, result: ValidateResult) -> None:
         """标签校验完成回调 — 弹窗摘要 + 日志详情 + 孤立标签清理确认"""
-        lines = [f"扫描标签文件: {result.total_labels}"]
+        lines = [t("edit_scanned_labels", count=result.total_labels)]
         if result.coord_errors:
-            lines.append(f"  坐标越界: {len(result.coord_errors)} 处")
+            lines.append(t("edit_coord_errors", count=len(result.coord_errors)))
         if result.class_errors:
-            lines.append(f"  类别无效: {len(result.class_errors)} 处")
+            lines.append(t("edit_class_errors", count=len(result.class_errors)))
         if result.format_errors:
-            lines.append(f"  格式错误: {len(result.format_errors)} 处")
+            lines.append(t("edit_format_errors", count=len(result.format_errors)))
         if result.orphan_labels:
-            lines.append(f"  孤立标签: {len(result.orphan_labels)} 个")
+            lines.append(t("edit_orphan_labels", count=len(result.orphan_labels)))
 
         self.log_message.emit("=" * 40)
-        self.log_message.emit("标签校验完成:")
+        self.log_message.emit(t("edit_validation_complete"))
         for line in lines:
             self.log_message.emit(line)
 
         # 输出详细问题到日志
         if result.coord_errors:
-            self.log_message.emit("--- 坐标越界详情 ---")
+            self.log_message.emit(t("edit_coord_error_detail"))
             for path, loc, reason in result.coord_errors[:50]:
                 self.log_message.emit(f"  {path.name} [{loc}]: {reason}")
             if len(result.coord_errors) > 50:
-                self.log_message.emit(f"  ... 共 {len(result.coord_errors)} 处 (仅显示前 50)")
+                self.log_message.emit(t("edit_shown_limit", total=len(result.coord_errors), limit=50))
 
         if result.class_errors:
-            self.log_message.emit("--- 类别无效详情 ---")
+            self.log_message.emit(t("edit_class_error_detail"))
             for path, loc, reason in result.class_errors[:50]:
                 self.log_message.emit(f"  {path.name} [{loc}]: {reason}")
             if len(result.class_errors) > 50:
-                self.log_message.emit(f"  ... 共 {len(result.class_errors)} 处 (仅显示前 50)")
+                self.log_message.emit(t("edit_shown_limit", total=len(result.class_errors), limit=50))
 
         if result.format_errors:
-            self.log_message.emit("--- 格式错误详情 ---")
+            self.log_message.emit(t("edit_format_error_detail"))
             for path, reason in result.format_errors[:50]:
                 self.log_message.emit(f"  {path.name}: {reason}")
             if len(result.format_errors) > 50:
-                self.log_message.emit(f"  ... 共 {len(result.format_errors)} 处 (仅显示前 50)")
+                self.log_message.emit(t("edit_shown_limit", total=len(result.format_errors), limit=50))
 
         if result.orphan_labels:
-            self.log_message.emit("--- 孤立标签列表 ---")
+            self.log_message.emit(t("edit_orphan_label_list"))
             for path in result.orphan_labels[:50]:
                 self.log_message.emit(f"  {path.name}")
             if len(result.orphan_labels) > 50:
-                self.log_message.emit(f"  ... 共 {len(result.orphan_labels)} 个 (仅显示前 50)")
+                self.log_message.emit(t("edit_shown_limit_items", total=len(result.orphan_labels), limit=50))
 
         if not result.has_issues:
-            StyledMessageBox.information(self, "校验通过", "所有标签文件校验通过，未发现问题。✅")
+            StyledMessageBox.information(self, t("edit_validation_passed"), t("edit_all_labels_passed"))
             return
 
         StyledMessageBox.warning(
             self,
-            "校验完成",
-            f"发现 {result.issue_count} 个问题，请查看日志面板了解详情。",
+            t("edit_validation_done"),
+            t("edit_issues_found", count=result.issue_count),
         )
 
         # 孤立标签清理确认
         if result.orphan_labels:
             confirm = StyledMessageBox.question(
                 self,
-                "清理孤立标签",
-                f"发现 {len(result.orphan_labels)} 个孤立标签文件 (无对应图片)。\n"
-                f"是否备份后删除这些文件？",
-                accept_text="备份并删除",
-                reject_text="跳过",
+                t("edit_clean_orphan_labels"),
+                t("edit_clean_orphan_confirm", count=len(result.orphan_labels)),
+                accept_text=t("edit_clean_orphan_accept"),
+                reject_text=t("edit_clean_orphan_reject"),
             )
             if confirm:
-                self.log_message.emit("开始清理孤立标签...")
+                self.log_message.emit(t("edit_cleaning_orphan"))
                 self._start_worker(
                     lambda: self._handler.clean_orphan_labels(
                         result.orphan_labels,
@@ -929,7 +904,7 @@ class EditTabMixin:
                         message_callback=self._emit_message,
                     ),
                     on_finished=lambda count: self.log_message.emit(
-                        f"孤立标签清理完成: 已处理 {count} 个文件"
+                        t("edit_clean_orphan_complete", count=count)
                     ),
                 )
 

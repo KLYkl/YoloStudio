@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.data_handler import ScanResult
+from utils.i18n import t
 
 
 class StatsTabMixin:
@@ -47,17 +48,14 @@ class StatsTabMixin:
         empty_layout.setContentsMargins(40, 0, 40, 0)
         empty_layout.addStretch(2)
 
-        hint_title = QLabel("尚未扫描数据集")
+        hint_title = QLabel(t("stats_title_not_scanned"))
         hint_title.setObjectName("emptyStateTitle")
         hint_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         empty_layout.addWidget(hint_title)
 
         empty_layout.addSpacing(8)
 
-        hint_desc = QLabel(
-            "在上方设置图片目录，然后点击下方「扫描数据集」\n"
-            "即可查看类别分布、标签覆盖率等统计信息"
-        )
+        hint_desc = QLabel(t("stats_hint_desc"))
         hint_desc.setObjectName("emptyStateDesc")
         hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         hint_desc.setWordWrap(True)
@@ -84,14 +82,14 @@ class StatsTabMixin:
         overview_grid.setVerticalSpacing(6)
 
         overview_items = [
-            ("total_images", "图片总数", "blue"),
-            ("labeled_images", "有标签图片", "green"),
-            ("missing_labels", "缺失标签", "orange"),
-            ("empty_labels", "空标签", "yellow"),
-            ("class_count", "类别数", "purple"),
-            ("total_objects", "目标总数", "blue"),
-            ("missing_ratio", "缺失占比", "red"),
-            ("empty_ratio", "空标签占比", "yellow"),
+            ("total_images", t("stats_total_images"), "blue"),
+            ("labeled_images", t("stats_labeled_images"), "green"),
+            ("missing_labels", t("stats_missing_labels"), "orange"),
+            ("empty_labels", t("stats_empty_labels"), "yellow"),
+            ("class_count", t("stats_class_count"), "purple"),
+            ("total_objects", t("stats_total_objects"), "blue"),
+            ("missing_ratio", t("stats_missing_ratio"), "red"),
+            ("empty_ratio", t("stats_empty_ratio"), "yellow"),
         ]
 
         for index, (key, title, accent_key) in enumerate(overview_items):
@@ -101,13 +99,13 @@ class StatsTabMixin:
         layout.addLayout(overview_grid)
 
         # 下方: 类别统计表 (全宽)
-        stats_group = QGroupBox("类别统计")
+        stats_group = QGroupBox(t("stats_class_stats"))
         stats_group_layout = QVBoxLayout(stats_group)
         stats_group_layout.setContentsMargins(4, 4, 4, 4)
 
         self.stats_table = QTableWidget()
         self.stats_table.setColumnCount(3)
-        self.stats_table.setHorizontalHeaderLabels(["类别名称", "数量", "占比"])
+        self.stats_table.setHorizontalHeaderLabels([t("stats_class_name"), t("stats_count"), t("stats_ratio")])
         self.stats_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.stats_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
         self.stats_table.setAlternatingRowColors(True)
@@ -131,7 +129,7 @@ class StatsTabMixin:
 
         btn_layout.addStretch()
 
-        self.scan_btn = QPushButton("🔍 扫描数据集")
+        self.scan_btn = QPushButton(t("stats_scan_btn"))
         self.scan_btn.setMinimumHeight(28)
         self.scan_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         btn_layout.addWidget(self.scan_btn)
@@ -223,11 +221,11 @@ class StatsTabMixin:
         """开始扫描数据集"""
         img_path = self.path_group.get_image_dir()
         if not img_path:
-            self.log_message.emit("请先选择图片目录")
+            self.log_message.emit(t("stats_select_image_dir_first"))
             return
 
         if not img_path.exists():
-            self.log_message.emit(f"图片目录不存在: {img_path}")
+            self.log_message.emit(t("stats_image_dir_not_exist", path=img_path))
             return
 
         label_path = self.path_group.get_label_dir()
@@ -273,11 +271,11 @@ class StatsTabMixin:
         self._refresh_edit_class_options()
         self._update_edit_action_states()
 
-        summary = (
-            f"图片总数: {result.total_images} | "
-            f"有标签: {result.labeled_images} | "
-            f"缺失标签: {len(result.missing_labels)} | "
-            f"空标签: {result.empty_labels}"
-        )
-        self.log_message.emit(f"扫描完成: {summary}")
+        self.log_message.emit(t(
+            "stats_scan_complete",
+            total=result.total_images,
+            labeled=result.labeled_images,
+            missing=len(result.missing_labels),
+            empty=result.empty_labels,
+        ))
 

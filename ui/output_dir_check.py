@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QWidget
 
 from ui.styled_message_box import StyledMessageBox
 from utils.file_utils import get_unique_dir
+from utils.i18n import t
 
 
 def check_output_dir(parent: QWidget, output_dir: Path) -> Path | None:
@@ -52,13 +53,8 @@ def check_output_dir(parent: QWidget, output_dir: Path) -> Path | None:
     count_text = f"{count_limit}+" if file_count >= count_limit else str(file_count)
     choice = StyledMessageBox.three_way_question(
         parent,
-        "输出目录已存在",
-        f"目录 \"{output_dir.name}\" 已存在，\n"
-        f"其中包含 {count_text} 个文件。\n\n"
-        f"如何处理？",
-        accept_text="覆盖",
-        reject_text="取消",
-        third_text="新建",
+        t("output_dir_exists"),
+        t("output_dir_exists_msg", name=output_dir.name, count=count_text),
     )
 
     if choice == "overwrite":

@@ -34,6 +34,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QWidget,
 )
+from utils.i18n import t
 
 
 class PathInputGroup(QWidget):
@@ -105,40 +106,35 @@ class PathInputGroup(QWidget):
         row = 0
         
         if self._show_image_dir:
-            grid.addWidget(QLabel("图片目录:"), row, 0)
+            grid.addWidget(QLabel(t("label_image_dir")), row, 0)
             self._image_dir_input = QLineEdit()
-            self._image_dir_input.setPlaceholderText("选择图片所在目录 (必填)")
+            self._image_dir_input.setPlaceholderText(t("ph_select_image_dir_required"))
             grid.addWidget(self._image_dir_input, row, 1)
             
-            self._image_browse_btn = QPushButton("浏览")
+            self._image_browse_btn = QPushButton(t("browse"))
             self._image_browse_btn.setFixedWidth(60)
             grid.addWidget(self._image_browse_btn, row, 2)
             row += 1
         
         if self._show_label_dir:
-            grid.addWidget(QLabel("标签目录:"), row, 0)
+            grid.addWidget(QLabel(t("label_label_dir")), row, 0)
             self._label_dir_input = QLineEdit()
-            self._label_dir_input.setPlaceholderText("可选 - 留空则自动搜索 labels/Annotations/")
-            self._label_dir_input.setToolTip(
-                "标签源目录 (可选)\n\n"
-                "留空时自动检测:\n"
-                "• images/ → labels/ (YOLO)\n"
-                "• JPEGImages/ → Annotations/ (VOC)"
-            )
+            self._label_dir_input.setPlaceholderText(t("ph_label_dir_optional"))
+            self._label_dir_input.setToolTip(t("tooltip_label_dir"))
             grid.addWidget(self._label_dir_input, row, 1)
             
-            self._label_browse_btn = QPushButton("浏览")
+            self._label_browse_btn = QPushButton(t("browse"))
             self._label_browse_btn.setFixedWidth(60)
             grid.addWidget(self._label_browse_btn, row, 2)
             row += 1
         
         if self._show_classes:
-            grid.addWidget(QLabel("类别文件:"), row, 0)
+            grid.addWidget(QLabel(t("label_classes_file")), row, 0)
             self._classes_input = QLineEdit()
-            self._classes_input.setPlaceholderText("classes.txt (可选)")
+            self._classes_input.setPlaceholderText(t("ph_classes_optional"))
             grid.addWidget(self._classes_input, row, 1)
             
-            self._classes_btn = QPushButton("加载")
+            self._classes_btn = QPushButton(t("load"))
             self._classes_btn.setFixedWidth(60)
             grid.addWidget(self._classes_btn, row, 2)
             row += 1
@@ -254,14 +250,14 @@ class PathInputGroup(QWidget):
     @Slot()
     def _on_browse_image_dir(self) -> None:
         """选择图片目录"""
-        path = QFileDialog.getExistingDirectory(self, "选择图片目录")
+        path = QFileDialog.getExistingDirectory(self, t("dialog_select_image_dir"))
         if path:
             self._image_dir_input.setText(path)
     
     @Slot()
     def _on_browse_label_dir(self) -> None:
         """选择标签目录"""
-        path = QFileDialog.getExistingDirectory(self, "选择标签目录")
+        path = QFileDialog.getExistingDirectory(self, t("dialog_select_label_dir"))
         if path:
             self._label_dir_input.setText(path)
     
@@ -269,7 +265,7 @@ class PathInputGroup(QWidget):
     def _on_browse_classes(self) -> None:
         """选择 classes.txt"""
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择类别文件", "", "文本文件 (*.txt)"
+            self, t("dialog_select_classes"), "", "文本文件 (*.txt)"
         )
         if path:
             self._classes_input.setText(path)

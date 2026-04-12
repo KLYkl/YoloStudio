@@ -44,6 +44,7 @@ from PySide6.QtWidgets import (
 
 from core.data_handler import AugmentConfig, AugmentResult
 from ui.focus_widgets import FocusComboBox, FocusDoubleSpinBox, FocusSpinBox
+from utils.i18n import t
 
 
 # ==================== 常量 ====================
@@ -55,8 +56,8 @@ PREVIEW_MAX_SIZE = 800  # 预览缩略图最长边限制
 
 PRESETS: dict[str, dict] = {
     "general": {
-        "label": "🎯 通用检测",
-        "tooltip": "常见目标检测场景：翻转 + 基础光照扰动",
+        "label": t("aug_preset_general"),
+        "tooltip": t("aug_preset_general_tooltip"),
         "config": {
             "hflip": True, "vflip": False,
             "rotate": False, "rotate_deg": 15.0,
@@ -70,8 +71,8 @@ PRESETS: dict[str, dict] = {
         },
     },
     "lighting": {
-        "label": "☀️ 光照鲁棒",
-        "tooltip": "室内外光照变化大的场景：强调亮度/对比度/色温变换",
+        "label": t("aug_preset_lighting"),
+        "tooltip": t("aug_preset_lighting_tooltip"),
         "config": {
             "hflip": True, "vflip": False,
             "rotate": False, "rotate_deg": 15.0,
@@ -85,8 +86,8 @@ PRESETS: dict[str, dict] = {
         },
     },
     "small_target": {
-        "label": "🔬 小目标增强",
-        "tooltip": "远距离小目标：旋转 + 模糊 + 噪点 + 锐度",
+        "label": t("aug_preset_small_target"),
+        "tooltip": t("aug_preset_small_target_tooltip"),
         "config": {
             "hflip": True, "vflip": False,
             "rotate": True, "rotate_deg": 10.0,
@@ -100,8 +101,8 @@ PRESETS: dict[str, dict] = {
         },
     },
     "all_on": {
-        "label": "⚡ 全部开启",
-        "tooltip": "启用所有增强方法，使用默认推荐值，最大数据多样性",
+        "label": t("aug_preset_all_on"),
+        "tooltip": t("aug_preset_all_on_tooltip"),
         "config": {
             "hflip": True, "vflip": True,
             "rotate": True, "rotate_deg": 15.0,
@@ -122,53 +123,53 @@ PRESETS: dict[str, dict] = {
 AUGMENT_ITEMS = {
     "hflip": {
         "icon": "↔️",
-        "name": "水平翻转",
-        "desc": "模拟相机左右视角变化，适合非方向敏感目标",
+        "name": t("aug_item_hflip"),
+        "desc": t("aug_item_hflip_desc"),
     },
     "vflip": {
         "icon": "↕️",
-        "name": "垂直翻转",
-        "desc": "模拟俯仰角度变化，适合航拍/俯视场景",
+        "name": t("aug_item_vflip"),
+        "desc": t("aug_item_vflip_desc"),
     },
     "rotate": {
         "icon": "🔄",
-        "name": "旋转",
-        "desc": "模拟目标倾斜或相机旋转，增加角度多样性",
+        "name": t("aug_item_rotate"),
+        "desc": t("aug_item_rotate_desc"),
     },
     "brightness": {
         "icon": "☀️",
-        "name": "亮度",
-        "desc": "模拟不同光照条件（强日光 / 阴天 / 室内昏暗）",
+        "name": t("aug_item_brightness"),
+        "desc": t("aug_item_brightness_desc"),
     },
     "contrast": {
         "icon": "🌗",
-        "name": "对比度",
-        "desc": "增强或减弱目标与背景的区分度",
+        "name": t("aug_item_contrast"),
+        "desc": t("aug_item_contrast_desc"),
     },
     "color": {
         "icon": "🎨",
-        "name": "饱和度",
-        "desc": "模拟颜色鲜艳或褪色场景，增强色彩鲁棒性",
+        "name": t("aug_item_color"),
+        "desc": t("aug_item_color_desc"),
     },
     "hue": {
         "icon": "🌈",
-        "name": "色相偏移",
-        "desc": "模拟不同色温和白平衡，适合室内/室外混合",
+        "name": t("aug_item_hue"),
+        "desc": t("aug_item_hue_desc"),
     },
     "noise": {
         "icon": "📡",
-        "name": "噪点",
-        "desc": "模拟低光/高ISO条件下的传感器噪声",
+        "name": t("aug_item_noise"),
+        "desc": t("aug_item_noise_desc"),
     },
     "sharpness": {
         "icon": "🔍",
-        "name": "锐度",
-        "desc": "模拟不同镜头锐利程度，增加清晰度变化",
+        "name": t("aug_item_sharpness"),
+        "desc": t("aug_item_sharpness_desc"),
     },
     "blur": {
         "icon": "💧",
-        "name": "高斯模糊",
-        "desc": "模拟失焦或运动模糊效果，增强模型鲁棒性",
+        "name": t("aug_item_blur"),
+        "desc": t("aug_item_blur_desc"),
     },
 }
 
@@ -285,7 +286,7 @@ class AugmentTabMixin:
         button_row = QHBoxLayout()
         button_row.setContentsMargins(4, 5, 4, 5)
         button_row.addStretch()
-        self.augment_btn = QPushButton("🧪 开始增强")
+        self.augment_btn = QPushButton(t("aug_start_btn"))
         self.augment_btn.setMinimumHeight(28)
         self.augment_btn.setMinimumWidth(100)
         self.augment_btn.setProperty("class", "primary")
@@ -308,12 +309,12 @@ class AugmentTabMixin:
         toolbar = QHBoxLayout()
         toolbar.setSpacing(8)
 
-        toolbar.addWidget(QLabel("👁️ 增强预览"))
+        toolbar.addWidget(QLabel(t("aug_preview_title")))
 
         toolbar.addStretch()
 
-        self.augment_preview_shuffle_btn = QPushButton("🔀 换一张")
-        self.augment_preview_shuffle_btn.setToolTip("从数据集随机选取另一张图片预览")
+        self.augment_preview_shuffle_btn = QPushButton(t("aug_shuffle_btn"))
+        self.augment_preview_shuffle_btn.setToolTip(t("aug_shuffle_tooltip"))
         self.augment_preview_shuffle_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self.augment_preview_shuffle_btn.setEnabled(False)
         toolbar.addWidget(self.augment_preview_shuffle_btn)
@@ -327,13 +328,13 @@ class AugmentTabMixin:
         # 原图
         original_container = QVBoxLayout()
         original_container.setSpacing(4)
-        original_title = QLabel("📷 原图")
+        original_title = QLabel(t("aug_original_image"))
         original_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         original_container.addWidget(original_title)
 
         self._preview_original_label = _ScaledImageLabel()
         self._preview_original_label.setObjectName("previewImageLabel")
-        self._preview_original_label.setText("请先在上方设置图片目录")
+        self._preview_original_label.setText(t("aug_set_image_dir_hint"))
         self._preview_original_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
@@ -343,13 +344,13 @@ class AugmentTabMixin:
         # 增强效果
         augmented_container = QVBoxLayout()
         augmented_container.setSpacing(4)
-        augmented_title = QLabel("🎨 增强效果")
+        augmented_title = QLabel(t("aug_augmented_effect"))
         augmented_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         augmented_container.addWidget(augmented_title)
 
         self._preview_augmented_label = _ScaledImageLabel()
         self._preview_augmented_label.setObjectName("previewImageLabel")
-        self._preview_augmented_label.setText("调整左侧参数后自动预览")
+        self._preview_augmented_label.setText(t("aug_auto_preview_hint"))
         self._preview_augmented_label.setSizePolicy(
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
         )
@@ -371,11 +372,11 @@ class AugmentTabMixin:
 
     def _create_preset_section(self) -> QGroupBox:
         """Create the YOLO preset buttons section."""
-        group = QGroupBox("🎯 YOLO 预设方案")
+        group = QGroupBox(t("aug_preset_section"))
         layout = QVBoxLayout(group)
         layout.setSpacing(8)
 
-        hint = QLabel("一键选择面向 YOLO 训练的常用增强组合，也可手动调整下方参数")
+        hint = QLabel(t("aug_preset_hint"))
         hint.setWordWrap(True)
         hint.setObjectName("mutedLabel")
         layout.addWidget(hint)
@@ -401,8 +402,8 @@ class AugmentTabMixin:
             else:
                 row2.addWidget(btn)
 
-        self.augment_clear_btn = QPushButton("🚫 全部关闭")
-        self.augment_clear_btn.setToolTip("取消所有增强选项")
+        self.augment_clear_btn = QPushButton(t("aug_clear_all_btn"))
+        self.augment_clear_btn.setToolTip(t("aug_clear_all_tooltip"))
         self.augment_clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         row2.addWidget(self.augment_clear_btn)
 
@@ -416,7 +417,7 @@ class AugmentTabMixin:
 
     def _create_geometry_section(self) -> QGroupBox:
         """Create the geometric transforms section."""
-        group = QGroupBox("📐 几何变换")
+        group = QGroupBox(t("aug_geometry_section"))
         layout = QVBoxLayout(group)
         layout.setSpacing(4)
 
@@ -435,9 +436,9 @@ class AugmentTabMixin:
         rp_layout.setContentsMargins(24, 0, 0, 0)
         rp_layout.setSpacing(6)
 
-        self.augment_rotate_random_radio = QRadioButton("随机")
-        self.augment_rotate_clockwise_radio = QRadioButton("顺时针")
-        self.augment_rotate_counterclockwise_radio = QRadioButton("逆时针")
+        self.augment_rotate_random_radio = QRadioButton(t("aug_rotate_random"))
+        self.augment_rotate_clockwise_radio = QRadioButton(t("aug_rotate_clockwise"))
+        self.augment_rotate_counterclockwise_radio = QRadioButton(t("aug_rotate_counterclockwise"))
         self.augment_rotate_random_radio.setChecked(True)
         self.augment_rotate_mode_group = QButtonGroup(self)
         self.augment_rotate_mode_group.addButton(self.augment_rotate_random_radio)
@@ -470,7 +471,7 @@ class AugmentTabMixin:
 
     def _create_photometric_section(self) -> QGroupBox:
         """Create the color and lighting section (compact inline layout)."""
-        group = QGroupBox("🎨 色彩与光照")
+        group = QGroupBox(t("aug_photometric_section"))
         layout = QVBoxLayout(group)
         layout.setSpacing(4)
 
@@ -524,7 +525,7 @@ class AugmentTabMixin:
 
     def _create_output_section(self) -> QGroupBox:
         """Create the output settings section."""
-        group = QGroupBox("⚙️ 输出设置")
+        group = QGroupBox(t("aug_output_section"))
         settings_layout = QVBoxLayout(group)
         settings_layout.setSpacing(6)
 
@@ -536,8 +537,8 @@ class AugmentTabMixin:
         settings_form.setVerticalSpacing(10)
 
         self.augment_mode_combo = FocusComboBox()
-        self.augment_mode_combo.addItems(["随机生成", "固定生成"])
-        settings_form.addRow("生成方式:", self.augment_mode_combo)
+        self.augment_mode_combo.addItems([t("aug_mode_random"), t("aug_mode_fixed")])
+        settings_form.addRow(t("aug_mode_label"), self.augment_mode_combo)
 
         settings_layout.addLayout(settings_form)
 
@@ -547,27 +548,27 @@ class AugmentTabMixin:
         recipe_panel_layout.setContentsMargins(0, 4, 0, 0)
         recipe_panel_layout.setSpacing(6)
 
-        recipe_label = QLabel("增强配方:")
+        recipe_label = QLabel(t("aug_recipe_label"))
         recipe_panel_layout.addWidget(recipe_label)
 
         self._recipe_list = QListWidget()
         self._recipe_list.setMaximumHeight(120)
-        self._recipe_list.setToolTip("固定模式下，按此列表中的组合生成增强图片")
+        self._recipe_list.setToolTip(t("aug_recipe_list_tooltip"))
         recipe_panel_layout.addWidget(self._recipe_list)
 
         recipe_btn_row = QHBoxLayout()
         recipe_btn_row.setSpacing(4)
-        self._recipe_add_btn = QPushButton("➕ 添加组合")
-        self._recipe_add_btn.setToolTip("选择增强项创建自定义组合")
+        self._recipe_add_btn = QPushButton(t("aug_recipe_add_btn"))
+        self._recipe_add_btn.setToolTip(t("aug_recipe_add_tooltip"))
         self._recipe_add_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._recipe_all_singles_btn = QPushButton("📋 全部单项")
-        self._recipe_all_singles_btn.setToolTip("为每个启用的增强项添加单独配方")
+        self._recipe_all_singles_btn = QPushButton(t("aug_recipe_all_singles_btn"))
+        self._recipe_all_singles_btn.setToolTip(t("aug_recipe_all_singles_tooltip"))
         self._recipe_all_singles_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._recipe_all_combo_btn = QPushButton("🔗 全部组合")
-        self._recipe_all_combo_btn.setToolTip("添加一条包含所有启用项的组合配方")
+        self._recipe_all_combo_btn = QPushButton(t("aug_recipe_all_combo_btn"))
+        self._recipe_all_combo_btn.setToolTip(t("aug_recipe_all_combo_tooltip"))
         self._recipe_all_combo_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._recipe_clear_btn = QPushButton("🗑️ 清空")
-        self._recipe_clear_btn.setToolTip("清除所有配方")
+        self._recipe_clear_btn = QPushButton(t("aug_recipe_clear_btn"))
+        self._recipe_clear_btn.setToolTip(t("aug_recipe_clear_tooltip"))
         self._recipe_clear_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         recipe_btn_row.addWidget(self._recipe_add_btn)
         recipe_btn_row.addWidget(self._recipe_all_singles_btn)
@@ -593,10 +594,10 @@ class AugmentTabMixin:
         self.augment_count_spin.setValue(1)
         self.augment_count_spin.setFixedWidth(90)
         count_row_layout.addWidget(self.augment_count_spin)
-        self.augment_count_hint = QLabel("份")
+        self.augment_count_hint = QLabel(t("aug_copies_unit"))
         count_row_layout.addWidget(self.augment_count_hint)
         count_row_layout.addStretch()
-        count_seed_form.addRow("每项份数:", count_row)
+        count_seed_form.addRow(t("aug_copies_label"), count_row)
 
         seed_row = QWidget()
         seed_row_layout = QHBoxLayout(seed_row)
@@ -607,13 +608,13 @@ class AugmentTabMixin:
         self.augment_seed_spin.setValue(42)
         self.augment_seed_spin.setFixedWidth(90)
         seed_row_layout.addWidget(self.augment_seed_spin)
-        seed_row_layout.addWidget(QLabel("固定后结果可复现"))
+        seed_row_layout.addWidget(QLabel(t("aug_seed_hint")))
         seed_row_layout.addStretch()
-        count_seed_form.addRow("随机种子:", seed_row)
+        count_seed_form.addRow(t("aug_seed_label"), seed_row)
 
         settings_layout.addLayout(count_seed_form)
 
-        self.augment_include_original_check = QCheckBox("保留原图到输出目录")
+        self.augment_include_original_check = QCheckBox(t("aug_include_original"))
         self.augment_include_original_check.setChecked(True)
         settings_layout.addWidget(self.augment_include_original_check)
 
@@ -621,11 +622,11 @@ class AugmentTabMixin:
         output_row_layout = QHBoxLayout(output_row)
         output_row_layout.setContentsMargins(0, 0, 0, 0)
         output_row_layout.setSpacing(8)
-        output_row_layout.addWidget(QLabel("输出目录:"))
+        output_row_layout.addWidget(QLabel(t("aug_output_dir_label")))
         self.augment_output_input = QLineEdit()
-        self.augment_output_input.setPlaceholderText("增强结果保存位置（留空则自动生成）")
+        self.augment_output_input.setPlaceholderText(t("aug_output_dir_placeholder"))
         output_row_layout.addWidget(self.augment_output_input, 1)
-        self.augment_output_browse_btn = QPushButton("浏览")
+        self.augment_output_browse_btn = QPushButton(t("aug_browse_btn"))
         self.augment_output_browse_btn.setFixedWidth(68)
         output_row_layout.addWidget(self.augment_output_browse_btn)
         settings_layout.addWidget(output_row)
@@ -661,9 +662,9 @@ class AugmentTabMixin:
             self._preview_image_path = None
             self._preview_dataset_images = []
             self._preview_original_label.set_pixmap(None)
-            self._preview_original_label.setText("请先在上方设置图片目录")
+            self._preview_original_label.setText(t("aug_set_image_dir_hint"))
             self._preview_augmented_label.set_pixmap(None)
-            self._preview_augmented_label.setText("调整左侧参数后自动预览")
+            self._preview_augmented_label.setText(t("aug_auto_preview_hint"))
             self._preview_ops_label.setText("")
             self.augment_preview_shuffle_btn.setEnabled(False)
             return
@@ -672,7 +673,7 @@ class AugmentTabMixin:
         self._preview_dataset_images = self._handler._find_images(img_dir)
         if not self._preview_dataset_images:
             self._preview_original_label.set_pixmap(None)
-            self._preview_original_label.setText("目录中无图片文件")
+            self._preview_original_label.setText(t("aug_no_images"))
             self.augment_preview_shuffle_btn.setEnabled(False)
             return
 
@@ -695,7 +696,7 @@ class AugmentTabMixin:
             self._schedule_preview_update()
         except Exception as exc:
             self._preview_original_label.set_pixmap(None)
-            self._preview_original_label.setText(f"加载失败: {exc}")
+            self._preview_original_label.setText(f"{t('aug_load_failed')}: {exc}")
 
     def _shuffle_preview_image(self) -> None:
         """Pick a random different image from the dataset."""
@@ -722,7 +723,7 @@ class AugmentTabMixin:
             self._preview_augmented_label.set_pixmap(
                 self._pil_to_qpixmap(self._preview_source_image)
             )
-            self._preview_ops_label.setText("未启用任何增强操作")
+            self._preview_ops_label.setText(t("aug_no_ops_enabled"))
             return
 
         try:
@@ -744,11 +745,13 @@ class AugmentTabMixin:
                 name = meta.get("name", op)
                 op_descriptions.append(f"{icon} {name}")
 
-            self._preview_ops_label.setText("已应用: " + "、".join(op_descriptions))
+            self._preview_ops_label.setText(
+                t("aug_applied_prefix") + "\u3001".join(op_descriptions)
+            )
 
         except Exception as exc:
             self._preview_augmented_label.set_pixmap(None)
-            self._preview_augmented_label.setText(f"预览失败: {exc}")
+            self._preview_augmented_label.setText(f"{t('aug_preview_failed')}: {exc}")
             self._preview_ops_label.setText("")
 
     @staticmethod
@@ -771,11 +774,11 @@ class AugmentTabMixin:
         """Refresh mode-specific augmentation controls."""
         is_fixed_mode = self.augment_mode_combo.currentIndex() == 1
         self._recipe_panel.setVisible(is_fixed_mode)
-        self.augment_count_hint.setText("份 / 每个配方" if is_fixed_mode else "份 / 每次随机采样")
+        self.augment_count_hint.setText(
+            t("aug_copies_per_recipe") if is_fixed_mode else t("aug_copies_per_random")
+        )
         self.augment_mode_hint_label.setText(
-            "固定生成：按配方列表精确输出对应增强组合，适合稀缺类别精确补样。"
-            if is_fixed_mode
-            else "随机生成：按启用项随机采样组合，更适合快速扩充数据量。"
+            t("aug_mode_fixed_hint") if is_fixed_mode else t("aug_mode_random_hint")
         )
 
     def _update_augment_action_states(self) -> None:
@@ -797,11 +800,17 @@ class AugmentTabMixin:
         if rotate_enabled:
             deg = self.augment_rotate_degrees_spin.value()
             if self.augment_rotate_clockwise_radio.isChecked():
-                self.augment_rotate_angle_hint.setText(f"顺时针 {deg:.1f}°")
+                self.augment_rotate_angle_hint.setText(
+                    t("aug_clockwise_hint").format(deg=f"{deg:.1f}")
+                )
             elif self.augment_rotate_counterclockwise_radio.isChecked():
-                self.augment_rotate_angle_hint.setText(f"逆时针 {deg:.1f}°")
+                self.augment_rotate_angle_hint.setText(
+                    t("aug_counterclockwise_hint").format(deg=f"{deg:.1f}")
+                )
             else:
-                self.augment_rotate_angle_hint.setText(f"范围 ±{deg:.1f}°")
+                self.augment_rotate_angle_hint.setText(
+                    t("aug_range_hint").format(deg=f"{deg:.1f}")
+                )
 
         toggle_pairs = (
             (self.augment_brightness_check, self.augment_brightness_spin),
@@ -1042,12 +1051,12 @@ class AugmentTabMixin:
             return
 
         dialog = QDialog(self)
-        dialog.setWindowTitle("添加增强组合")
+        dialog.setWindowTitle(t("aug_add_recipe_title"))
         dialog.setMinimumWidth(280)
         dlg_layout = QVBoxLayout(dialog)
         dlg_layout.setSpacing(8)
 
-        hint = QLabel("选择要组合的增强项:")
+        hint = QLabel(t("aug_add_recipe_hint"))
         dlg_layout.addWidget(hint)
 
         checkboxes: list[tuple[str, QCheckBox]] = []
@@ -1143,7 +1152,7 @@ class AugmentTabMixin:
     @Slot()
     def _on_browse_augment_output_dir(self) -> None:
         """选择增强输出目录"""
-        path = QFileDialog.getExistingDirectory(self, "选择增强输出目录")
+        path = QFileDialog.getExistingDirectory(self, t("aug_browse_output_title"))
         if path:
             self.augment_output_input.setText(path)
 
@@ -1152,16 +1161,16 @@ class AugmentTabMixin:
         """启动数据增强后台任务"""
         img_path = self.path_group.get_image_dir()
         if not img_path:
-            self.log_message.emit("请先选择图片目录")
+            self.log_message.emit(t("aug_select_image_dir_first"))
             return
 
         if not img_path.exists():
-            self.log_message.emit(f"图片目录不存在: {img_path}")
+            self.log_message.emit(f"{t('aug_image_dir_not_exist')}: {img_path}")
             return
 
         config = self._resolve_augment_config()
         if not config.has_any_operation():
-            self.log_message.emit("请至少启用一种增强方式")
+            self.log_message.emit(t("aug_enable_at_least_one"))
             return
 
         label_path = self.path_group.get_label_dir()
@@ -1195,5 +1204,7 @@ class AugmentTabMixin:
         self.augment_output_input.setText(result.output_dir)
         total_outputs = result.copied_originals + result.augmented_images
         self.log_message.emit(
-            f"数据增强完成: 输出 {total_outputs} 张图片，标签 {result.label_files_written} 个"
+            t("aug_finished_message").format(
+                images=total_outputs, labels=result.label_files_written
+            )
         )

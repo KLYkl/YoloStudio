@@ -24,6 +24,7 @@ from core.data_handler import DataHandler, DataWorker, ScanResult
 from ui.collapsible_box import CollapsibleGroupBox
 from ui.path_input_group import PathInputGroup
 from ui.styled_message_box import StyledProgressDialog
+from utils.i18n import t
 
 from ui.data_widget._tabs_stats import StatsTabMixin
 from ui.data_widget._tabs_edit import EditTabMixin
@@ -110,7 +111,7 @@ class DataWidget(
         main_layout.setContentsMargins(10, 10, 10, 10)
 
         # ===== 共享路径面板 (可折叠) =====
-        self._path_box = CollapsibleGroupBox("数据源", collapsed=False)
+        self._path_box = CollapsibleGroupBox(t("data_data_source"), collapsed=False)
         self.path_group = PathInputGroup(
             show_image_dir=True,
             show_label_dir=True,
@@ -123,13 +124,13 @@ class DataWidget(
         # Tab 内容区
         self.tab_widget = QTabWidget()
         self.tab_widget.setObjectName("subTabWidget")
-        self.tab_widget.addTab(self._create_stats_tab(), "📊 统计")
-        self.tab_widget.addTab(self._create_extract_tab(), "🎯 抽取")
-        self.tab_widget.addTab(self._create_edit_tab(), "✏️ 编辑")
-        self.tab_widget.addTab(self._create_augment_tab(), "🧪 增强")
-        self.tab_widget.addTab(self._create_split_tab(), "📂 划分")
-        self.tab_widget.addTab(self._create_image_check_tab(), "🖼️ 图像检查")
-        self.tab_widget.addTab(self._create_video_extract_tab(), "🎬 视频抽帧")
+        self.tab_widget.addTab(self._create_stats_tab(), t("data_tab_stats"))
+        self.tab_widget.addTab(self._create_extract_tab(), t("data_tab_extract"))
+        self.tab_widget.addTab(self._create_edit_tab(), t("data_tab_edit"))
+        self.tab_widget.addTab(self._create_augment_tab(), t("data_tab_augment"))
+        self.tab_widget.addTab(self._create_split_tab(), t("data_tab_split"))
+        self.tab_widget.addTab(self._create_image_check_tab(), t("data_tab_image_check"))
+        self.tab_widget.addTab(self._create_video_extract_tab(), t("data_tab_video_extract"))
         main_layout.addWidget(self.tab_widget, 1)  # 拉伸因子 = 1
 
         # 进度条区
@@ -147,14 +148,14 @@ class DataWidget(
         self.progress_bar.setValue(0)
 
         # 状态文本
-        self.status_label = QLabel("就绪")
+        self.status_label = QLabel(t("data_status_ready"))
         self.status_label.setFixedWidth(100)
         self.status_label.setObjectName("mutedLabel")
 
         # 取消按钮
-        self.cancel_btn = QPushButton("取消")
+        self.cancel_btn = QPushButton(t("data_cancel"))
         self.cancel_btn.setFixedSize(70, 28)
-        self.cancel_btn.setToolTip("取消当前操作")
+        self.cancel_btn.setToolTip(t("data_cancel_tooltip"))
         self.cancel_btn.setEnabled(False)
         self.cancel_btn.setProperty("class", "danger")
 
@@ -313,21 +314,21 @@ class DataWidget(
         if img:
             name = Path(img).name
             parts.append(f"📁 {name}")
-            tooltip_parts.append(f"图片目录: {img}")
+            tooltip_parts.append(t("data_image_dir_tooltip").format(path=img))
         else:
-            parts.append("📁 未设置")
+            parts.append(t("data_path_not_set"))
 
         if lbl:
             name = Path(lbl).name
             parts.append(f"🏷️ {name}")
-            tooltip_parts.append(f"标签目录: {lbl}")
+            tooltip_parts.append(t("data_label_dir_tooltip").format(path=lbl))
         else:
-            parts.append("🏷️ 自动检测")
+            parts.append(t("data_label_auto_detect"))
 
         if cls:
             name = Path(cls).name
             parts.append(f"📋 {name}")
-            tooltip_parts.append(f"类别文件: {cls}")
+            tooltip_parts.append(t("data_classes_file_tooltip").format(path=cls))
 
         self._path_box.set_summary(
             "  ".join(parts),
@@ -380,12 +381,12 @@ class DataWidget(
             if self._precheck_dialog:
                 self._precheck_cancelled = True
             self._worker.request_interrupt()
-            self.log_message.emit("正在取消操作...")
+            self.log_message.emit(t("data_cancelling"))
 
     def _start_worker(self, task, on_finished=None) -> None:
         """启动后台工作线程"""
         if self._worker and self._worker.isRunning():
-            self.log_message.emit("已有任务在运行中")
+            self.log_message.emit(t("data_task_already_running"))
             return
 
         self._worker = DataWorker(self)
@@ -394,7 +395,9 @@ class DataWidget(
         # 连接信号
         self._worker.progress.connect(self._on_worker_progress)
         self._worker.message.connect(self._emit_message)
-        self._worker.error.connect(lambda e: self.log_message.emit(f"错误: {e}"))
+        self._worker.error.connect(
+            lambda e: self.log_message.emit(t("data_error").format(e=e))
+        )
 
         if on_finished:
             self._worker.result_ready.connect(on_finished)
@@ -476,4 +479,4 @@ class DataWidget(
         if not busy:
             self.progress_bar.setRange(0, 100)
             self.progress_bar.setValue(0)
-            self.status_label.setText("就绪")
+            self.status_label.setText(t("data_status_ready"))

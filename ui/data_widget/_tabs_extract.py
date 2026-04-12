@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
 from core.data_handler import ExtractConfig, ExtractResult
 from ui.focus_widgets import FocusSpinBox
 from ui.styled_message_box import StyledMessageBox
+from utils.i18n import t
 
 
 class ExtractTabMixin:
@@ -59,11 +60,11 @@ class ExtractTabMixin:
         tab_layout.setSpacing(6)
 
         # ===== 顶部: 模式选择 =====
-        mode_group_box = QGroupBox("抽取模式")
+        mode_group_box = QGroupBox(t("ext_mode_group"))
         mode_layout = QHBoxLayout(mode_group_box)
 
-        self.ext_category_radio = QRadioButton("🏷️ 按类别抽取")
-        self.ext_directory_radio = QRadioButton("📂 按目录抽取")
+        self.ext_category_radio = QRadioButton(t("ext_by_category"))
+        self.ext_directory_radio = QRadioButton(t("ext_by_directory"))
         self.ext_category_radio.setChecked(True)
 
         self.ext_mode_group = QButtonGroup(self)
@@ -93,12 +94,12 @@ class ExtractTabMixin:
         left_layout.setSpacing(6)
 
         # --- 目录选择 GroupBox ---
-        self.ext_dir_group = QGroupBox("📁 目录选择")
+        self.ext_dir_group = QGroupBox(t("ext_dir_select"))
         dir_group_layout = QVBoxLayout(self.ext_dir_group)
         dir_group_layout.setContentsMargins(4, 4, 4, 4)
 
         self.ext_dir_tree = QTreeWidget()
-        self.ext_dir_tree.setHeaderLabels(["目录", "图片数量", "提取方式", "数量/比例"])
+        self.ext_dir_tree.setHeaderLabels([t("ext_header_dir"), t("ext_header_image_count"), t("ext_header_mode"), t("ext_header_value")])
         self.ext_dir_tree.setColumnCount(4)
         self.ext_dir_tree.setAlternatingRowColors(True)
         self.ext_dir_tree.setMinimumHeight(150)
@@ -106,13 +107,13 @@ class ExtractTabMixin:
 
         # 目录操作按钮
         dir_btn_layout = QHBoxLayout()
-        self.ext_scan_dirs_btn = QPushButton("🔍 扫描目录")
-        self.ext_scan_dirs_btn.setToolTip("扫描图片目录，获取子目录及图片数量")
+        self.ext_scan_dirs_btn = QPushButton(t("ext_scan_dirs_btn"))
+        self.ext_scan_dirs_btn.setToolTip(t("ext_scan_dirs_tooltip"))
         dir_btn_layout.addWidget(self.ext_scan_dirs_btn)
 
-        self.ext_select_all_btn = QPushButton("全选")
+        self.ext_select_all_btn = QPushButton(t("ext_select_all"))
         self.ext_select_all_btn.setFixedWidth(50)
-        self.ext_deselect_all_btn = QPushButton("全不选")
+        self.ext_deselect_all_btn = QPushButton(t("ext_deselect_all"))
         self.ext_deselect_all_btn.setFixedWidth(65)
         dir_btn_layout.addWidget(self.ext_select_all_btn)
         dir_btn_layout.addWidget(self.ext_deselect_all_btn)
@@ -123,12 +124,12 @@ class ExtractTabMixin:
         left_layout.addWidget(self.ext_dir_group, 1)
 
         # --- 类别选择 GroupBox ---
-        self.ext_category_group = QGroupBox("🏷️ 类别选择")
+        self.ext_category_group = QGroupBox(t("ext_category_select"))
         cat_group_layout = QVBoxLayout(self.ext_category_group)
         cat_group_layout.setContentsMargins(4, 4, 4, 4)
 
         self.ext_category_tree = QTreeWidget()
-        self.ext_category_tree.setHeaderLabels(["类别", "可用", "提取方式", "数量/比例"])
+        self.ext_category_tree.setHeaderLabels([t("ext_header_class"), t("ext_header_available"), t("ext_header_mode"), t("ext_header_value")])
         self.ext_category_tree.setColumnCount(4)
         self.ext_category_tree.setAlternatingRowColors(True)
         self.ext_category_tree.setMinimumHeight(120)
@@ -136,15 +137,13 @@ class ExtractTabMixin:
 
         # 类别操作按钮
         cat_btn_layout = QHBoxLayout()
-        self.ext_scan_categories_btn = QPushButton("🔍 扫描类别")
-        self.ext_scan_categories_btn.setToolTip(
-            "扫描标签目录获取类别列表 (也可在统计 Tab 扫描后自动获取)"
-        )
+        self.ext_scan_categories_btn = QPushButton(t("ext_scan_categories_btn"))
+        self.ext_scan_categories_btn.setToolTip(t("ext_scan_categories_tooltip"))
         cat_btn_layout.addWidget(self.ext_scan_categories_btn)
 
-        self.ext_cat_select_all_btn = QPushButton("全选")
+        self.ext_cat_select_all_btn = QPushButton(t("ext_select_all"))
         self.ext_cat_select_all_btn.setFixedWidth(50)
-        self.ext_cat_deselect_all_btn = QPushButton("全不选")
+        self.ext_cat_deselect_all_btn = QPushButton(t("ext_deselect_all"))
         self.ext_cat_deselect_all_btn.setFixedWidth(65)
         cat_btn_layout.addWidget(self.ext_cat_select_all_btn)
         cat_btn_layout.addWidget(self.ext_cat_deselect_all_btn)
@@ -169,27 +168,21 @@ class ExtractTabMixin:
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(6)
 
-        param_group = QGroupBox("⚙️ 抽取参数")
+        param_group = QGroupBox(t("ext_params"))
         param_layout = QVBoxLayout(param_group)
         param_layout.setSpacing(8)
 
         # 输出布局选项 (3 个 RadioButton)
-        layout_label = QLabel("输出布局:")
+        layout_label = QLabel(t("ext_output_layout_label"))
         param_layout.addWidget(layout_label)
 
-        self.ext_layout_keep_radio = QRadioButton("保持目录结构")
+        self.ext_layout_keep_radio = QRadioButton(t("ext_layout_keep"))
         self.ext_layout_keep_radio.setChecked(True)
-        self.ext_layout_keep_radio.setToolTip(
-            "输出保持原始子目录层级"
-        )
-        self.ext_layout_flat_radio = QRadioButton("扁平化")
-        self.ext_layout_flat_radio.setToolTip(
-            "所有文件扁平化到 images/labels 目录 (自动加目录前缀去重)"
-        )
-        self.ext_layout_category_radio = QRadioButton("按类别放置")
-        self.ext_layout_category_radio.setToolTip(
-            "按类别分子目录存放 (仅按类别抽取模式可用)"
-        )
+        self.ext_layout_keep_radio.setToolTip(t("ext_layout_keep_tooltip"))
+        self.ext_layout_flat_radio = QRadioButton(t("ext_layout_flat"))
+        self.ext_layout_flat_radio.setToolTip(t("ext_layout_flat_tooltip"))
+        self.ext_layout_category_radio = QRadioButton(t("ext_layout_category"))
+        self.ext_layout_category_radio.setToolTip(t("ext_layout_category_tooltip"))
 
         self.ext_layout_group = QButtonGroup(self)
         self.ext_layout_group.addButton(self.ext_layout_keep_radio, 0)
@@ -200,9 +193,9 @@ class ExtractTabMixin:
         param_layout.addWidget(self.ext_layout_flat_radio)
         param_layout.addWidget(self.ext_layout_category_radio)
 
-        self.ext_copy_labels_check = QCheckBox("同时复制标签")
+        self.ext_copy_labels_check = QCheckBox(t("ext_copy_labels"))
         self.ext_copy_labels_check.setChecked(True)
-        self.ext_copy_labels_check.setToolTip("提取图片时同时复制对应的标签文件")
+        self.ext_copy_labels_check.setToolTip(t("ext_copy_labels_tooltip"))
         param_layout.addWidget(self.ext_copy_labels_check)
 
         # 分隔线
@@ -213,27 +206,27 @@ class ExtractTabMixin:
 
         # 随机种子
         seed_row = QHBoxLayout()
-        seed_row.addWidget(QLabel("随机种子:"))
+        seed_row.addWidget(QLabel(t("ext_seed_label")))
         self.ext_seed_spin = FocusSpinBox()
         self.ext_seed_spin.setRange(0, 99999)
         self.ext_seed_spin.setValue(42)
         self.ext_seed_spin.setFixedWidth(80)
         seed_row.addWidget(self.ext_seed_spin)
 
-        self.ext_seed_check = QCheckBox("启用")
+        self.ext_seed_check = QCheckBox(t("ext_seed_enable"))
         self.ext_seed_check.setChecked(False)
-        self.ext_seed_check.setToolTip("启用后相同种子可复现相同结果")
+        self.ext_seed_check.setToolTip(t("ext_seed_tooltip"))
         seed_row.addWidget(self.ext_seed_check)
         seed_row.addStretch()
         param_layout.addLayout(seed_row)
 
         # 输出目录
-        param_layout.addWidget(QLabel("输出目录:"))
+        param_layout.addWidget(QLabel(t("ext_output_dir_label")))
         output_row = QHBoxLayout()
         self.ext_output_input = QLineEdit()
-        self.ext_output_input.setPlaceholderText("提取后保存位置")
+        self.ext_output_input.setPlaceholderText(t("ext_output_placeholder"))
         output_row.addWidget(self.ext_output_input, 1)
-        self.ext_output_browse_btn = QPushButton("浏览")
+        self.ext_output_browse_btn = QPushButton(t("ext_browse"))
         self.ext_output_browse_btn.setFixedWidth(60)
         output_row.addWidget(self.ext_output_browse_btn)
         param_layout.addLayout(output_row)
@@ -250,14 +243,14 @@ class ExtractTabMixin:
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
 
-        self.ext_preview_btn = QPushButton("📊 预估")
+        self.ext_preview_btn = QPushButton(t("ext_preview_btn"))
         self.ext_preview_btn.setMinimumHeight(28)
         self.ext_preview_btn.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
         )
         btn_layout.addWidget(self.ext_preview_btn)
 
-        self.ext_start_btn = QPushButton("🚀 开始抽取")
+        self.ext_start_btn = QPushButton(t("ext_start_btn"))
         self.ext_start_btn.setMinimumHeight(28)
         self.ext_start_btn.setProperty("class", "primary")
         self.ext_start_btn.setSizePolicy(
@@ -274,7 +267,7 @@ class ExtractTabMixin:
     def _create_extract_mode_combo(self) -> QComboBox:
         """创建提取方式 ComboBox (全部 / 按数量 / 按比例)"""
         combo = QComboBox()
-        combo.addItems(["全部", "按数量", "按比例"])
+        combo.addItems([t("ext_mode_all"), t("ext_mode_by_count"), t("ext_mode_by_ratio")])
         combo.setFixedWidth(80)
         return combo
 
@@ -409,9 +402,9 @@ class ExtractTabMixin:
 
         # 特殊类别行 (空标签 / 混合类 / 无标签)
         special_categories = [
-            ("_empty", "🔲 空标签"),
-            ("_mixed", "🔀 混合类"),
-            ("_no_label", "❌ 无标签"),
+            ("_empty", t("ext_special_empty_label")),
+            ("_mixed", t("ext_special_mixed")),
+            ("_no_label", t("ext_special_no_label")),
         ]
         for internal_name, display_name in special_categories:
             item = QTreeWidgetItem()
@@ -433,11 +426,11 @@ class ExtractTabMixin:
         """扫描子目录结构"""
         img_path = self.path_group.get_image_dir()
         if not img_path or not img_path.exists():
-            self.log_message.emit("请先选择有效的图片目录")
+            self.log_message.emit(t("ext_select_valid_img_dir"))
             return
 
         self.ext_dir_tree.clear()
-        self.log_message.emit("正在扫描目录结构...")
+        self.log_message.emit(t("ext_scanning_dirs"))
 
         self._start_worker(
             lambda: self._handler.scan_subdirs(img_path),
@@ -449,7 +442,7 @@ class ExtractTabMixin:
         self.ext_dir_tree.clear()
 
         if not dir_stats:
-            self.log_message.emit("未找到包含图片的目录")
+            self.log_message.emit(t("ext_no_image_dirs_found"))
             return
 
         total_images = 0
@@ -458,9 +451,9 @@ class ExtractTabMixin:
             item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
             item.setCheckState(0, Qt.CheckState.Checked)
 
-            display_name = rel_dir if rel_dir != "." else "(根目录)"
+            display_name = rel_dir if rel_dir != "." else t("ext_root_dir")
             item.setText(0, display_name)
-            item.setText(1, f"{count} 张")
+            item.setText(1, t("ext_image_count", count=count))
             item.setData(0, Qt.ItemDataRole.UserRole, rel_dir)  # 存储相对路径
             item.setData(1, Qt.ItemDataRole.UserRole, count)    # 存储数量
 
@@ -474,9 +467,7 @@ class ExtractTabMixin:
         for col in range(self.ext_dir_tree.columnCount()):
             self.ext_dir_tree.resizeColumnToContents(col)
 
-        self.log_message.emit(
-            f"扫描完成: {len(dir_stats)} 个目录, 共 {total_images} 张图片"
-        )
+        self.log_message.emit(t("ext_scan_dirs_complete", dirs=len(dir_stats), images=total_images))
         self._update_extract_action_states()
 
         # 同步刷新类别列表
@@ -517,7 +508,7 @@ class ExtractTabMixin:
     @Slot()
     def _on_ext_browse_output(self) -> None:
         """选择输出目录"""
-        path = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        path = QFileDialog.getExistingDirectory(self, t("ext_dialog_select_output_dir"))
         if path:
             self.ext_output_input.setText(path)
 
@@ -550,7 +541,7 @@ class ExtractTabMixin:
                     per_item_counts[cls_name] = row_config
 
             if not categories:
-                self.log_message.emit("请至少选择一个类别")
+                self.log_message.emit(t("ext_select_at_least_one_category"))
                 return None
 
             return ExtractConfig(
@@ -583,7 +574,7 @@ class ExtractTabMixin:
                     per_item_counts[rel_dir] = row_config
 
             if not selected_dirs:
-                self.log_message.emit("请至少选择一个目录")
+                self.log_message.emit(t("ext_select_at_least_one_dir"))
                 return None
 
             return ExtractConfig(
@@ -610,7 +601,7 @@ class ExtractTabMixin:
         """预估抽取结果"""
         img_path = self.path_group.get_image_dir()
         if not img_path or not img_path.exists():
-            self.log_message.emit("请先选择有效的图片目录")
+            self.log_message.emit(t("ext_select_valid_img_dir"))
             return
 
         config = self._build_extract_config()
@@ -620,7 +611,7 @@ class ExtractTabMixin:
         label_path = self.path_group.get_label_dir()
         classes_txt = self.path_group.get_classes_path()
 
-        self.log_message.emit("正在预估...")
+        self.log_message.emit(t("ext_estimating"))
 
         self._start_worker(
             lambda: self._handler.preview_extract(
@@ -641,7 +632,7 @@ class ExtractTabMixin:
         """预估完成 — 弹窗显示结果"""
         if result.total_available == 0:
             StyledMessageBox.warning(
-                self, "预估结果", "未找到符合条件的图片"
+                self, t("ext_preview_result"), t("ext_no_matching_images")
             )
             return
 
@@ -650,28 +641,29 @@ class ExtractTabMixin:
             if result.total_available > 0
             else 0
         )
-        summary = (
-            f"预计提取 {result.extracted} / {result.total_available} 张 "
-            f"({ratio:.1f}%)"
+        summary = t("ext_preview_summary",
+            extracted=result.extracted,
+            total=result.total_available,
+            ratio=f"{ratio:.1f}",
         )
 
         detail_lines = []
         for dir_name, count in sorted(result.dir_stats.items()):
-            display = dir_name if dir_name != "." else "(根目录)"
-            detail_lines.append(f"📂 {display} → {count} 张")
+            display = dir_name if dir_name != "." else t("ext_root_dir")
+            detail_lines.append(t("ext_dir_arrow_count", dir=display, count=count))
 
         StyledMessageBox.information(
-            self, "预估结果", summary,
+            self, t("ext_preview_result"), summary,
             detailed_text="\n".join(detail_lines) if detail_lines else "",
         )
-        self.log_message.emit(f"预估完成: {result.extracted} 张")
+        self.log_message.emit(t("ext_preview_complete", count=result.extracted))
 
     @Slot()
     def _on_ext_start(self) -> None:
         """开始抽取"""
         img_path = self.path_group.get_image_dir()
         if not img_path or not img_path.exists():
-            self.log_message.emit("请先选择有效的图片目录")
+            self.log_message.emit(t("ext_select_valid_img_dir"))
             return
 
         config = self._build_extract_config()
@@ -690,7 +682,7 @@ class ExtractTabMixin:
         label_path = self.path_group.get_label_dir()
         classes_txt = self.path_group.get_classes_path()
 
-        self.log_message.emit("开始抽取图片...")
+        self.log_message.emit(t("ext_starting_extract"))
 
         self._start_worker(
             lambda: self._handler.extract_images(
@@ -710,34 +702,31 @@ class ExtractTabMixin:
     def _on_ext_start_finished(self, result: ExtractResult) -> None:
         """抽取完成 — 弹窗显示结果"""
         if result.extracted == 0 and not result.conflicts:
-            self.log_message.emit("抽取完成 (无数据)")
+            self.log_message.emit(t("ext_extract_done_empty"))
             return
 
-        summary = (
-            f"提取完成: {result.extracted} 张图片"
-            f", {result.labels_copied} 个标签"
-        )
+        summary = t("ext_extract_summary", images=result.extracted, labels=result.labels_copied)
         if result.conflicts:
-            summary += f"\n⚠️ {len(result.conflicts)} 个文件冲突"
+            summary += "\n" + t("ext_conflict_count", count=len(result.conflicts))
 
         self.log_message.emit(summary)
 
         # 详细信息
-        detail_lines = [f"输出: {result.output_dir}"]
+        detail_lines = [t("ext_output_label", dir=result.output_dir)]
         for dir_name, count in sorted(result.dir_stats.items()):
-            display = dir_name if dir_name != "." else "(根目录)"
-            detail_lines.append(f"📂 {display} → {count} 张")
+            display = dir_name if dir_name != "." else t("ext_root_dir")
+            detail_lines.append(t("ext_dir_arrow_count", dir=display, count=count))
 
         if result.conflicts:
             detail_lines.append("")
-            detail_lines.append(f"⚠️ {len(result.conflicts)} 个文件冲突:")
+            detail_lines.append(t("ext_conflict_detail", count=len(result.conflicts)))
             for src, dest in result.conflicts[:20]:
                 detail_lines.append(f"  {src.name} → {dest}")
             if len(result.conflicts) > 20:
-                detail_lines.append(f"  ...还有 {len(result.conflicts) - 20} 个")
+                detail_lines.append(t("ext_conflict_more", count=len(result.conflicts) - 20))
 
         StyledMessageBox.information(
-            self, "抽取完成", summary,
+            self, t("ext_extract_complete"), summary,
             detailed_text="\n".join(detail_lines),
         )
 
@@ -753,10 +742,10 @@ class ExtractTabMixin:
         # 确定搜索目录: 优先 label_dir，其次 img_dir
         search_dir = label_path if (label_path and label_path.exists()) else img_path
         if not search_dir or not search_dir.exists():
-            self.log_message.emit("请先选择有效的图片或标签目录")
+            self.log_message.emit(t("ext_select_valid_img_or_label_dir"))
             return
 
-        self.log_message.emit("正在扫描类别...")
+        self.log_message.emit(t("ext_scanning_categories"))
 
         self._start_worker(
             lambda: self._handler.collect_label_class_options(
@@ -768,7 +757,7 @@ class ExtractTabMixin:
     def _on_ext_scan_categories_finished(self, class_list: list) -> None:
         """类别扫描完成"""
         if not class_list:
-            self.log_message.emit("未检测到任何类别")
+            self.log_message.emit(t("ext_no_categories_found"))
             return
 
         # 更新共享状态 (同步到编辑 Tab 等)
@@ -777,6 +766,7 @@ class ExtractTabMixin:
         # 刷新类别列表 UI
         self._refresh_extract_categories()
 
-        self.log_message.emit(
-            f"扫描到 {len(class_list)} 个类别: {', '.join(str(c) for c in class_list)}"
-        )
+        self.log_message.emit(t("ext_categories_scanned",
+            count=len(class_list),
+            classes=", ".join(str(c) for c in class_list),
+        ))

@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.theme import ThemeManager
+from utils.i18n import t
 
 
 class StyledMessageBox(QDialog):
@@ -58,10 +59,13 @@ class StyledMessageBox(QDialog):
         title: str,
         text: str,
         detailed_text: str = "",
-        accept_text: str = "确定",
+        accept_text: str | None = None,
         reject_text: str = "",
         third_text: str = "",
     ) -> None:
+        if accept_text is None:
+            accept_text = t("ok")
+
         # 查找主窗口作为 parent，确保居中
         main_window = self._find_main_window(parent)
         super().__init__(main_window)
@@ -183,7 +187,7 @@ class StyledMessageBox(QDialog):
         self._detail_edit = None
         self._detail_btn = None
         if detailed_text:
-            detail_btn = QPushButton("显示详细信息")
+            detail_btn = QPushButton(t("show_details"))
             detail_btn.setCursor(Qt.CursorShape.PointingHandCursor)
             detail_btn.setStyleSheet(f"""
                 QPushButton {{
@@ -315,7 +319,7 @@ class StyledMessageBox(QDialog):
         if self._detail_edit and self._detail_btn:
             visible = not self._detail_edit.isVisible()
             self._detail_edit.setVisible(visible)
-            self._detail_btn.setText("收起详细信息" if visible else "显示详细信息")
+            self._detail_btn.setText(t("hide_details") if visible else t("show_details"))
             self.adjustSize()
 
     @staticmethod
@@ -405,10 +409,14 @@ class StyledMessageBox(QDialog):
         parent: QWidget | None,
         title: str,
         text: str,
-        accept_text: str = "确定",
-        reject_text: str = "取消",
+        accept_text: str | None = None,
+        reject_text: str | None = None,
     ) -> bool:
         """显示确认弹窗，返回是否确认"""
+        if accept_text is None:
+            accept_text = t("ok")
+        if reject_text is None:
+            reject_text = t("cancel")
         dlg = StyledMessageBox(
             parent,
             StyledMessageBox.QUESTION,
@@ -424,9 +432,9 @@ class StyledMessageBox(QDialog):
         parent: QWidget | None,
         title: str,
         text: str,
-        accept_text: str = "覆盖",
-        reject_text: str = "取消",
-        third_text: str = "新建",
+        accept_text: str | None = None,
+        reject_text: str | None = None,
+        third_text: str | None = None,
     ) -> str:
         """
         显示三选一确认弹窗
@@ -436,6 +444,12 @@ class StyledMessageBox(QDialog):
             "new"       - 用户选择新建 (third)
             "cancel"    - 用户选择取消 (reject / 关闭)
         """
+        if accept_text is None:
+            accept_text = t("overwrite")
+        if reject_text is None:
+            reject_text = t("cancel")
+        if third_text is None:
+            third_text = t("create_new")
         dlg = StyledMessageBox(
             parent,
             StyledMessageBox.QUESTION,
@@ -463,8 +477,11 @@ class StyledProgressDialog(QDialog):
         parent: QWidget | None,
         title: str,
         text: str,
-        cancel_text: str = "取消",
+        cancel_text: str | None = None,
     ) -> None:
+        if cancel_text is None:
+            cancel_text = t("cancel")
+
         main_window = StyledMessageBox._find_main_window(parent)
         super().__init__(main_window)
 

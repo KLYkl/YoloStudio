@@ -41,6 +41,7 @@ from core.data_handler._models import (
 )
 from ui.styled_message_box import StyledMessageBox
 from ui.theme import ThemeManager
+from utils.i18n import t
 
 
 # ============================================================
@@ -177,7 +178,7 @@ class _BaseResultDialog(QDialog):
         fl.setSpacing(10)
         fl.addStretch()
 
-        ok_btn = QPushButton("确定")
+        ok_btn = QPushButton(t("ic_dialog_ok"))
         ok_btn.setFixedSize(90, 34)
         ok_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         a = self.p["accent"]
@@ -255,7 +256,7 @@ class _BaseResultDialog(QDialog):
         row.addWidget(name)
         row.addStretch()
 
-        badge = QLabel(f"{count} 个")
+        badge = QLabel(t("ic_dialog_count_items").format(n=count))
         if has_issue:
             badge.setStyleSheet(f"""
                 color: {p['badge_text']}; background-color: {p['red']};
@@ -277,7 +278,7 @@ class _BaseResultDialog(QDialog):
     def _add_detail_section(self, detail_html: str) -> None:
         """添加可展开的详细信息区域 (接收 HTML)"""
         p = self.p
-        self._detail_btn = QPushButton("▸ 显示详细文件列表")
+        self._detail_btn = QPushButton(t("ic_dialog_show_detail"))
         self._detail_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._detail_btn.setStyleSheet(f"""
             QPushButton {{
@@ -346,7 +347,7 @@ class _BaseResultDialog(QDialog):
             if self._collapsed_height > 0:
                 self.setFixedHeight(self._collapsed_height)
         self._detail_btn.setText(
-            "▾ 收起详细文件列表" if visible else "▸ 显示详细文件列表"
+            t("ic_dialog_hide_detail") if visible else t("ic_dialog_show_detail")
         )
         # 重新居中
         QApplication.processEvents()
@@ -407,7 +408,7 @@ class ImageCheckResultDialog(_BaseResultDialog):
     def __init__(self, parent: QWidget | None, result: ImageCheckResult) -> None:
         has_issues = result.has_issues
         super().__init__(
-            parent, "图像完整性校验",
+            parent, t("ic_dialog_integrity_title"),
             icon_char="!" if has_issues else "✓",
             icon_color_key="yellow" if has_issues else "green",
         )
@@ -415,24 +416,24 @@ class ImageCheckResultDialog(_BaseResultDialog):
         # 汇总卡片
         if has_issues:
             self._add_summary_card(
-                f"扫描 {result.total_images} 张图片",
-                f"发现 {result.issue_count} 个问题",
+                t("ic_dialog_scanned_n_images").format(n=result.total_images),
+                t("ic_dialog_found_n_issues").format(n=result.issue_count),
                 self.p["red"],
             )
         else:
             self._add_summary_card(
-                f"扫描 {result.total_images} 张图片",
-                "全部通过 ✓",
+                t("ic_dialog_scanned_n_images").format(n=result.total_images),
+                t("ic_dialog_all_passed"),
                 self.p["green"],
             )
 
         # 分类条目
         self._content_layout.addSpacing(16)
         items = [
-            ("损坏图片", "🔴", len(result.corrupted)),
-            ("零字节文件", "🟠", len(result.zero_bytes)),
-            ("格式不匹配", "🟡", len(result.format_mismatch)),
-            ("EXIF 旋转标记", "🔵", len(result.exif_rotation)),
+            (t("ic_dialog_corrupted"), "🔴", len(result.corrupted)),
+            (t("ic_dialog_zero_bytes"), "🟠", len(result.zero_bytes)),
+            (t("ic_dialog_format_mismatch"), "🟡", len(result.format_mismatch)),
+            (t("ic_dialog_exif_rotation"), "🔵", len(result.exif_rotation)),
         ]
         for label, emoji, count in items:
             self._add_stat_row(emoji, label, count, has_issue=count > 0)
@@ -454,13 +455,13 @@ class ImageCheckResultDialog(_BaseResultDialog):
                 for fp, reason in r.corrupted
             ]
             html += self._html_section(
-                f"🔴 损坏图片  ({len(r.corrupted)} 个)", items,
+                t("ic_dialog_corrupted_section").format(n=len(r.corrupted)), items,
                 title_color=p['red'],
             )
         if r.zero_bytes:
             items = [fp.name for fp in r.zero_bytes]
             html += self._html_section(
-                f"🟠 零字节文件  ({len(r.zero_bytes)} 个)", items,
+                t("ic_dialog_zero_bytes_section").format(n=len(r.zero_bytes)), items,
                 title_color=p['orange'],
             )
         if r.format_mismatch:
@@ -470,8 +471,8 @@ class ImageCheckResultDialog(_BaseResultDialog):
                 for fp, ext, real in r.format_mismatch
             ]
             html += self._html_section(
-                f"🟡 格式不匹配  ({len(r.format_mismatch)} 个)", items,
-                title_color=p['yellow'],
+                t("ic_dialog_format_mismatch_section").format(n=len(r.format_mismatch)),
+                items, title_color=p['yellow'],
             )
         if r.exif_rotation:
             items = [
@@ -480,8 +481,8 @@ class ImageCheckResultDialog(_BaseResultDialog):
                 for fp, orient in r.exif_rotation
             ]
             html += self._html_section(
-                f"🔵 EXIF 旋转标记  ({len(r.exif_rotation)} 个)", items,
-                title_color=p['blue'],
+                t("ic_dialog_exif_rotation_section").format(n=len(r.exif_rotation)),
+                items, title_color=p['blue'],
             )
         return html
 
@@ -501,7 +502,7 @@ class SizeAnalysisResultDialog(_BaseResultDialog):
         abnormal = len(result.abnormal_small) + len(result.abnormal_large)
         has_issues = abnormal > 0
         super().__init__(
-            parent, "图像尺寸分析",
+            parent, t("ic_dialog_size_analysis_title"),
             icon_char="!" if has_issues else "✓",
             icon_color_key="yellow" if has_issues else "green",
         )
@@ -510,14 +511,14 @@ class SizeAnalysisResultDialog(_BaseResultDialog):
         # 汇总卡片
         if has_issues:
             self._add_summary_card(
-                f"分析 {result.total_images} 张图片",
-                f"{abnormal} 张尺寸异常",
+                t("ic_dialog_analyzed_n_images").format(n=result.total_images),
+                t("ic_dialog_n_abnormal_size").format(n=abnormal),
                 p["yellow"],
             )
         else:
             self._add_summary_card(
-                f"分析 {result.total_images} 张图片",
-                "所有尺寸正常 ✓",
+                t("ic_dialog_analyzed_n_images").format(n=result.total_images),
+                t("ic_dialog_all_sizes_normal"),
                 p["green"],
             )
 
@@ -538,18 +539,18 @@ class SizeAnalysisResultDialog(_BaseResultDialog):
         grid.setVerticalSpacing(6)
 
         stat_items = [
-            ("最小尺寸", f"{result.min_size[0]}×{result.min_size[1]}", p["blue"]),
-            ("最大尺寸", f"{result.max_size[0]}×{result.max_size[1]}", p["green"]),
-            ("平均尺寸", f"{result.avg_size[0]}×{result.avg_size[1]}", p["orange"]),
+            (t("ic_dialog_min_size"), f"{result.min_size[0]}×{result.min_size[1]}", p["blue"]),
+            (t("ic_dialog_max_size"), f"{result.max_size[0]}×{result.max_size[1]}", p["green"]),
+            (t("ic_dialog_avg_size"), f"{result.avg_size[0]}×{result.avg_size[1]}", p["orange"]),
         ]
         for col, (title, value, color) in enumerate(stat_items):
-            t = QLabel(title)
-            t.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            t.setStyleSheet(f"""
+            t_label = QLabel(title)
+            t_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            t_label.setStyleSheet(f"""
                 color: {p['text_muted']}; font-size: 12px;
                 background: transparent; border: none;
             """)
-            grid.addWidget(t, 0, col)
+            grid.addWidget(t_label, 0, col)
 
             v = QLabel(value)
             v.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -566,12 +567,12 @@ class SizeAnalysisResultDialog(_BaseResultDialog):
             self._content_layout.addSpacing(14)
             if result.abnormal_small:
                 self._add_stat_row(
-                    "🔴", f"过小图片 (<32px)",
+                    "🔴", t("ic_dialog_too_small"),
                     len(result.abnormal_small), has_issue=True,
                 )
             if result.abnormal_large:
                 self._add_stat_row(
-                    "🟠", f"过大图片 (>8192px)",
+                    "🟠", t("ic_dialog_too_large"),
                     len(result.abnormal_large), has_issue=True,
                 )
 
@@ -580,13 +581,13 @@ class SizeAnalysisResultDialog(_BaseResultDialog):
             if result.abnormal_small:
                 items = [fp.name for fp in result.abnormal_small]
                 html += self._html_section(
-                    f"🔴 过小图片 <32px  ({len(result.abnormal_small)} 张)",
+                    t("ic_dialog_too_small_section").format(n=len(result.abnormal_small)),
                     items, title_color=self.p['red'],
                 )
             if result.abnormal_large:
                 items = [fp.name for fp in result.abnormal_large]
                 html += self._html_section(
-                    f"🟠 过大图片 >8192px  ({len(result.abnormal_large)} 张)",
+                    t("ic_dialog_too_large_section").format(n=len(result.abnormal_large)),
                     items, title_color=self.p['orange'],
                 )
             self._add_detail_section(html)
@@ -610,7 +611,7 @@ class DuplicateResultDialog(_BaseResultDialog):
     ) -> None:
         has_issues = bool(groups)
         super().__init__(
-            parent, "重复图片检测",
+            parent, t("ic_dialog_duplicate_title"),
             icon_char="!" if has_issues else "✓",
             icon_color_key="yellow" if has_issues else "green",
         )
@@ -619,8 +620,8 @@ class DuplicateResultDialog(_BaseResultDialog):
         if has_issues:
             total_files = sum(len(g.paths) for g in groups)
             self._add_summary_card(
-                f"发现 {len(groups)} 组重复",
-                f"共 {total_files} 个文件",
+                t("ic_dialog_found_n_dup_groups").format(n=len(groups)),
+                t("ic_dialog_total_n_files").format(n=total_files),
                 p["yellow"],
             )
 
@@ -630,14 +631,14 @@ class DuplicateResultDialog(_BaseResultDialog):
             for i, group in enumerate(groups, 1):
                 items = [fp.name for fp in group.paths]
                 html += self._html_section(
-                    f"📁 组 {i}  ({len(group.paths)} 个文件)",
+                    t("ic_dialog_dup_group_section").format(i=i, n=len(group.paths)),
                     items, title_color=self.p['yellow'],
                 )
             self._add_detail_section(html)
         else:
             self._add_summary_card(
-                "重复检测完成",
-                "未发现重复图片 ✓",
+                t("ic_dialog_duplicate_done"),
+                t("ic_dialog_no_duplicates"),
                 p["green"],
             )
 
@@ -671,7 +672,7 @@ class HealthCheckResultDialog(_BaseResultDialog):
             or (duplicates and len(duplicates) > 0)
         )
         super().__init__(
-            parent, "一键健康检查",
+            parent, t("ic_dialog_health_check_title"),
             icon_char="!" if has_any_issue else "✓",
             icon_color_key="yellow" if has_any_issue else "green",
             width=520,
@@ -681,13 +682,19 @@ class HealthCheckResultDialog(_BaseResultDialog):
         # ---- 汇总卡片 ----
         issue_parts: list[str] = []
         if integrity and integrity.has_issues:
-            issue_parts.append(f"完整性 {integrity.issue_count}")
+            issue_parts.append(
+                t("ic_dialog_integrity_n_issues").format(n=integrity.issue_count)
+            )
         if sizes:
             ab = len(sizes.abnormal_small) + len(sizes.abnormal_large)
             if ab > 0:
-                issue_parts.append(f"尺寸异常 {ab}")
+                issue_parts.append(
+                    t("ic_dialog_size_abnormal_n").format(n=ab)
+                )
         if duplicates:
-            issue_parts.append(f"重复 {len(duplicates)} 组")
+            issue_parts.append(
+                t("ic_dialog_duplicate_n_groups").format(n=len(duplicates))
+            )
 
         total_count = integrity.total_images if integrity else (
             sizes.total_images if sizes else 0
@@ -695,14 +702,14 @@ class HealthCheckResultDialog(_BaseResultDialog):
 
         if has_any_issue:
             self._add_summary_card(
-                f"扫描 {total_count} 张图片",
-                f"发现 {len(issue_parts)} 类问题",
+                t("ic_dialog_scanned_n_images").format(n=total_count),
+                t("ic_dialog_found_n_issue_types").format(n=len(issue_parts)),
                 p["red"],
             )
         else:
             self._add_summary_card(
-                f"扫描 {total_count} 张图片",
-                "所有检查通过 ✓",
+                t("ic_dialog_scanned_n_images").format(n=total_count),
+                t("ic_dialog_all_checks_passed"),
                 p["green"],
             )
 
@@ -713,8 +720,9 @@ class HealthCheckResultDialog(_BaseResultDialog):
         if integrity:
             ic = integrity.issue_count
             self._add_check_row(
-                "完整性校验", ic > 0,
-                f"{ic} 个问题" if ic > 0 else "无问题",
+                t("ic_dialog_integrity_check"), ic > 0,
+                t("ic_dialog_n_issues").format(n=ic) if ic > 0
+                else t("ic_dialog_no_issues"),
             )
 
         # 尺寸
@@ -725,9 +733,10 @@ class HealthCheckResultDialog(_BaseResultDialog):
                 f"{sizes.max_size[0]}×{sizes.max_size[1]}"
             )
             self._add_check_row(
-                "尺寸分析", ab > 0,
-                f"{ab} 张异常 ({size_range})" if ab > 0
-                else f"正常 ({size_range})",
+                t("ic_dialog_size_analysis"), ab > 0,
+                t("ic_dialog_n_abnormal_with_range").format(n=ab, range=size_range)
+                if ab > 0
+                else t("ic_dialog_normal_with_range").format(range=size_range),
             )
 
         # 重复
@@ -735,11 +744,16 @@ class HealthCheckResultDialog(_BaseResultDialog):
             if duplicates:
                 dup_files = sum(len(g.paths) for g in duplicates)
                 self._add_check_row(
-                    "重复检测", True,
-                    f"{len(duplicates)} 组 / {dup_files} 个文件",
+                    t("ic_dialog_duplicate_check"), True,
+                    t("ic_dialog_dup_summary").format(
+                        groups=len(duplicates), files=dup_files,
+                    ),
                 )
             else:
-                self._add_check_row("重复检测", False, "无重复")
+                self._add_check_row(
+                    t("ic_dialog_duplicate_check"), False,
+                    t("ic_dialog_no_duplicates_short"),
+                )
 
         # ---- 详细信息 ----
         if has_any_issue:
@@ -801,14 +815,16 @@ class HealthCheckResultDialog(_BaseResultDialog):
                     for fp, r in integrity.corrupted
                 ]
                 html += self._html_section(
-                    f"🔴 损坏  ({len(integrity.corrupted)} 个)", items,
-                    title_color=p['red'],
+                    t("ic_dialog_hc_corrupted_section").format(
+                        n=len(integrity.corrupted)
+                    ), items, title_color=p['red'],
                 )
             if integrity.zero_bytes:
                 items = [fp.name for fp in integrity.zero_bytes]
                 html += self._html_section(
-                    f"🟠 零字节  ({len(integrity.zero_bytes)} 个)", items,
-                    title_color=p['orange'],
+                    t("ic_dialog_hc_zero_bytes_section").format(
+                        n=len(integrity.zero_bytes)
+                    ), items, title_color=p['orange'],
                 )
             if integrity.format_mismatch:
                 items = [
@@ -817,28 +833,32 @@ class HealthCheckResultDialog(_BaseResultDialog):
                     for fp, ext, real in integrity.format_mismatch
                 ]
                 html += self._html_section(
-                    f"🟡 格式不匹配  ({len(integrity.format_mismatch)} 个)",
-                    items, title_color=p['yellow'],
+                    t("ic_dialog_hc_format_mismatch_section").format(
+                        n=len(integrity.format_mismatch)
+                    ), items, title_color=p['yellow'],
                 )
         if sizes:
             if sizes.abnormal_small:
                 items = [fp.name for fp in sizes.abnormal_small]
                 html += self._html_section(
-                    f"🔴 过小 <32px  ({len(sizes.abnormal_small)} 张)",
-                    items, title_color=p['red'],
+                    t("ic_dialog_hc_too_small_section").format(
+                        n=len(sizes.abnormal_small)
+                    ), items, title_color=p['red'],
                 )
             if sizes.abnormal_large:
                 items = [fp.name for fp in sizes.abnormal_large]
                 html += self._html_section(
-                    f"🟠 过大 >8192px  ({len(sizes.abnormal_large)} 张)",
-                    items, title_color=p['orange'],
+                    t("ic_dialog_hc_too_large_section").format(
+                        n=len(sizes.abnormal_large)
+                    ), items, title_color=p['orange'],
                 )
         if duplicates:
             for i, g in enumerate(duplicates, 1):
                 items = [fp.name for fp in g.paths]
                 html += self._html_section(
-                    f"📁 重复组 {i}  ({len(g.paths)} 个)", items,
-                    title_color=p['yellow'],
+                    t("ic_dialog_hc_dup_group_section").format(
+                        i=i, n=len(g.paths)
+                    ), items, title_color=p['yellow'],
                 )
         return html
 

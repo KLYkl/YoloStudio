@@ -111,19 +111,37 @@ def main() -> int:
     # 重定向标准输出到日志系统
     setup_stdout_redirect()
     
-    # 创建并显示主窗口
-    window = MainWindow()
-    
-    # 将窗口居中显示
-    screen = app.primaryScreen().availableGeometry()
-    window_size = window.size()
-    x = (screen.width() - window_size.width()) // 2
-    y = (screen.height() - window_size.height()) // 2
-    window.move(x, y)
-    
-    window.show()
-    
-    # 进入事件循环
+    # 窗口管理器: 支持语言切换时重建窗口
+    state = {"window": None}
+
+    def create_window():
+        old = state["window"]
+        if old is not None:
+            pos = old.pos()
+            size = old.size()
+            old.close()
+        else:
+            pos = None
+            size = None
+
+        w = MainWindow()
+        state["window"] = w
+        w.language_changed.connect(create_window)
+
+        if pos is not None and size is not None:
+            w.resize(size)
+            w.move(pos)
+        else:
+            screen = app.primaryScreen().availableGeometry()
+            w_size = w.size()
+            w.move(
+                (screen.width() - w_size.width()) // 2,
+                (screen.height() - w_size.height()) // 2,
+            )
+        w.show()
+
+    create_window()
+
     return app.exec()
 
 

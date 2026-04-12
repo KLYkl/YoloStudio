@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.focus_widgets import FocusComboBox, FocusSpinBox
+from utils.i18n import t
 
 from core.data_handler import (
     ImageCheckResult,
@@ -124,41 +125,33 @@ class ImageCheckTabMixin:
 
     # ---- 左上: 图像完整性校验 ----
     def _create_integrity_group(self) -> QGroupBox:
-        group = QGroupBox("图像完整性校验")
+        group = QGroupBox(t("ic_integrity_group"))
         layout = QVBoxLayout(group)
 
-        self.ic_corrupted_check = QCheckBox("损坏图片检测")
+        self.ic_corrupted_check = QCheckBox(t("ic_corrupted_check"))
         self.ic_corrupted_check.setChecked(True)
-        self.ic_corrupted_check.setToolTip(
-            "使用 PIL verify() + load() 双重校验\n检测无法打开或截断的图片"
-        )
+        self.ic_corrupted_check.setToolTip(t("ic_corrupted_tooltip"))
         layout.addWidget(self.ic_corrupted_check)
 
-        self.ic_zero_bytes_check = QCheckBox("零字节文件检测")
+        self.ic_zero_bytes_check = QCheckBox(t("ic_zero_bytes_check"))
         self.ic_zero_bytes_check.setChecked(True)
-        self.ic_zero_bytes_check.setToolTip("检测文件大小为 0 的图片")
+        self.ic_zero_bytes_check.setToolTip(t("ic_zero_bytes_tooltip"))
         layout.addWidget(self.ic_zero_bytes_check)
 
-        self.ic_format_mismatch_check = QCheckBox("文件头/扩展名不匹配")
+        self.ic_format_mismatch_check = QCheckBox(t("ic_format_mismatch_check"))
         self.ic_format_mismatch_check.setChecked(True)
-        self.ic_format_mismatch_check.setToolTip(
-            "比对文件头 magic bytes 与扩展名\n"
-            "例: .jpg 文件实际是 PNG 格式"
-        )
+        self.ic_format_mismatch_check.setToolTip(t("ic_format_mismatch_tooltip"))
         layout.addWidget(self.ic_format_mismatch_check)
 
-        self.ic_exif_check = QCheckBox("EXIF 旋转标记检查")
+        self.ic_exif_check = QCheckBox(t("ic_exif_check"))
         self.ic_exif_check.setChecked(False)
-        self.ic_exif_check.setToolTip(
-            "检测含有非标准 EXIF Orientation 的图片\n"
-            "可能导致训练时图像方向不一致"
-        )
+        self.ic_exif_check.setToolTip(t("ic_exif_tooltip"))
         layout.addWidget(self.ic_exif_check)
 
         # 按钮 (右对齐)
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-        self.ic_integrity_btn = QPushButton("🔍 开始校验")
+        self.ic_integrity_btn = QPushButton(t("ic_integrity_btn"))
         self.ic_integrity_btn.setMinimumHeight(28)
         self.ic_integrity_btn.setMinimumWidth(100)
         self.ic_integrity_btn.setSizePolicy(
@@ -173,39 +166,37 @@ class ImageCheckTabMixin:
 
     # ---- 右上: 图像格式转换 ----
     def _create_convert_image_group(self) -> QGroupBox:
-        group = QGroupBox("图像格式转换")
+        group = QGroupBox(t("ic_convert_group"))
         layout = QVBoxLayout(group)
 
         # 目标格式
         format_row = QHBoxLayout()
-        format_row.addWidget(QLabel("目标格式:"))
+        format_row.addWidget(QLabel(t("ic_target_format_label")))
         self.ic_target_format_combo = FocusComboBox()
         self.ic_target_format_combo.addItems(_TARGET_FORMATS)
         format_row.addWidget(self.ic_target_format_combo, 1)
         layout.addLayout(format_row)
 
         # 选项
-        self.ic_convert_rgb_check = QCheckBox("统一转为 RGB 模式")
+        self.ic_convert_rgb_check = QCheckBox(t("ic_convert_rgb_check"))
         self.ic_convert_rgb_check.setChecked(True)
-        self.ic_convert_rgb_check.setToolTip(
-            "将 RGBA、灰度、CMYK 等模式统一转为 RGB\n确保训练数据通道一致"
-        )
+        self.ic_convert_rgb_check.setToolTip(t("ic_convert_rgb_tooltip"))
         layout.addWidget(self.ic_convert_rgb_check)
 
-        self.ic_sync_labels_check = QCheckBox("同步重命名标签文件")
+        self.ic_sync_labels_check = QCheckBox(t("ic_sync_labels_check"))
         self.ic_sync_labels_check.setChecked(True)
-        self.ic_sync_labels_check.setToolTip("转换后同步复制对应的标签文件到输出目录")
+        self.ic_sync_labels_check.setToolTip(t("ic_sync_labels_tooltip"))
         layout.addWidget(self.ic_sync_labels_check)
 
         # 提示信息
-        info_label = QLabel("原始图片保留，转换结果输出到新目录")
+        info_label = QLabel(t("ic_convert_info"))
         info_label.setObjectName("mutedLabel")
         layout.addWidget(info_label)
 
         # 按钮 (右对齐)
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-        self.ic_convert_btn = QPushButton("🔄 执行转换")
+        self.ic_convert_btn = QPushButton(t("ic_convert_btn"))
         self.ic_convert_btn.setMinimumHeight(28)
         self.ic_convert_btn.setMinimumWidth(100)
         self.ic_convert_btn.setSizePolicy(
@@ -220,7 +211,7 @@ class ImageCheckTabMixin:
 
     # ---- 左下: 图像尺寸分析 ----
     def _create_size_analysis_group(self) -> QGroupBox:
-        group = QGroupBox("图像尺寸分析")
+        group = QGroupBox(t("ic_size_analysis_group"))
         layout = QVBoxLayout(group)
 
         # 统计卡片 (2×2 网格)
@@ -231,10 +222,10 @@ class ImageCheckTabMixin:
         cards_grid.setVerticalSpacing(8)
 
         size_items = [
-            ("min_size", "最小尺寸", "blue"),
-            ("max_size", "最大尺寸", "green"),
-            ("avg_size", "平均尺寸", "orange"),
-            ("abnormal", "异常图片", "red"),
+            ("min_size", t("ic_min_size"), "blue"),
+            ("max_size", t("ic_max_size"), "green"),
+            ("avg_size", t("ic_avg_size"), "orange"),
+            ("abnormal", t("ic_abnormal"), "red"),
         ]
 
         for index, (key, title, accent) in enumerate(size_items):
@@ -246,7 +237,7 @@ class ImageCheckTabMixin:
         # 按钮 (右对齐)
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-        self.ic_analyze_btn = QPushButton("📐 分析尺寸")
+        self.ic_analyze_btn = QPushButton(t("ic_analyze_btn"))
         self.ic_analyze_btn.setMinimumHeight(28)
         self.ic_analyze_btn.setMinimumWidth(100)
         self.ic_analyze_btn.setSizePolicy(
@@ -304,12 +295,12 @@ class ImageCheckTabMixin:
 
     # ---- 右下: 重复图片检测 ----
     def _create_duplicate_group(self) -> QGroupBox:
-        group = QGroupBox("重复图片检测")
+        group = QGroupBox(t("ic_duplicate_group"))
         layout = QVBoxLayout(group)
 
         # 检测方法
-        self.ic_md5_radio = QRadioButton("MD5 精确匹配")
-        self.ic_phash_radio = QRadioButton("感知哈希 (相似图)")
+        self.ic_md5_radio = QRadioButton(t("ic_md5_radio"))
+        self.ic_phash_radio = QRadioButton(t("ic_phash_radio"))
         self.ic_md5_radio.setChecked(True)
 
         self.ic_dup_method_group = QButtonGroup(self)
@@ -321,15 +312,12 @@ class ImageCheckTabMixin:
 
         # 相似阈值
         threshold_row = QHBoxLayout()
-        self._ic_threshold_label = QLabel("相似阈值:")
+        self._ic_threshold_label = QLabel(t("ic_threshold_label"))
         threshold_row.addWidget(self._ic_threshold_label)
         self.ic_threshold_spin = FocusSpinBox()
         self.ic_threshold_spin.setRange(1, 32)
         self.ic_threshold_spin.setValue(8)
-        self.ic_threshold_spin.setToolTip(
-            "感知哈希汉明距离阈值\n"
-            "值越小匹配越严格 (推荐 5~10)"
-        )
+        self.ic_threshold_spin.setToolTip(t("ic_threshold_tooltip"))
         self.ic_threshold_spin.setEnabled(False)
         self._ic_threshold_label.setEnabled(False)
         threshold_row.addWidget(self.ic_threshold_spin)
@@ -339,7 +327,7 @@ class ImageCheckTabMixin:
         # 按钮 (右对齐)
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-        self.ic_duplicate_btn = QPushButton("🔍 检测重复")
+        self.ic_duplicate_btn = QPushButton(t("ic_duplicate_btn"))
         self.ic_duplicate_btn.setMinimumHeight(28)
         self.ic_duplicate_btn.setMinimumWidth(100)
         self.ic_duplicate_btn.setSizePolicy(
@@ -358,19 +346,14 @@ class ImageCheckTabMixin:
         layout = QHBoxLayout(bar)
         layout.setContentsMargins(0, 5, 0, 0)
 
-        self.ic_quarantine_check = QCheckBox(
-            "异常文件自动隔离到 _quarantine 目录"
-        )
+        self.ic_quarantine_check = QCheckBox(t("ic_quarantine_check"))
         self.ic_quarantine_check.setChecked(False)
-        self.ic_quarantine_check.setToolTip(
-            "勾选后，完整性校验和重复检测发现的问题文件\n"
-            "会被自动移动到图片目录下的 _quarantine 子目录"
-        )
+        self.ic_quarantine_check.setToolTip(t("ic_quarantine_tooltip"))
         layout.addWidget(self.ic_quarantine_check)
 
         layout.addStretch()
 
-        self.ic_health_btn = QPushButton("📊 一键健康检查")
+        self.ic_health_btn = QPushButton(t("ic_health_btn"))
         self.ic_health_btn.setMinimumHeight(28)
         self.ic_health_btn.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
@@ -379,7 +362,7 @@ class ImageCheckTabMixin:
         self.ic_health_btn.setEnabled(False)
         layout.addWidget(self.ic_health_btn)
 
-        self.ic_export_btn = QPushButton("📄 导出报告")
+        self.ic_export_btn = QPushButton(t("ic_export_btn"))
         self.ic_export_btn.setMinimumHeight(28)
         self.ic_export_btn.setSizePolicy(
             QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed
@@ -442,7 +425,7 @@ class ImageCheckTabMixin:
         """开始图像完整性校验"""
         img_path = self.path_group.get_image_dir()
         if not img_path or not img_path.exists():
-            self.log_message.emit("请先选择图片目录")
+            self.log_message.emit(t("ic_select_image_dir_first"))
             return
 
         # 至少勾选一项
@@ -452,7 +435,9 @@ class ImageCheckTabMixin:
             self.ic_format_mismatch_check.isChecked(),
             self.ic_exif_check.isChecked(),
         ]):
-            StyledMessageBox.warning(self, "图像完整性校验", "请至少勾选一项检查内容")
+            StyledMessageBox.warning(
+                self, t("ic_integrity_group"), t("ic_select_at_least_one")
+            )
             return
 
         quarantine_dir = self._get_ic_quarantine_dir()
@@ -489,19 +474,15 @@ class ImageCheckTabMixin:
         """执行图像格式转换"""
         img_path = self.path_group.get_image_dir()
         if not img_path or not img_path.exists():
-            self.log_message.emit("请先选择图片目录")
+            self.log_message.emit(t("ic_select_image_dir_first"))
             return
 
         format_text = self.ic_target_format_combo.currentText()
         target_format = _FORMAT_KEY_MAP.get(format_text, "JPEG")
         label_dir = self.path_group.get_label_dir()
 
-        message = (
-            f"将把所有图片转换为 {format_text} 格式。\n"
-            "原始图片保留，结果输出到新目录。\n\n"
-            "是否继续？"
-        )
-        if not StyledMessageBox.question(self, "图像格式转换", message):
+        message = t("ic_convert_confirm").format(format=format_text)
+        if not StyledMessageBox.question(self, t("ic_convert_group"), message):
             return
 
         self._start_worker(
@@ -521,9 +502,8 @@ class ImageCheckTabMixin:
     def _on_ic_convert_finished(self, count: int) -> None:
         """格式转换完成"""
         StyledMessageBox.information(
-            self, "图像格式转换",
-            f"转换完成: 成功 {count} 张\n\n"
-            "结果已保存到新目录 (详见系统日志)",
+            self, t("ic_convert_group"),
+            t("ic_convert_finished").format(count=count),
         )
 
     # ---- 尺寸分析 ----
@@ -532,7 +512,7 @@ class ImageCheckTabMixin:
         """分析图像尺寸"""
         img_path = self.path_group.get_image_dir()
         if not img_path or not img_path.exists():
-            self.log_message.emit("请先选择图片目录")
+            self.log_message.emit(t("ic_select_image_dir_first"))
             return
 
         self._start_worker(
@@ -553,7 +533,9 @@ class ImageCheckTabMixin:
         self._update_image_check_action_states()
 
         if result.total_images == 0:
-            StyledMessageBox.information(self, "图像尺寸分析", "未找到图片文件")
+            StyledMessageBox.information(
+                self, t("ic_size_analysis_group"), t("ic_no_images_found")
+            )
             return
 
         # 更新卡片
@@ -578,7 +560,7 @@ class ImageCheckTabMixin:
         """检测重复图片"""
         img_path = self.path_group.get_image_dir()
         if not img_path or not img_path.exists():
-            self.log_message.emit("请先选择图片目录")
+            self.log_message.emit(t("ic_select_image_dir_first"))
             return
 
         method = "phash" if self.ic_phash_radio.isChecked() else "md5"
@@ -614,7 +596,7 @@ class ImageCheckTabMixin:
         """一键健康检查"""
         img_path = self.path_group.get_image_dir()
         if not img_path or not img_path.exists():
-            self.log_message.emit("请先选择图片目录")
+            self.log_message.emit(t("ic_select_image_dir_first"))
             return
 
         label_dir = self.path_group.get_label_dir()
@@ -669,7 +651,9 @@ class ImageCheckTabMixin:
     def _on_ic_export_report(self) -> None:
         """导出检查报告"""
         if not hasattr(self, "_ic_last_health_result") or not self._ic_last_health_result:
-            StyledMessageBox.warning(self, "导出报告", "请先执行检查操作")
+            StyledMessageBox.warning(
+                self, t("ic_export_report_title"), t("ic_run_check_first")
+            )
             return
 
         img_path = self.path_group.get_image_dir()
@@ -686,4 +670,6 @@ class ImageCheckTabMixin:
             duplicates=result.get("duplicates"),
             message_callback=self._emit_message,
         )
-        self.log_message.emit(f"报告已导出: {output_path}")
+        self.log_message.emit(
+            t("ic_report_exported").format(path=output_path)
+        )

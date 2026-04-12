@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.predict_preview import PreviewCanvas
+from utils.i18n import t
 
 
 class ImageResultBrowser(QWidget):
@@ -93,20 +94,20 @@ class ImageResultBrowser(QWidget):
         layout.addStretch()
         
         # 上一张按钮
-        self._prev_btn = QPushButton("◀ 上一张")
+        self._prev_btn = QPushButton(t("prev_image"))
         self._prev_btn.setFixedSize(80, 28)
         self._prev_btn.setEnabled(False)
         self._prev_btn.clicked.connect(self._on_prev_clicked)
         layout.addWidget(self._prev_btn)
         
         # 页码显示
-        self._page_label = QLabel("0 / 0 已处理")
+        self._page_label = QLabel(t("page_status", current=0, total=0))
         self._page_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._page_label.setMinimumWidth(100)
         layout.addWidget(self._page_label)
         
         # 下一张按钮
-        self._next_btn = QPushButton("下一张 ▶")
+        self._next_btn = QPushButton(t("next_image"))
         self._next_btn.setFixedSize(80, 28)
         self._next_btn.setEnabled(False)
         self._next_btn.clicked.connect(self._on_next_clicked)
@@ -116,7 +117,7 @@ class ImageResultBrowser(QWidget):
         layout.addStretch()
         
         # 显示预测框开关（固定在右侧）
-        self._show_boxes_check = QCheckBox("显示预测框")
+        self._show_boxes_check = QCheckBox(t("show_pred_boxes"))
         self._show_boxes_check.setChecked(True)
         self._show_boxes_check.toggled.connect(self._on_toggle_boxes)
         layout.addWidget(self._show_boxes_check)
@@ -166,9 +167,9 @@ class ImageResultBrowser(QWidget):
         """
         # 更新页码显示 (显示为 1-based)
         if total > 0:
-            self._page_label.setText(f"{current + 1} / {total} 已处理")
+            self._page_label.setText(t("page_status", current=current + 1, total=total))
         else:
-            self._page_label.setText("0 / 0 已处理")
+            self._page_label.setText(t("page_status", current=0, total=0))
         
         # 更新按钮状态
         self._prev_btn.setEnabled(current > 0)
@@ -235,7 +236,7 @@ class ImageProgressBar(QFrame):
         layout.setSpacing(12)
         
         # 进度文本
-        self._status_label = QLabel("准备中...")
+        self._status_label = QLabel(t("preparing"))
         layout.addWidget(self._status_label)
         
         layout.addStretch()

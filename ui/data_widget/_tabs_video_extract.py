@@ -39,6 +39,7 @@ from ui.focus_widgets import FocusComboBox, FocusDoubleSpinBox, FocusSpinBox
 
 from core.data_handler import VideoExtractConfig, VideoExtractResult
 from ui.styled_message_box import StyledMessageBox
+from utils.i18n import t
 
 # SpinBox 统一宽度
 _SPIN_WIDTH = 100
@@ -88,9 +89,9 @@ class VideoExtractTabMixin:
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(8)
 
-        self.ve_estimate_btn = QPushButton("📊 预估帧数")
-        self.ve_estimate_btn.setToolTip("快速预估各视频的抽取帧数 (不实际解码)")
-        self.ve_start_btn = QPushButton("🚀 开始抽帧")
+        self.ve_estimate_btn = QPushButton(t("ve_estimate_frames"))
+        self.ve_estimate_btn.setToolTip(t("ve_estimate_frames_tooltip"))
+        self.ve_start_btn = QPushButton(t("ve_start_extract"))
         self.ve_start_btn.setProperty("class", "primary")
         self.ve_start_btn.setMinimumHeight(36)
 
@@ -109,12 +110,15 @@ class VideoExtractTabMixin:
         layout.setSpacing(6)
 
         # 视频列表标题
-        title = QLabel("🎬 视频列表")
+        title = QLabel(t("ve_video_list"))
         layout.addWidget(title)
 
         # TreeWidget - 视频文件列表
         self.ve_video_tree = QTreeWidget()
-        self.ve_video_tree.setHeaderLabels(["文件名", "帧数", "FPS", "时长", "大小"])
+        self.ve_video_tree.setHeaderLabels(
+            [t("ve_col_filename"), t("ve_col_frames"), "FPS",
+             t("ve_col_duration"), t("ve_col_size")]
+        )
         self.ve_video_tree.setAlternatingRowColors(True)
         self.ve_video_tree.setSelectionMode(
             QTreeWidget.SelectionMode.ExtendedSelection
@@ -133,10 +137,10 @@ class VideoExtractTabMixin:
         btn_row = QHBoxLayout()
         btn_row.setSpacing(4)
 
-        self.ve_add_files_btn = QPushButton("📄 添加文件")
-        self.ve_scan_dir_btn = QPushButton("📁 扫描目录")
-        self.ve_select_all_btn = QPushButton("全选")
-        self.ve_clear_btn = QPushButton("清空")
+        self.ve_add_files_btn = QPushButton(t("ve_add_files"))
+        self.ve_scan_dir_btn = QPushButton(t("ve_scan_dir"))
+        self.ve_select_all_btn = QPushButton(t("ve_select_all"))
+        self.ve_clear_btn = QPushButton(t("ve_clear"))
 
         btn_row.addWidget(self.ve_add_files_btn)
         btn_row.addWidget(self.ve_scan_dir_btn)
@@ -155,12 +159,12 @@ class VideoExtractTabMixin:
         layout.setSpacing(8)
 
         # ===== 抽帧模式 =====
-        mode_group = QGroupBox("抽帧模式")
+        mode_group = QGroupBox(t("ve_extract_mode"))
         mode_layout = QVBoxLayout(mode_group)
 
-        self.ve_interval_radio = QRadioButton("⏭️ 等间隔 (每 N 帧)")
-        self.ve_time_radio = QRadioButton("⏱️ 按时间 (每 N 秒)")
-        self.ve_scene_radio = QRadioButton("🎬 场景变化检测")
+        self.ve_interval_radio = QRadioButton(t("ve_mode_interval"))
+        self.ve_time_radio = QRadioButton(t("ve_mode_time"))
+        self.ve_scene_radio = QRadioButton(t("ve_mode_scene"))
         self.ve_interval_radio.setChecked(True)
 
         self.ve_mode_group = QButtonGroup()
@@ -182,13 +186,13 @@ class VideoExtractTabMixin:
         self.ve_interval_widget = QWidget()
         iv_layout = QHBoxLayout(self.ve_interval_widget)
         iv_layout.setContentsMargins(0, 0, 0, 0)
-        iv_layout.addWidget(QLabel("帧间隔:"))
+        iv_layout.addWidget(QLabel(t("ve_frame_interval_label")))
         self.ve_frame_interval_spin = FocusSpinBox()
         self.ve_frame_interval_spin.setRange(1, 10000)
         self.ve_frame_interval_spin.setValue(30)
-        self.ve_frame_interval_spin.setSuffix(" 帧")
+        self.ve_frame_interval_spin.setSuffix(t("ve_suffix_frames"))
         self.ve_frame_interval_spin.setFixedWidth(_SPIN_WIDTH)
-        self.ve_frame_interval_spin.setToolTip("每隔 N 帧抽取 1 帧")
+        self.ve_frame_interval_spin.setToolTip(t("ve_frame_interval_tooltip"))
         iv_layout.addWidget(self.ve_frame_interval_spin)
         iv_layout.addStretch()
 
@@ -196,14 +200,14 @@ class VideoExtractTabMixin:
         self.ve_time_widget = QWidget()
         tv_layout = QHBoxLayout(self.ve_time_widget)
         tv_layout.setContentsMargins(0, 0, 0, 0)
-        tv_layout.addWidget(QLabel("时间间隔:"))
+        tv_layout.addWidget(QLabel(t("ve_time_interval_label")))
         self.ve_time_interval_spin = FocusDoubleSpinBox()
         self.ve_time_interval_spin.setRange(0.1, 600.0)
         self.ve_time_interval_spin.setValue(1.0)
         self.ve_time_interval_spin.setSingleStep(0.5)
-        self.ve_time_interval_spin.setSuffix(" 秒")
+        self.ve_time_interval_spin.setSuffix(t("ve_suffix_seconds"))
         self.ve_time_interval_spin.setFixedWidth(_SPIN_WIDTH)
-        self.ve_time_interval_spin.setToolTip("每隔 N 秒抽取 1 帧")
+        self.ve_time_interval_spin.setToolTip(t("ve_time_interval_tooltip"))
         tv_layout.addWidget(self.ve_time_interval_spin)
         tv_layout.addStretch()
 
@@ -215,28 +219,26 @@ class VideoExtractTabMixin:
 
         # HSV 阈值
         hsv_row = QHBoxLayout()
-        hsv_row.addWidget(QLabel("HSV 阈值:"))
+        hsv_row.addWidget(QLabel(t("ve_hsv_threshold_label")))
         self.ve_scene_threshold_spin = FocusDoubleSpinBox()
         self.ve_scene_threshold_spin.setRange(0.01, 1.0)
         self.ve_scene_threshold_spin.setValue(0.4)
         self.ve_scene_threshold_spin.setSingleStep(0.05)
         self.ve_scene_threshold_spin.setFixedWidth(_SPIN_WIDTH)
-        self.ve_scene_threshold_spin.setToolTip(
-            "HSV 直方图差异阈值 (越小越敏感，推荐 0.3~0.5)"
-        )
+        self.ve_scene_threshold_spin.setToolTip(t("ve_hsv_threshold_tooltip"))
         hsv_row.addWidget(self.ve_scene_threshold_spin)
         hsv_row.addStretch()
         sv_layout.addLayout(hsv_row)
 
         # 最小帧间隔 (防抖)
         gap_row = QHBoxLayout()
-        gap_row.addWidget(QLabel("最小间隔:"))
+        gap_row.addWidget(QLabel(t("ve_min_gap_label")))
         self.ve_min_scene_gap_spin = FocusSpinBox()
         self.ve_min_scene_gap_spin.setRange(1, 1000)
         self.ve_min_scene_gap_spin.setValue(15)
-        self.ve_min_scene_gap_spin.setSuffix(" 帧")
+        self.ve_min_scene_gap_spin.setSuffix(t("ve_suffix_frames"))
         self.ve_min_scene_gap_spin.setFixedWidth(_SPIN_WIDTH)
-        self.ve_min_scene_gap_spin.setToolTip("防止短时间内重复检测到场景变化")
+        self.ve_min_scene_gap_spin.setToolTip(t("ve_min_gap_tooltip"))
         gap_row.addWidget(self.ve_min_scene_gap_spin)
         gap_row.addStretch()
         sv_layout.addLayout(gap_row)
@@ -257,24 +259,22 @@ class VideoExtractTabMixin:
         layout.addWidget(sep1)
 
         # ===== 全局去重 =====
-        dedup_group = QGroupBox("全局去重 (pHash)")
+        dedup_group = QGroupBox(t("ve_global_dedup"))
         dedup_layout = QVBoxLayout(dedup_group)
         dedup_layout.setSpacing(4)
 
-        self.ve_dedup_check = QCheckBox("启用 pHash 感知哈希去重")
+        self.ve_dedup_check = QCheckBox(t("ve_enable_phash_dedup"))
         self.ve_dedup_check.setChecked(True)
-        self.ve_dedup_check.setToolTip("抽帧完成后，用 pHash 移除内容高度相似的帧")
+        self.ve_dedup_check.setToolTip(t("ve_enable_phash_dedup_tooltip"))
         dedup_layout.addWidget(self.ve_dedup_check)
 
         threshold_row = QHBoxLayout()
-        threshold_row.addWidget(QLabel("汉明距离阈值:"))
+        threshold_row.addWidget(QLabel(t("ve_hamming_threshold_label")))
         self.ve_dedup_threshold_spin = FocusSpinBox()
         self.ve_dedup_threshold_spin.setRange(0, 64)
         self.ve_dedup_threshold_spin.setValue(8)
         self.ve_dedup_threshold_spin.setFixedWidth(_SPIN_WIDTH)
-        self.ve_dedup_threshold_spin.setToolTip(
-            "越小越严格 (0=完全相同才去重, 推荐 6~12)"
-        )
+        self.ve_dedup_threshold_spin.setToolTip(t("ve_hamming_threshold_tooltip"))
         threshold_row.addWidget(self.ve_dedup_threshold_spin)
         threshold_row.addStretch()
         dedup_layout.addLayout(threshold_row)
@@ -288,50 +288,50 @@ class VideoExtractTabMixin:
         layout.addWidget(sep2)
 
         # ===== 通用参数 =====
-        general_group = QGroupBox("通用参数")
+        general_group = QGroupBox(t("ve_general_params"))
         general_layout = QVBoxLayout(general_group)
         general_layout.setSpacing(4)
 
         # 最大帧数
         max_row = QHBoxLayout()
-        max_row.addWidget(QLabel("最大帧数:"))
+        max_row.addWidget(QLabel(t("ve_max_frames_label")))
         self.ve_max_frames_spin = FocusSpinBox()
         self.ve_max_frames_spin.setRange(0, 999999)
         self.ve_max_frames_spin.setValue(0)
-        self.ve_max_frames_spin.setSpecialValueText("不限制")
+        self.ve_max_frames_spin.setSpecialValueText(t("ve_no_limit"))
         self.ve_max_frames_spin.setFixedWidth(_SPIN_WIDTH)
-        self.ve_max_frames_spin.setToolTip("每个视频最多抽取的帧数 (0=不限)")
+        self.ve_max_frames_spin.setToolTip(t("ve_max_frames_tooltip"))
         max_row.addWidget(self.ve_max_frames_spin)
         max_row.addStretch()
         general_layout.addLayout(max_row)
 
         # 时间范围
         time_row = QHBoxLayout()
-        time_row.addWidget(QLabel("起始:"))
+        time_row.addWidget(QLabel(t("ve_start_time_label")))
         self.ve_start_time_spin = FocusDoubleSpinBox()
         self.ve_start_time_spin.setRange(0.0, 36000.0)
         self.ve_start_time_spin.setValue(0.0)
-        self.ve_start_time_spin.setSuffix(" 秒")
+        self.ve_start_time_spin.setSuffix(t("ve_suffix_seconds"))
         self.ve_start_time_spin.setFixedWidth(_SPIN_WIDTH)
         time_row.addWidget(self.ve_start_time_spin)
-        time_row.addWidget(QLabel("结束:"))
+        time_row.addWidget(QLabel(t("ve_end_time_label")))
         self.ve_end_time_spin = FocusDoubleSpinBox()
         self.ve_end_time_spin.setRange(0.0, 36000.0)
         self.ve_end_time_spin.setValue(0.0)
-        self.ve_end_time_spin.setSpecialValueText("到末尾")
-        self.ve_end_time_spin.setSuffix(" 秒")
+        self.ve_end_time_spin.setSpecialValueText(t("ve_to_end"))
+        self.ve_end_time_spin.setSuffix(t("ve_suffix_seconds"))
         self.ve_end_time_spin.setFixedWidth(_SPIN_WIDTH)
         time_row.addWidget(self.ve_end_time_spin)
         general_layout.addLayout(time_row)
 
         # 输出格式 + 质量
         format_row = QHBoxLayout()
-        format_row.addWidget(QLabel("格式:"))
+        format_row.addWidget(QLabel(t("ve_format_label")))
         self.ve_format_combo = FocusComboBox()
         self.ve_format_combo.addItems(["jpg", "png"])
         self.ve_format_combo.setFixedWidth(70)
         format_row.addWidget(self.ve_format_combo)
-        format_row.addWidget(QLabel("JPG 质量:"))
+        format_row.addWidget(QLabel(t("ve_jpg_quality_label")))
         self.ve_jpg_quality_spin = FocusSpinBox()
         self.ve_jpg_quality_spin.setRange(1, 100)
         self.ve_jpg_quality_spin.setValue(95)
@@ -342,19 +342,19 @@ class VideoExtractTabMixin:
 
         # 文件名前缀
         prefix_row = QHBoxLayout()
-        prefix_row.addWidget(QLabel("文件名前缀:"))
+        prefix_row.addWidget(QLabel(t("ve_filename_prefix_label")))
         self.ve_prefix_input = QLineEdit()
-        self.ve_prefix_input.setPlaceholderText("留空则使用视频文件名")
+        self.ve_prefix_input.setPlaceholderText(t("ve_prefix_placeholder"))
         prefix_row.addWidget(self.ve_prefix_input)
         general_layout.addLayout(prefix_row)
 
         # 输出目录
         output_row = QHBoxLayout()
-        output_row.addWidget(QLabel("输出目录:"))
+        output_row.addWidget(QLabel(t("ve_output_dir_label")))
         self.ve_output_input = QLineEdit()
-        self.ve_output_input.setPlaceholderText("留空则自动生成")
+        self.ve_output_input.setPlaceholderText(t("ve_output_placeholder"))
         output_row.addWidget(self.ve_output_input)
-        self.ve_output_browse_btn = QPushButton("浏览")
+        self.ve_output_browse_btn = QPushButton(t("ve_browse"))
         self.ve_output_browse_btn.setFixedWidth(60)
         output_row.addWidget(self.ve_output_browse_btn)
         general_layout.addLayout(output_row)
@@ -382,9 +382,9 @@ class VideoExtractTabMixin:
         ext_filter = " ".join(f"*{e}" for e in sorted(VIDEO_EXTENSIONS))
         files, _ = QFileDialog.getOpenFileNames(
             self,
-            "选择视频文件",
+            t("ve_select_video_files"),
             "",
-            f"视频文件 ({ext_filter});;所有文件 (*)",
+            f"{t('ve_video_files_filter')} ({ext_filter});;{t('ve_all_files_filter')} (*)",
         )
         if not files:
             return
@@ -398,18 +398,18 @@ class VideoExtractTabMixin:
             added += 1
 
         if added > 0:
-            self.log_message.emit(f"已添加 {added} 个视频文件")
+            self.log_message.emit(t("ve_added_n_videos").format(n=added))
         self._update_video_extract_action_states()
 
     @Slot()
     def _on_ve_scan_dir(self) -> None:
         """扫描目录中的视频"""
-        directory = QFileDialog.getExistingDirectory(self, "选择视频目录")
+        directory = QFileDialog.getExistingDirectory(self, t("ve_select_video_dir"))
         if not directory:
             return
 
         video_dir = Path(directory)
-        self.log_message.emit(f"正在扫描: {video_dir}")
+        self.log_message.emit(t("ve_scanning").format(path=video_dir))
 
         self._start_worker(
             lambda: self._handler.scan_videos(video_dir),
@@ -423,11 +423,11 @@ class VideoExtractTabMixin:
     ) -> None:
         """扫描完成 → 添加到列表"""
         if not stats:
-            self.log_message.emit("目录中未发现视频文件")
+            self.log_message.emit(t("ve_no_videos_found"))
             return
 
         total = sum(stats.values())
-        self.log_message.emit(f"发现 {total} 个视频")
+        self.log_message.emit(t("ve_found_n_videos").format(n=total))
 
         # 收集所有视频文件并用元数据添加到树
         from utils.constants import VIDEO_EXTENSIONS
@@ -456,7 +456,7 @@ class VideoExtractTabMixin:
     @Slot()
     def _on_ve_browse_output(self) -> None:
         """选择输出目录"""
-        directory = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        directory = QFileDialog.getExistingDirectory(self, t("ve_select_output_dir"))
         if directory:
             self.ve_output_input.setText(directory)
 
@@ -471,7 +471,7 @@ class VideoExtractTabMixin:
         """预估帧数 (快速计算不实际解码)"""
         video_paths = self._ve_get_checked_videos()
         if not video_paths:
-            self.log_message.emit("请先添加并勾选视频文件")
+            self.log_message.emit(t("ve_please_add_videos"))
             return
 
         config = self._ve_collect_config()
@@ -498,26 +498,32 @@ class VideoExtractTabMixin:
 
                 total_estimate += est
                 self.log_message.emit(
-                    f"  {vp.name}: ~{est} 帧 "
-                    f"({frames} 总帧, {fps:.1f} FPS, {frames / fps:.1f}s)"
+                    t("ve_estimate_line").format(
+                        name=vp.name, est=est, frames=frames,
+                        fps=f"{fps:.1f}", duration=f"{frames / fps:.1f}",
+                    )
                 )
             except Exception as e:
-                self.log_message.emit(f"  {vp.name}: 预估失败 ({e})")
+                self.log_message.emit(
+                    t("ve_estimate_failed").format(name=vp.name, error=e)
+                )
 
-        self.log_message.emit(f"预估总计: ~{total_estimate} 帧")
+        self.log_message.emit(t("ve_estimate_total").format(n=total_estimate))
 
     @Slot()
     def _on_ve_start(self) -> None:
         """开始抽帧"""
         video_paths = self._ve_get_checked_videos()
         if not video_paths:
-            self.log_message.emit("请先添加并勾选视频文件")
+            self.log_message.emit(t("ve_please_add_videos"))
             return
 
         config = self._ve_collect_config()
+        dedup_status = t("ve_dedup_on") if config.enable_dedup else t("ve_dedup_off")
         self.log_message.emit(
-            f"开始抽帧: {len(video_paths)} 个视频, "
-            f"模式={config.mode}, 去重={'开' if config.enable_dedup else '关'}"
+            t("ve_start_extract_log").format(
+                n=len(video_paths), mode=config.mode, dedup=dedup_status,
+            )
         )
 
         # 为每个视频单独调用 extract_video_frames，使用第一个视频路径所在目录
@@ -544,28 +550,30 @@ class VideoExtractTabMixin:
     def _on_ve_start_finished(self, result: VideoExtractResult) -> None:
         """抽帧完成 — 弹窗显示结果"""
         if result.final_count == 0:
-            self.log_message.emit("抽帧完成 (无数据)")
+            self.log_message.emit(t("ve_extract_done_no_data"))
             return
 
-        summary = f"抽帧完成: {result.final_count} 张图片"
+        summary = t("ve_extract_complete").format(n=result.final_count)
         if result.dedup_removed > 0:
-            summary += f" (去重移除 {result.dedup_removed} 张)"
+            summary += t("ve_dedup_removed_suffix").format(n=result.dedup_removed)
 
         self.log_message.emit(summary)
 
         # 详细信息
-        detail_lines = [f"输出: {result.output_dir}"]
-        detail_lines.append(f"原始抽取: {result.extracted} 帧")
+        detail_lines = [t("ve_detail_output").format(path=result.output_dir)]
+        detail_lines.append(t("ve_detail_raw_extracted").format(n=result.extracted))
         if result.dedup_removed > 0:
-            detail_lines.append(f"去重移除: {result.dedup_removed} 帧")
-        detail_lines.append(f"最终保留: {result.final_count} 帧")
+            detail_lines.append(t("ve_detail_dedup_removed").format(n=result.dedup_removed))
+        detail_lines.append(t("ve_detail_final_kept").format(n=result.final_count))
 
         for video_name, count in sorted(result.video_stats.items()):
-            detail_lines.append(f"  🎬 {video_name}: {count} 帧")
+            detail_lines.append(
+                t("ve_detail_video_stat").format(name=video_name, count=count)
+            )
 
         StyledMessageBox.information(
             self,
-            "视频抽帧完成",
+            t("ve_extract_done_title"),
             summary,
             detailed_text="\n".join(detail_lines),
         )

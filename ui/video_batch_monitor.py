@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from utils.i18n import t
 
 
 class VideoBatchMonitor(QWidget):
@@ -47,10 +48,10 @@ class VideoBatchMonitor(QWidget):
     _COL_DETECTIONS = 3
     _COL_DURATION = 4
 
-    _STATUS_PENDING = "等待中"
-    _STATUS_PROCESSING = "处理中"
-    _STATUS_DONE = "已完成"
-    _STATUS_FAILED = "失败"
+    _STATUS_PENDING = t("status_pending")
+    _STATUS_PROCESSING = t("status_processing")
+    _STATUS_DONE = t("status_done")
+    _STATUS_FAILED = t("status_failed")
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
         super().__init__(parent)
@@ -80,7 +81,7 @@ class VideoBatchMonitor(QWidget):
         vl.setContentsMargins(0, 0, 0, 0)
         vl.setSpacing(8)
 
-        self._title_label = QLabel("批量处理进度")
+        self._title_label = QLabel(t("batch_progress_title"))
         self._title_label.setObjectName("batchMonitorTitle")
         vl.addWidget(self._title_label)
 
@@ -88,7 +89,7 @@ class VideoBatchMonitor(QWidget):
         self._overall_progress.setObjectName("batchOverallProgress")
         self._overall_progress.setRange(0, 0)
         self._overall_progress.setFixedHeight(22)
-        self._overall_progress.setFormat("选择视频文件夹后点击开始")
+        self._overall_progress.setFormat(t("batch_hint_select_folder"))
         self._overall_progress.setVisible(False)
         vl.addWidget(self._overall_progress)
 
@@ -103,7 +104,7 @@ class VideoBatchMonitor(QWidget):
         self._table = QTableWidget(0, 5)
         self._table.setObjectName("batchVideoTable")
         self._table.setHorizontalHeaderLabels(
-            ["文件名", "状态", "帧进度", "检测数", "用时"]
+            [t("col_filename"), t("col_status"), t("col_frame_progress"), t("col_detections"), t("col_duration")]
         )
         self._table.setAlternatingRowColors(True)
         self._table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
@@ -132,11 +133,11 @@ class VideoBatchMonitor(QWidget):
         self._video_start_times.clear()
 
         self._overall_progress.setVisible(True)
-        self._overall_progress.setFormat("%v / %m 视频已完成")
+        self._overall_progress.setFormat(t("batch_progress_format"))
         self._overall_progress.setRange(0, self._total_videos)
         self._overall_progress.setValue(0)
         self._time_label.setVisible(True)
-        self._time_label.setText("已用时间: 00:00  |  预计剩余: --")
+        self._time_label.setText(t("batch_time_started"))
 
         self._table.setRowCount(self._total_videos)
         for row, path in enumerate(video_paths):
@@ -200,7 +201,7 @@ class VideoBatchMonitor(QWidget):
         """全部批量处理完成"""
         elapsed = time.time() - self._batch_start_time if self._batch_start_time else 0
         self._time_label.setText(
-            f"已用时间: {self._format_duration(elapsed)}  |  全部完成"
+            t("batch_time_complete", elapsed=self._format_duration(elapsed))
         )
 
     def clear(self) -> None:
@@ -213,7 +214,7 @@ class VideoBatchMonitor(QWidget):
         self._video_start_times.clear()
 
         self._overall_progress.setRange(0, 0)
-        self._overall_progress.setFormat("选择视频文件夹后点击开始")
+        self._overall_progress.setFormat(t("batch_hint_select_folder"))
         self._overall_progress.setVisible(False)
         self._time_label.setText("")
         self._time_label.setVisible(False)
@@ -269,7 +270,7 @@ class VideoBatchMonitor(QWidget):
         if not self._batch_start_time or self._completed_videos <= 0:
             elapsed = time.time() - self._batch_start_time if self._batch_start_time else 0
             self._time_label.setText(
-                f"已用时间: {self._format_duration(elapsed)}  |  预计剩余: 计算中..."
+                t("batch_time_estimating", elapsed=self._format_duration(elapsed))
             )
             return
 
@@ -279,8 +280,7 @@ class VideoBatchMonitor(QWidget):
         est_remaining = avg_per_video * remaining_videos
 
         self._time_label.setText(
-            f"已用时间: {self._format_duration(elapsed)}  |  "
-            f"预计剩余: {self._format_duration(est_remaining)}"
+            t("batch_time_remaining", elapsed=self._format_duration(elapsed), remaining=self._format_duration(est_remaining))
         )
 
     @staticmethod

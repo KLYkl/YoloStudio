@@ -41,6 +41,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from utils.i18n import t
 from core.train_handler import TrainManager
 from core.thread_pool import Worker, run_in_thread
 from ui.focus_widgets import FocusComboBox, FocusDoubleSpinBox, FocusSpinBox
@@ -111,7 +112,7 @@ class TrainWidget(QWidget):
         left_layout.setSpacing(10)
         
         # --- Group 1: 环境与数据 (使用 GridLayout 确保按钮可见) ---
-        env_group = QGroupBox("环境与数据")
+        env_group = QGroupBox(t("train_env_data_group"))
         env_grid = QGridLayout(env_group)
         env_grid.setColumnStretch(1, 1)  # 输入列获取所有拉伸
         env_grid.setColumnStretch(2, 0)  # 按钮列固定宽度
@@ -123,12 +124,12 @@ class TrainWidget(QWidget):
         self.python_combo.setMinimumWidth(150)
         env_grid.addWidget(self.python_combo, 0, 1)
         
-        self.scan_env_btn = QPushButton("扫描")
+        self.scan_env_btn = QPushButton(t("train_scan_btn"))
         self.scan_env_btn.setFixedWidth(70)
         env_grid.addWidget(self.scan_env_btn, 0, 2)
         
         # Row 1: 模型文件
-        env_grid.addWidget(QLabel("模型:"), 1, 0)
+        env_grid.addWidget(QLabel(t("train_model_label")), 1, 0)
         self.model_input = QLineEdit()
         self.model_input.setPlaceholderText("yolov8n.pt")
         self.model_input.setText("yolov8n.pt")
@@ -139,7 +140,7 @@ class TrainWidget(QWidget):
         env_grid.addWidget(self.model_browse_btn, 1, 2)
         
         # Row 2: 数据配置
-        env_grid.addWidget(QLabel("数据:"), 2, 0)
+        env_grid.addWidget(QLabel(t("train_data_label")), 2, 0)
         self.data_input = QLineEdit()
         self.data_input.setPlaceholderText("data.yaml")
         env_grid.addWidget(self.data_input, 2, 1)
@@ -151,7 +152,7 @@ class TrainWidget(QWidget):
         left_layout.addWidget(env_group)
         
         # --- Group 2: 基础超参数 (2 列 GridLayout) ---
-        param_group = QGroupBox("基础超参数")
+        param_group = QGroupBox(t("train_basic_params_group"))
         param_grid = QGridLayout(param_group)
         param_grid.setColumnStretch(1, 1)
         param_grid.setColumnStretch(3, 1)
@@ -194,14 +195,14 @@ class TrainWidget(QWidget):
         left_layout.addWidget(param_group)
         
         # --- Group 3: 高级参数 (可折叠, 每参数带启用复选框) ---
-        advanced_group = QGroupBox("高级参数")
+        advanced_group = QGroupBox(t("train_advanced_group"))
         advanced_outer = QVBoxLayout(advanced_group)
         advanced_outer.setSpacing(8)
         
         # 折叠按钮
         self.advanced_toggle = QToolButton()
         self.advanced_toggle.setObjectName("advancedToggle")
-        self.advanced_toggle.setText("▼ 展开高级参数")
+        self.advanced_toggle.setText(t("train_expand_advanced"))
         self.advanced_toggle.setCheckable(True)
         self.advanced_toggle.setChecked(False)
         self.advanced_toggle.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
@@ -218,7 +219,7 @@ class TrainWidget(QWidget):
         self.param_widgets = {}
         
         # === 数据增强参数 ===
-        aug_label = QLabel("数据增强")
+        aug_label = QLabel(t("train_data_augment_label"))
         aug_label.setObjectName("accentLabel")
         adv_layout.addWidget(aug_label)
         
@@ -357,7 +358,7 @@ class TrainWidget(QWidget):
         adv_layout.addSpacing(10)
         
         # === 优化器参数 ===
-        opt_label = QLabel("优化器")
+        opt_label = QLabel(t("train_optimizer_label"))
         opt_label.setObjectName("accentLabel")
         adv_layout.addWidget(opt_label)
         
@@ -424,7 +425,7 @@ class TrainWidget(QWidget):
         adv_layout.addSpacing(10)
         
         # === 训练控制参数 ===
-        ctrl_label = QLabel("训练控制")
+        ctrl_label = QLabel(t("train_control_label"))
         ctrl_label.setObjectName("accentLabel")
         adv_layout.addWidget(ctrl_label)
         
@@ -461,13 +462,13 @@ class TrainWidget(QWidget):
         self.param_widgets["cache"] = self.cache_combo
         
         self.multi_scale_check = QCheckBox("Multi-scale")
-        self.multi_scale_check.setToolTip("启用多尺度训练")
+        self.multi_scale_check.setToolTip(t("train_multi_scale_tooltip"))
         ctrl_grid.addWidget(self.multi_scale_check, 1, 2, 1, 2)
         self.param_checks["multi_scale"] = self.multi_scale_check
         self.param_widgets["multi_scale"] = self.multi_scale_check  # 特殊: 自身就是控件
         
         # Row 2: AMP
-        self.amp_check = QCheckBox("AMP 混合精度")
+        self.amp_check = QCheckBox(t("train_amp_label"))
         ctrl_grid.addWidget(self.amp_check, 2, 0, 1, 4)
         self.param_checks["amp"] = self.amp_check
         self.param_widgets["amp"] = self.amp_check  # 特殊: 自身就是控件
@@ -484,12 +485,12 @@ class TrainWidget(QWidget):
         left_panel_layout.addWidget(left_scroll, 1)  # 滚动区域占满剩余空间
         
         # --- 固定底栏: 命令预览 + 操作按钮 (始终可见, 不随滚动) ---
-        cmd_group = QGroupBox("命令预览 (可编辑)")
+        cmd_group = QGroupBox(t("train_cmd_preview_group"))
         cmd_layout = QVBoxLayout(cmd_group)
         
         self.command_preview = QPlainTextEdit()
         self.command_preview.setMaximumHeight(80)
-        self.command_preview.setPlaceholderText("训练命令将在这里生成...")
+        self.command_preview.setPlaceholderText(t("train_cmd_placeholder"))
         cmd_layout.addWidget(self.command_preview)
         
         left_panel_layout.addWidget(cmd_group)
@@ -497,13 +498,13 @@ class TrainWidget(QWidget):
         action_layout = QHBoxLayout()
         action_layout.addStretch()
         
-        self.stop_btn = QPushButton("⏹ 停止训练")
+        self.stop_btn = QPushButton(t("train_stop_btn"))
         self.stop_btn.setMinimumHeight(40)
         self.stop_btn.setEnabled(False)
         self.stop_btn.setProperty("class", "danger")
         action_layout.addWidget(self.stop_btn)
         
-        self.start_btn = QPushButton("▶ 开始训练")
+        self.start_btn = QPushButton(t("train_start_btn"))
         self.start_btn.setMinimumHeight(40)
         self.start_btn.setProperty("class", "primary")
         action_layout.addWidget(self.start_btn)
@@ -515,19 +516,19 @@ class TrainWidget(QWidget):
         # ========== 右侧: 终端监视器 ==========
         right_layout = QVBoxLayout()
         
-        terminal_label = QLabel("📺 训练输出")
+        terminal_label = QLabel(t("train_output_label"))
         terminal_label.setObjectName("successLabel")
         right_layout.addWidget(terminal_label)
         
         self.terminal = QTextEdit()
         self.terminal.setReadOnly(True)
-        self.terminal.setPlaceholderText("训练日志将显示在这里...")
+        self.terminal.setPlaceholderText(t("train_log_placeholder"))
         right_layout.addWidget(self.terminal, 1)
         
         # 清空按钮
         clear_layout = QHBoxLayout()
         clear_layout.addStretch()
-        self.clear_terminal_btn = QPushButton("清空")
+        self.clear_terminal_btn = QPushButton(t("train_clear_btn"))
         self.clear_terminal_btn.setFixedWidth(60)
         clear_layout.addWidget(self.clear_terminal_btn)
         right_layout.addLayout(clear_layout)
@@ -591,9 +592,9 @@ class TrainWidget(QWidget):
         """Scan Conda environments in the background."""
         # Disable the button to avoid duplicate scans.
         self.scan_env_btn.setEnabled(False)
-        self.scan_env_btn.setText("扫描中...")
+        self.scan_env_btn.setText(t("train_scanning"))
         self.python_combo.clear()
-        self.python_combo.addItem("正在扫描环境...")
+        self.python_combo.addItem(t("train_scanning_envs"))
         
         def do_scan():
             """Run the environment scan on a worker thread."""
@@ -616,9 +617,9 @@ class TrainWidget(QWidget):
         for env_name, python_path in envs:
             # Show the environment name and keep the python path in userData.
             self.python_combo.addItem(env_name, userData=python_path)
-        self.log_message.emit(f"扫描到 {len(envs)} 个 Python 环境")
+        self.log_message.emit(t("train_scan_found").format(count=len(envs)))
         self.scan_env_btn.setEnabled(True)
-        self.scan_env_btn.setText("扫描")
+        self.scan_env_btn.setText(t("train_scan_btn"))
 
     def _handle_env_scan_error(self, worker: Worker, err_info) -> None:
         """Ignore late errors from outdated scan workers."""
@@ -627,9 +628,9 @@ class TrainWidget(QWidget):
 
         self._scan_worker = None
         self.python_combo.clear()
-        self.log_message.emit(f"环境扫描失败: {err_info[1]}")
+        self.log_message.emit(t("train_scan_failed").format(error=err_info[1]))
         self.scan_env_btn.setEnabled(True)
-        self.scan_env_btn.setText("扫描")
+        self.scan_env_btn.setText(t("train_scan_btn"))
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """窗口关闭时清理后台任务和训练进程"""
@@ -647,7 +648,7 @@ class TrainWidget(QWidget):
     def _browse_model(self) -> None:
         """浏览模型文件"""
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择模型文件", "", "PyTorch 模型 (*.pt);;所有文件 (*)"
+            self, t("train_dialog_select_model"), "", t("train_model_file_filter")
         )
         if path:
             self.model_input.setText(path)
@@ -656,7 +657,7 @@ class TrainWidget(QWidget):
     def _browse_data(self) -> None:
         """浏览数据配置文件"""
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择数据配置", "", "YAML 文件 (*.yaml *.yml);;所有文件 (*)"
+            self, t("train_dialog_select_data"), "", t("train_data_file_filter")
         )
         if path:
             self.data_input.setText(path)
@@ -665,7 +666,7 @@ class TrainWidget(QWidget):
     def _toggle_advanced(self, checked: bool) -> None:
         """切换高级参数显示"""
         self.advanced_container.setVisible(checked)
-        self.advanced_toggle.setText("▲ 收起高级参数" if checked else "▼ 展开高级参数")
+        self.advanced_toggle.setText(t("train_collapse_advanced") if checked else t("train_expand_advanced"))
     
     @Slot()
     def _on_param_changed(self) -> None:
@@ -725,24 +726,24 @@ class TrainWidget(QWidget):
         command = self.command_preview.toPlainText().strip()
         
         if not command:
-            self.log_message.emit("请先配置训练参数")
+            self.log_message.emit(t("train_warn_no_command"))
             return
         
         # 检查是否正在扫描环境
         if self._scan_worker is not None:
-            self.log_message.emit("环境扫描中，请稍候再试")
+            self.log_message.emit(t("train_warn_scanning"))
             return
         
         # 验证必要路径
         data_path = self.data_input.text().strip()
         if not data_path:
-            self.log_message.emit("请选择数据配置文件 (.yaml)")
+            self.log_message.emit(t("train_warn_no_data"))
             return
         
         # 获取选中环境的 Python 路径
         python_path = self.python_combo.currentData()
         if not python_path:
-            self.log_message.emit("请选择有效的 Python 环境")
+            self.log_message.emit(t("train_warn_no_python"))
             return
         
         # 确定工作目录
@@ -790,7 +791,7 @@ class TrainWidget(QWidget):
     @Slot(str, str)
     def _on_system_msg(self, msg: str, level: str) -> None:
         """处理系统消息 → 全局日志"""
-        self.log_message.emit(f"[训练] {msg}")
+        self.log_message.emit(t("train_system_msg_prefix").format(msg=msg))
     
     @Slot()
     def _on_training_finished(self) -> None:

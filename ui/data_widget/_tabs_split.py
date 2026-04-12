@@ -31,6 +31,7 @@ from PySide6.QtWidgets import (
 
 from core.data_handler import SplitMode, SplitResult
 from ui.focus_widgets import FocusSlider, FocusSpinBox
+from utils.i18n import t
 
 
 class SplitTabMixin:
@@ -63,23 +64,23 @@ class SplitTabMixin:
         left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         left_scroll.setFrameShape(QFrame.Shape.NoFrame)
 
-        left_group = QGroupBox("划分工具")
+        left_group = QGroupBox(t("split_tools"))
         left_group_layout = QVBoxLayout(left_group)
         left_group_layout.setSpacing(6)
 
         # --- Group 1: 划分参数 ---
-        param_group = QGroupBox("划分参数")
+        param_group = QGroupBox(t("split_params"))
         param_layout = QVBoxLayout(param_group)
 
         ratio_row = QHBoxLayout()
-        ratio_row.addWidget(QLabel("划分比例:"))
+        ratio_row.addWidget(QLabel(t("split_ratio_label")))
         self.ratio_slider = FocusSlider(Qt.Orientation.Horizontal)
         self.ratio_slider.setRange(50, 95)
         self.ratio_slider.setValue(80)
         self.ratio_slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.ratio_slider.setTickInterval(5)
 
-        self.ratio_label = QLabel("训练: 80% | 验证: 20%")
+        self.ratio_label = QLabel(t("split_ratio_display").format(train=80, val=20))
         self.ratio_label.setFixedWidth(130)
 
         ratio_row.addWidget(self.ratio_slider, 1)
@@ -88,7 +89,7 @@ class SplitTabMixin:
 
         # 随机种子
         seed_row = QHBoxLayout()
-        seed_row.addWidget(QLabel("随机种子:"))
+        seed_row.addWidget(QLabel(t("split_seed_label")))
         self.seed_spin = FocusSpinBox()
         self.seed_spin.setRange(0, 99999)
         self.seed_spin.setValue(42)
@@ -98,21 +99,21 @@ class SplitTabMixin:
         param_layout.addLayout(seed_row)
 
         # 忽略无标签图片
-        self.ignore_orphans_check = QCheckBox("忽略无标签图片")
-        self.ignore_orphans_check.setToolTip("跳过没有对应标签文件的图片")
+        self.ignore_orphans_check = QCheckBox(t("split_ignore_orphans"))
+        self.ignore_orphans_check.setToolTip(t("split_ignore_orphans_tooltip"))
         param_layout.addWidget(self.ignore_orphans_check)
 
         left_group_layout.addWidget(param_group)
 
         # --- Group 2: 输出策略 ---
-        output_group = QGroupBox("输出策略")
+        output_group = QGroupBox(t("split_output_strategy"))
         output_layout = QVBoxLayout(output_group)
 
         # 划分模式 (横排)
         mode_row = QHBoxLayout()
-        self.copy_radio = QRadioButton("复制")
-        self.move_radio = QRadioButton("移动")
-        self.index_radio = QRadioButton("索引")
+        self.copy_radio = QRadioButton(t("split_mode_copy"))
+        self.move_radio = QRadioButton(t("split_mode_move"))
+        self.index_radio = QRadioButton(t("split_mode_index"))
         self.copy_radio.setChecked(True)
 
         self.mode_group = QButtonGroup(self)
@@ -127,21 +128,21 @@ class SplitTabMixin:
         output_layout.addLayout(mode_row)
 
         # 清空目标
-        self.clear_output_check = QCheckBox("清空目标目录")
-        self.clear_output_check.setToolTip("删除 train/ 和 val/ 目录后再写入")
+        self.clear_output_check = QCheckBox(t("split_clear_output"))
+        self.clear_output_check.setToolTip(t("split_clear_output_tooltip"))
         output_layout.addWidget(self.clear_output_check)
 
         output_layout.addSpacing(2)
 
         # 输出目录
-        output_layout.addWidget(QLabel("输出目录:"))
+        output_layout.addWidget(QLabel(t("split_output_dir_label")))
 
         dir_row = QHBoxLayout()
         self.output_dir_input = QLineEdit()
-        self.output_dir_input.setPlaceholderText("划分后保存位置")
+        self.output_dir_input.setPlaceholderText(t("split_output_dir_placeholder"))
         dir_row.addWidget(self.output_dir_input, 1)
 
-        self.output_browse_btn = QPushButton("浏览")
+        self.output_browse_btn = QPushButton(t("split_browse_btn"))
         self.output_browse_btn.setFixedWidth(60)
         dir_row.addWidget(self.output_browse_btn)
         output_layout.addLayout(dir_row)
@@ -151,7 +152,7 @@ class SplitTabMixin:
         # 执行按钮
         btn_row = QHBoxLayout()
         btn_row.addStretch()
-        self.split_btn = QPushButton("🚀 开始划分")
+        self.split_btn = QPushButton(t("split_start_btn"))
         self.split_btn.setMinimumHeight(28)
         self.split_btn.setProperty("class", "primary")
         btn_row.addWidget(self.split_btn)
@@ -184,7 +185,7 @@ class SplitTabMixin:
         main_layout.setSpacing(6)
 
         # ========== 统一 GroupBox ==========
-        yaml_group = QGroupBox("YAML 配置")
+        yaml_group = QGroupBox(t("split_yaml_config"))
         yaml_layout = QVBoxLayout(yaml_group)
 
         # ========== 左右分栏布局 ==========
@@ -192,7 +193,7 @@ class SplitTabMixin:
         content_layout.setSpacing(8)
 
         # ========== 左侧: 路径配置 (Flex 3) ==========
-        left_group = QGroupBox("路径配置")
+        left_group = QGroupBox(t("split_path_config"))
         left_layout = QVBoxLayout(left_group)
 
         grid = QGridLayout()
@@ -201,7 +202,7 @@ class SplitTabMixin:
         # Train 路径
         grid.addWidget(QLabel("Train:"), 0, 0)
         self.train_path_input = QLineEdit()
-        self.train_path_input.setPlaceholderText("训练集路径 (划分后自动填充)")
+        self.train_path_input.setPlaceholderText(t("split_train_path_placeholder"))
         grid.addWidget(self.train_path_input, 0, 1)
         self.train_browse_btn = QPushButton("...")
         self.train_browse_btn.setFixedWidth(40)
@@ -210,16 +211,16 @@ class SplitTabMixin:
         # Val 路径
         grid.addWidget(QLabel("Val:"), 1, 0)
         self.val_path_input = QLineEdit()
-        self.val_path_input.setPlaceholderText("验证集路径 (划分后自动填充)")
+        self.val_path_input.setPlaceholderText(t("split_val_path_placeholder"))
         grid.addWidget(self.val_path_input, 1, 1)
         self.val_browse_btn = QPushButton("...")
         self.val_browse_btn.setFixedWidth(40)
         grid.addWidget(self.val_browse_btn, 1, 2)
 
         # YAML 输出路径
-        grid.addWidget(QLabel("输出:"), 2, 0)
+        grid.addWidget(QLabel(t("split_yaml_output_label")), 2, 0)
         self.yaml_output_input = QLineEdit()
-        self.yaml_output_input.setPlaceholderText("选择 YAML 保存路径...")
+        self.yaml_output_input.setPlaceholderText(t("split_yaml_output_placeholder"))
         grid.addWidget(self.yaml_output_input, 2, 1)
         self.yaml_browse_btn = QPushButton("...")
         self.yaml_browse_btn.setFixedWidth(40)
@@ -231,11 +232,11 @@ class SplitTabMixin:
         content_layout.addWidget(left_group, 3)  # Flex 3
 
         # ========== 右侧: 类别列表 (Flex 2) ==========
-        right_group = QGroupBox("类别列表 (每行一个)")
+        right_group = QGroupBox(t("split_classes_section"))
         right_layout = QVBoxLayout(right_group)
 
         self.classes_edit = QPlainTextEdit()
-        self.classes_edit.setPlaceholderText("扫描后自动填充，也可手动编辑...\n例如:\nexcavator\nbulldozer\ncrane")
+        self.classes_edit.setPlaceholderText(t("split_classes_placeholder"))
         self.classes_edit.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         right_layout.addWidget(self.classes_edit)
 
@@ -246,7 +247,7 @@ class SplitTabMixin:
         # ========== 保存按钮 (右对齐) ==========
         btn_layout = QHBoxLayout()
         btn_layout.addStretch()
-        self.save_yaml_btn = QPushButton("💾 保存 YAML 配置")
+        self.save_yaml_btn = QPushButton(t("split_save_yaml_btn"))
         self.save_yaml_btn.setMinimumHeight(28)
         self.save_yaml_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         self.save_yaml_btn.setProperty("class", "success")
@@ -262,12 +263,14 @@ class SplitTabMixin:
     @Slot(int)
     def _on_ratio_changed(self, value: int) -> None:
         """比例滑块变化"""
-        self.ratio_label.setText(f"训练: {value}% | 验证: {100 - value}%")
+        self.ratio_label.setText(
+            t("split_ratio_display").format(train=value, val=100 - value)
+        )
 
     @Slot()
     def _on_browse_output_dir(self) -> None:
         """选择输出目录"""
-        path = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        path = QFileDialog.getExistingDirectory(self, t("split_browse_output_title"))
         if path:
             self.output_dir_input.setText(path)
 
@@ -276,18 +279,18 @@ class SplitTabMixin:
         """开始划分数据集"""
         img_path = self.path_group.get_image_dir()
         if not img_path:
-            self.log_message.emit("请先选择图片目录")
+            self.log_message.emit(t("split_select_image_dir_first"))
             return
 
         if not img_path.exists():
-            self.log_message.emit(f"图片目录不存在: {img_path}")
+            self.log_message.emit(f"{t('split_image_dir_not_exist')}: {img_path}")
             return
 
         label_path = self.path_group.get_label_dir()
 
         output_dir = self.output_dir_input.text().strip()
         if not output_dir:
-            self.log_message.emit("请选择输出目录")
+            self.log_message.emit(t("split_select_output_dir"))
             return
         output_path = Path(output_dir)
 
@@ -350,20 +353,22 @@ class SplitTabMixin:
             self.yaml_output_input.setText(str(Path(output_dir) / "data.yaml"))
 
         self.log_message.emit(
-            f"划分完成: 训练集 {result.train_count} 张, 验证集 {result.val_count} 张"
+            t("split_finished_message").format(
+                train=result.train_count, val=result.val_count
+            )
         )
 
     @Slot()
     def _on_browse_train(self) -> None:
         """手动选择训练集目录"""
-        path = QFileDialog.getExistingDirectory(self, "选择训练集目录")
+        path = QFileDialog.getExistingDirectory(self, t("split_browse_train_title"))
         if path:
             self.train_path_input.setText(path)
 
     @Slot()
     def _on_browse_val(self) -> None:
         """手动选择验证集目录"""
-        path = QFileDialog.getExistingDirectory(self, "选择验证集目录")
+        path = QFileDialog.getExistingDirectory(self, t("split_browse_val_title"))
         if path:
             self.val_path_input.setText(path)
 
@@ -371,7 +376,7 @@ class SplitTabMixin:
     def _on_browse_yaml(self) -> None:
         """选择 YAML 保存路径"""
         path, _ = QFileDialog.getSaveFileName(
-            self, "保存 YAML 配置", "", "YAML 文件 (*.yaml *.yml)"
+            self, t("split_save_yaml_title"), "", t("split_yaml_file_filter")
         )
         if path:
             self.yaml_output_input.setText(path)
@@ -384,11 +389,11 @@ class SplitTabMixin:
         output_path = self.yaml_output_input.text().strip()
 
         if not train_path or not val_path:
-            self.log_message.emit("请先填写训练集和验证集路径")
+            self.log_message.emit(t("split_fill_train_val_first"))
             return
 
         if not output_path:
-            self.log_message.emit("请选择 YAML 保存路径")
+            self.log_message.emit(t("split_select_yaml_path"))
             return
 
         # 从编辑框获取类别
@@ -396,7 +401,7 @@ class SplitTabMixin:
         classes = [line.strip() for line in classes_text.split("\n") if line.strip()]
 
         if not classes:
-            self.log_message.emit("请填写类别列表")
+            self.log_message.emit(t("split_fill_classes"))
             return
 
         success = self._handler.generate_yaml(
@@ -408,4 +413,6 @@ class SplitTabMixin:
         )
 
         if success:
-            self.log_message.emit(f"YAML 配置已保存: {output_path}")
+            self.log_message.emit(
+                t("split_yaml_saved").format(path=output_path)
+            )

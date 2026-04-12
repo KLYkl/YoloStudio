@@ -23,6 +23,7 @@ import numpy as np
 from PySide6.QtCore import Qt, Slot
 from PySide6.QtGui import QImage, QPixmap, QResizeEvent
 from PySide6.QtWidgets import QLabel, QSizePolicy, QWidget
+from utils.i18n import t
 
 
 class PreviewCanvas(QLabel):
@@ -53,7 +54,7 @@ class PreviewCanvas(QLabel):
             QSizePolicy.Policy.Expanding
         )
         self.setMinimumSize(320, 240)
-        self.setText("📷 等待预测...")
+        self.setText(t("waiting_for_prediction"))
     
     @Slot(np.ndarray)
     def update_frame(self, frame: np.ndarray) -> None:
@@ -117,4 +118,4 @@ class PreviewCanvas(QLabel):
         """清空显示"""
         self._current_pixmap = None
         self.clear()
-        self.setText("📷 等待预测...")
+        self.setText(t("waiting_for_prediction"))
