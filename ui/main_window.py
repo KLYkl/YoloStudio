@@ -419,7 +419,8 @@ class MainWindow(QMainWindow):
         if log_visible:
             self.global_log._on_toggle()
 
-        self._update_theme_button_position()
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._update_theme_button_position)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """
