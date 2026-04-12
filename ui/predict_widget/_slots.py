@@ -18,6 +18,7 @@ from core.camera_scanner import DeviceScanner
 from core.predict_handler import InputSourceType
 from ui.base_ui import set_button_class
 from ui.styled_message_box import StyledMessageBox
+from utils.i18n import t
 
 
 class SlotsMixin:
@@ -77,7 +78,7 @@ class SlotsMixin:
     def _on_browse_single_image(self) -> None:
         """浏览单张图片"""
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择图片", "",
+            self, t("dialog_select_image"), "",
             "图片文件 (*.jpg *.jpeg *.png *.bmp *.webp *.tiff *.tif);;所有文件 (*)"
         )
         if path:
@@ -86,14 +87,14 @@ class SlotsMixin:
     @Slot()
     def _on_browse_batch_folder(self) -> None:
         """浏览批量处理文件夹"""
-        path = QFileDialog.getExistingDirectory(self, "选择图片文件夹")
+        path = QFileDialog.getExistingDirectory(self, t("dialog_select_image_folder"))
         if path:
             self._batch_folder_edit.setText(path)
 
     @Slot()
     def _on_browse_batch_video_folder(self) -> None:
         """浏览批量视频文件夹"""
-        path = QFileDialog.getExistingDirectory(self, "选择视频文件夹")
+        path = QFileDialog.getExistingDirectory(self, t("dialog_select_video_folder"))
         if path:
             self._batch_video_folder_edit.setText(path)
 
@@ -101,7 +102,7 @@ class SlotsMixin:
     def _on_browse_source(self) -> None:
         """视频模式浏览按钮"""
         path, _ = QFileDialog.getOpenFileName(
-            self, "选择视频", "",
+            self, t("dialog_select_video"), "",
             "视频文件 (*.mp4 *.avi *.mov *.mkv *.wmv);;所有文件 (*)"
         )
         if path:
@@ -109,17 +110,17 @@ class SlotsMixin:
 
     @Slot()
     def _on_browse_model(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(self, "选择模型", "", "PyTorch 模型 (*.pt);;所有文件 (*)")
+        path, _ = QFileDialog.getOpenFileName(self, t("dialog_select_model"), "", "PyTorch 模型 (*.pt);;所有文件 (*)")
         if path:
             self._model_path_edit.setText(path)
-            self._model_display.setText(f"模型: {Path(path).name}")
+            self._model_display.setText(t("model_label", name=Path(path).name))
             self._model_display.setObjectName("successLabel")
             self._model_display.style().unpolish(self._model_display)
             self._model_display.style().polish(self._model_display)
 
     @Slot()
     def _on_browse_output(self) -> None:
-        path = QFileDialog.getExistingDirectory(self, "选择输出目录")
+        path = QFileDialog.getExistingDirectory(self, t("dialog_select_output_dir"))
         if path:
             self._output_dir_edit.setText(path)
 
@@ -135,16 +136,16 @@ class SlotsMixin:
     def _on_test_rtsp(self) -> None:
         url = self._rtsp_edit.text().strip()
         if not url:
-            StyledMessageBox.warning(self, "警告", "请输入 RTSP 地址")
+            StyledMessageBox.warning(self, t("warning"), t("warn_input_rtsp"))
             return
-        self.log_message.emit(f"正在测试 RTSP: {url}")
+        self.log_message.emit(t("testing_rtsp", url=url))
         success, error = DeviceScanner.test_rtsp(url)
         if success:
-            StyledMessageBox.information(self, "成功", "RTSP 连接成功!")
-            self.log_message.emit("RTSP 测试通过")
+            StyledMessageBox.information(self, t("success"), t("rtsp_connect_success"))
+            self.log_message.emit(t("rtsp_test_passed"))
         else:
-            StyledMessageBox.warning(self, "失败", f"RTSP 连接失败: {error}")
-            self.log_message.emit(f"RTSP 测试失败: {error}")
+            StyledMessageBox.warning(self, t("fail"), t("rtsp_connect_failed", error=error))
+            self.log_message.emit(t("rtsp_test_failed", error=error))
 
     @Slot(int)
     def _on_conf_changed(self, value: int) -> None:
@@ -195,7 +196,7 @@ class SlotsMixin:
         self._camera_combo.clear()
         for cam in self._cameras:
             self._camera_combo.addItem(cam["name"])
-        self.log_message.emit(f"摄像头扫描完成: {len(self._cameras)} 个设备")
+        self.log_message.emit(t("camera_scan_done", count=len(self._cameras)))
 
     def _scan_screens(self) -> None:
         """扫描屏幕设备"""
@@ -203,7 +204,7 @@ class SlotsMixin:
         self._screen_combo.clear()
         for screen in self._screens:
             self._screen_combo.addItem(screen["name"])
-        self.log_message.emit(f"屏幕扫描完成: {len(self._screens)} 个显示器")
+        self.log_message.emit(t("screen_scan_done", count=len(self._screens)))
 
     # ==================== 开始/暂停/停止 ====================
 
@@ -260,14 +261,14 @@ class SlotsMixin:
         """启动预测"""
         model_path = self._model_path_edit.text().strip()
         if not model_path or not Path(model_path).exists():
-            StyledMessageBox.warning(self, "警告", "请选择有效的模型文件")
+            StyledMessageBox.warning(self, t("warning"), t("warn_select_valid_model"))
             return
         if self._predict_manager.model_path != model_path:
-            self.log_message.emit(f"正在加载模型: {model_path}")
+            self.log_message.emit(t("loading_model", path=model_path))
             if not self._predict_manager.load_model(model_path):
-                StyledMessageBox.critical(self, "错误", "模型加载失败")
+                StyledMessageBox.critical(self, t("error"), t("err_model_load_failed"))
                 return
-            self.log_message.emit("模型加载成功")
+            self.log_message.emit(t("model_loaded"))
             self._populate_class_filter()
 
         source_id = self._source_btn_group.checkedId()
@@ -284,26 +285,26 @@ class SlotsMixin:
                 source = self._source_path_edit.text().strip()
                 source_type = InputSourceType.VIDEO
                 if not source or not Path(source).exists():
-                    StyledMessageBox.warning(self, "警告", "请选择有效的视频")
+                    StyledMessageBox.warning(self, t("warning"), t("warn_select_valid_video"))
                     return
         elif source_id == 2:
             if self._rtsp_check.isChecked():
                 source = self._rtsp_edit.text().strip()
                 source_type = InputSourceType.RTSP
                 if not source:
-                    StyledMessageBox.warning(self, "警告", "请输入 RTSP 地址")
+                    StyledMessageBox.warning(self, t("warning"), t("warn_input_rtsp"))
                     return
             else:
                 idx = self._camera_combo.currentIndex()
                 if idx < 0 or idx >= len(self._cameras):
-                    StyledMessageBox.warning(self, "警告", "请选择摄像头")
+                    StyledMessageBox.warning(self, t("warning"), t("warn_select_camera"))
                     return
                 source = self._cameras[idx]["id"]
                 source_type = InputSourceType.CAMERA
         elif source_id == 3:
             idx = self._screen_combo.currentIndex()
             if idx < 0 or idx >= len(self._screens):
-                StyledMessageBox.warning(self, "警告", "请选择屏幕")
+                StyledMessageBox.warning(self, t("warning"), t("warn_select_screen"))
                 return
             screen = self._screens[idx]
             source = f"screen_{idx}"
@@ -331,7 +332,7 @@ class SlotsMixin:
 
         conf = self._conf_slider.value() / 100.0
         iou = self._iou_slider.value() / 100.0
-        self.log_message.emit(f"开始预测: {source}")
+        self.log_message.emit(t("start_predict", source=source))
 
         self._current_source_type = source_type
 
@@ -362,7 +363,7 @@ class SlotsMixin:
                 self._start_btn.setText("⏸ 暂停")
                 set_button_class(self._start_btn, "warning")
         else:
-            StyledMessageBox.critical(self, "错误", "启动预测失败")
+            StyledMessageBox.critical(self, t("error"), t("err_start_predict_failed"))
 
     @Slot()
     def _on_stop(self) -> None:
@@ -372,31 +373,31 @@ class SlotsMixin:
             self._image_processor.stop()
             if self._batch_thread and self._batch_thread.isRunning():
                 if not self._batch_thread.wait(5000):
-                    self.log_message.emit("[警告] 批量处理线程超时未结束")
+                    self.log_message.emit(t("warn_batch_thread_timeout"))
             self._is_batch_processing = False
             # D8-fix: 清理线程引用
             if self._batch_thread:
                 self._batch_thread.deleteLater()
                 self._batch_thread = None
-            self._image_progress_bar.set_finished("处理已中止")
-            self.log_message.emit("图片批量处理已停止")
+            self._image_progress_bar.set_finished(t("processing_aborted"))
+            self.log_message.emit(t("image_batch_stopped"))
         elif self._video_batch_processor.is_running:
             self._video_batch_processor.stop()
             if self._video_batch_thread and self._video_batch_thread.isRunning():
                 if not self._video_batch_thread.wait(5000):
-                    self.log_message.emit("[警告] 视频批量处理线程超时未结束")
+                    self.log_message.emit(t("warn_video_batch_thread_timeout"))
             # Bug8-fix: 手动停止时也要清理线程引用 (与图片批量分支一致)
             if self._video_batch_thread:
                 self._video_batch_thread.deleteLater()
                 self._video_batch_thread = None
-            self.log_message.emit("视频批量处理已停止")
+            self.log_message.emit(t("video_batch_stopped"))
         elif self._predict_manager.is_running:
             self._predict_manager.stop()
             # 使用公开 API 等待线程退出，避免访问私有成员
             self._predict_manager.wait_for_stop(3000)
             self._fps_timer.stop()
             self._finalize_output()
-            self.log_message.emit("预测已停止")
+            self.log_message.emit(t("predict_stopped"))
 
         self._reset_ui_after_stop()
 
@@ -410,12 +411,12 @@ class SlotsMixin:
         if self._is_recording:
             video_path = self._output_manager.stop_video()
             if video_path:
-                self.log_message.emit(f"视频已保存: {video_path}")
+                self.log_message.emit(t("video_saved", path=video_path))
             self._is_recording = False
         if self._save_report_check.isChecked():
             report_path = self._output_manager.generate_report()
             if report_path:
-                self.log_message.emit(f"报告已生成: {report_path}")
+                self.log_message.emit(t("report_generated", path=report_path))
 
     def _reset_ui_after_stop(self) -> None:
         """重置 UI 到停止状态"""
@@ -454,8 +455,8 @@ class SlotsMixin:
 
         if should_display:
             self._preview_canvas.update_frame(annotated_frame)
-            self._frame_display.setText(f"已处理: {self._frame_count} 帧")
-            self._object_display.setText(f"检测: {self._object_count} 个")
+            self._frame_display.setText(t("processed_frames", count=self._frame_count))
+            self._object_display.setText(t("detections_count", count=self._object_count))
             self._last_display_time = now
 
         save_annotated = self._save_keyframe_annotated_check.isChecked()
@@ -490,7 +491,7 @@ class SlotsMixin:
 
     @Slot(str)
     def _on_error(self, error: str) -> None:
-        self.log_message.emit(f"[错误] {error}")
+        self.log_message.emit(t("error_prefix", msg=error))
 
     @Slot()
     def _on_prediction_finished(self) -> None:
@@ -498,11 +499,11 @@ class SlotsMixin:
         self._fps_timer.stop()
         self._finalize_output()
         self._reset_ui_after_stop()
-        self.log_message.emit("预测完成")
+        self.log_message.emit(t("predict_complete"))
 
     @Slot(str)
     def _on_file_saved(self, path: str) -> None:
-        self.log_message.emit(f"文件已保存: {path}")
+        self.log_message.emit(t("file_saved", path=path))
 
     @Slot()
     def _toggle_panel(self) -> None:
@@ -510,10 +511,10 @@ class SlotsMixin:
         if self._is_panel_collapsed:
             self._settings_panel.setVisible(True)
             self._splitter.setSizes([self.PANEL_WIDTH, self._splitter.width() - self.PANEL_WIDTH])
-            self._toggle_btn.setToolTip("折叠设置面板")
+            self._toggle_btn.setToolTip(t("collapse_panel"))
         else:
             self._settings_panel.setVisible(False)
-            self._toggle_btn.setToolTip("展开设置面板")
+            self._toggle_btn.setToolTip(t("expand_panel"))
         self._is_panel_collapsed = not self._is_panel_collapsed
 
     def _set_layout_visible(self, layout, visible: bool) -> None:

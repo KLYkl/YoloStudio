@@ -20,6 +20,7 @@ from ui.focus_widgets import FocusComboBox, FocusSlider
 from ui.image_result_browser import ImageResultBrowser, ImageProgressBar
 from ui.predict_preview import PreviewCanvas
 from ui.video_batch_monitor import VideoBatchMonitor
+from utils.i18n import t
 
 
 class ViewportMixin:
@@ -99,9 +100,9 @@ class ViewportMixin:
         self._speed_combo.addItem("0.5x", 0.5)
         self._speed_combo.addItem("1x", 1.0)
         self._speed_combo.addItem("2x", 2.0)
-        self._speed_combo.addItem("🚀 不限速", 0.0)
+        self._speed_combo.addItem(t("speed_unlimited"), 0.0)
         self._speed_combo.setCurrentIndex(3)  # 默认: 不限速
-        self._speed_combo.setToolTip("播放速度 (0=全速推理)")
+        self._speed_combo.setToolTip(t("speed_tooltip"))
         layout.addWidget(self._speed_combo)
 
         bar.setVisible(False)
@@ -123,19 +124,19 @@ class ViewportMixin:
         self._toggle_btn = QPushButton("☰")
         self._toggle_btn.setFixedSize(32, 32)
         self._toggle_btn.setObjectName("logPanelBtn")
-        self._toggle_btn.setToolTip("折叠设置面板")
+        self._toggle_btn.setToolTip(t("collapse_panel"))
         self._toggle_btn.clicked.connect(self._toggle_panel)
         layout.addWidget(self._toggle_btn)
 
-        self._fps_display = QLabel("FPS: --")
+        self._fps_display = QLabel(t("fps_default"))
         self._fps_display.setObjectName("successLabel")
 
-        self._frame_display = QLabel("已处理: 0 帧")
+        self._frame_display = QLabel(t("processed_frames", count=0))
 
-        self._object_display = QLabel("检测: 0 个")
+        self._object_display = QLabel(t("detections_count", count=0))
         self._object_display.setObjectName("warningLabel")
 
-        self._model_display = QLabel("模型: 未加载")
+        self._model_display = QLabel(t("model_not_loaded"))
         self._model_display.setObjectName("mutedLabel")
 
         layout.addWidget(self._fps_display)
@@ -144,11 +145,11 @@ class ViewportMixin:
         layout.addWidget(self._model_display)
         layout.addStretch()
 
-        self._start_btn = QPushButton("▶ 开始")
+        self._start_btn = QPushButton(t("btn_start"))
         self._start_btn.setFixedSize(80, 32)
         self._start_btn.setProperty("class", "success")
 
-        self._stop_btn = QPushButton("⏹ 停止")
+        self._stop_btn = QPushButton(t("btn_stop"))
         self._stop_btn.setFixedSize(80, 32)
         self._stop_btn.setEnabled(False)
         self._stop_btn.setProperty("class", "danger")

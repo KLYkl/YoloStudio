@@ -13,6 +13,7 @@ from PySide6.QtCore import Qt, Slot
 
 from core.predict_handler import SaveCondition
 from ui.base_ui import set_button_class
+from utils.i18n import t
 
 
 class ImageModeMixin:
@@ -28,7 +29,7 @@ class ImageModeMixin:
                 original, annotated, detections = result
                 self._image_browser.show_result(original, annotated, detections)
                 self._image_browser.update_navigation(idx, self._image_processor.processed_count)
-                self._object_display.setText(f"检测: {len(detections)} 个")  # B7-fix
+                self._object_display.setText(t("detections_count", count=len(detections)))  # B7-fix
 
     @Slot()
     def _on_image_next(self) -> None:
@@ -40,12 +41,12 @@ class ImageModeMixin:
                 original, annotated, detections = result
                 self._image_browser.show_result(original, annotated, detections)
                 self._image_browser.update_navigation(idx, self._image_processor.processed_count)
-                self._object_display.setText(f"检测: {len(detections)} 个")  # B7-fix
+                self._object_display.setText(t("detections_count", count=len(detections)))  # B7-fix
 
     @Slot(int, int)
     def _on_image_batch_progress(self, current: int, total: int) -> None:
         """批量处理进度更新"""
-        self._image_progress_bar.update_progress(current, total, "正在处理...")
+        self._image_progress_bar.update_progress(current, total, t("processing"))
 
     @Slot()
     def _on_image_batch_finished(self) -> None:
@@ -55,9 +56,9 @@ class ImageModeMixin:
         processed = self._image_processor.processed_count
         total = self._image_processor.image_count
 
-        self._image_progress_bar.set_finished(f"处理完成: {processed}/{total}")
+        self._image_progress_bar.set_finished(t("processing_done", processed=processed, total=total))
 
-        self._start_btn.setText("▶ 开始")
+        self._start_btn.setText(t("btn_start"))
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
 
@@ -75,7 +76,7 @@ class ImageModeMixin:
 
         self._finalize_image_output()
 
-        self.log_message.emit(f"图片批量处理完成: {processed}/{total}")
+        self.log_message.emit(t("image_batch_done", processed=processed, total=total))
 
     def _start_image_processing(self) -> None:
         """启动图片处理"""
@@ -84,17 +85,17 @@ class ImageModeMixin:
         if is_batch:
             source = self._batch_folder_edit.text().strip()
             if not source:
-                self._on_error("请选择图片文件夹")
+                self._on_error(t("warn_select_image_folder"))
                 return
         else:
             source = self._single_image_edit.text().strip()
             if not source:
-                self._on_error("请选择图片文件")
+                self._on_error(t("warn_select_image_file"))
                 return
 
         model_path = self._model_path_edit.text().strip()
         if not model_path:
-            self._on_error("请选择模型")
+            self._on_error(t("warn_select_model"))
             return
 
         if self._predict_manager.model_path != model_path:
@@ -107,7 +108,7 @@ class ImageModeMixin:
         count = self._image_processor.load_images(source)
 
         if count == 0:
-            self._on_error("未找到图片")
+            self._on_error(t("warn_no_images_found"))
             return
 
         output_dir = self._output_dir_edit.text().strip()
@@ -139,16 +140,16 @@ class ImageModeMixin:
 
             self._finalize_image_output()
 
-            self._start_btn.setText("▶ 开始")
+            self._start_btn.setText(t("btn_start"))
             self._stop_btn.setEnabled(False)
         else:
             # BUG-7: 先检查旧线程，再修改 UI
             if hasattr(self, '_batch_thread') and self._batch_thread and self._batch_thread.isRunning():
-                self._on_error("上一次批量处理尚未完成")
+                self._on_error(t("warn_batch_still_running"))
                 return
 
             self._is_batch_processing = True
-            self._start_btn.setText("⋯ 处理中")
+            self._start_btn.setText(t("btn_processing"))
             self._start_btn.setEnabled(False)
             self._stop_btn.setEnabled(True)
 
@@ -173,8 +174,9 @@ class ImageModeMixin:
             batch_config = compute_optimal_batch(mode=perf_mode)
             self._image_processor.set_batch_size(batch_config.image_batch_size)
             self.log_message.emit(
-                f"性能模式: {'高性能' if perf_idx == 1 else '最优性能'} | "
-                f"batch_size={batch_config.image_batch_size}"
+                t("perf_mode_info_image",
+                  mode=t("perf_high") if perf_idx == 1 else t("perf_optimal"),
+                  batch=batch_config.image_batch_size)
             )
 
             from PySide6.QtCore import QThread
@@ -274,7 +276,7 @@ class ImageModeMixin:
             self._image_processor, self._output_manager, options
         )
         self._output_thread.finished.connect(
-            lambda: self.log_message.emit("图片输出保存完成")
+            lambda: self.log_message.emit(t("image_output_saved"))
         )
         # R3-fix: 补充 deleteLater 清理 QObject, 避免孤儿对象泄漏
         self._output_thread.finished.connect(

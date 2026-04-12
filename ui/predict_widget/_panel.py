@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 )
 
 from ui.focus_widgets import FocusComboBox, FocusSlider
+from utils.i18n import t
 
 
 class PanelMixin:
@@ -51,7 +52,7 @@ class PanelMixin:
         layout.setSpacing(10)
 
         # 输入源区域
-        layout.addWidget(self._create_section_label("输入源"))
+        layout.addWidget(self._create_section_label(t("section_input_source")))
         self._create_source_section_compact(layout)
 
         layout.addSpacing(8)
@@ -59,7 +60,7 @@ class PanelMixin:
         layout.addSpacing(8)
 
         # 模型区域
-        layout.addWidget(self._create_section_label("模型"))
+        layout.addWidget(self._create_section_label(t("section_model")))
         self._create_model_section_compact(layout)
 
         layout.addSpacing(8)
@@ -67,7 +68,7 @@ class PanelMixin:
         layout.addSpacing(8)
 
         # 输出区域
-        layout.addWidget(self._create_section_label("输出"))
+        layout.addWidget(self._create_section_label(t("section_output")))
         self._create_output_section_compact(layout)
 
         layout.addStretch(1)
@@ -97,10 +98,10 @@ class PanelMixin:
         type_layout.setSpacing(10)
         type_layout.setContentsMargins(0, 6, 0, 6)
 
-        self._radio_image = QRadioButton("图片")
-        self._radio_video = QRadioButton("视频")
-        self._radio_camera = QRadioButton("摄像头")
-        self._radio_screen = QRadioButton("屏幕")
+        self._radio_image = QRadioButton(t("source_image"))
+        self._radio_video = QRadioButton(t("source_video"))
+        self._radio_camera = QRadioButton(t("source_camera"))
+        self._radio_screen = QRadioButton(t("source_screen"))
 
         self._radio_image.setChecked(True)
 
@@ -125,8 +126,8 @@ class PanelMixin:
 
         image_sub_layout = QHBoxLayout()
         image_sub_layout.setSpacing(16)
-        self._radio_single_image = QRadioButton("单张图片")
-        self._radio_batch_image = QRadioButton("批量处理")
+        self._radio_single_image = QRadioButton(t("single_image"))
+        self._radio_batch_image = QRadioButton(t("batch_process"))
         self._radio_single_image.setChecked(True)
 
         self._image_sub_group = QButtonGroup(self)
@@ -145,7 +146,7 @@ class PanelMixin:
         single_layout.setSpacing(6)
 
         self._single_image_edit = QLineEdit()
-        self._single_image_edit.setPlaceholderText("选择图片文件...")
+        self._single_image_edit.setPlaceholderText(t("ph_select_image"))
         self._single_image_edit.setFixedHeight(32)
         self._browse_single_image_btn = QToolButton()
         self._browse_single_image_btn.setText("...")
@@ -162,7 +163,7 @@ class PanelMixin:
         batch_layout.setSpacing(6)
 
         self._batch_folder_edit = QLineEdit()
-        self._batch_folder_edit.setPlaceholderText("选择图片文件夹...")
+        self._batch_folder_edit.setPlaceholderText(t("ph_select_image_folder"))
         self._batch_folder_edit.setFixedHeight(32)
         self._browse_batch_folder_btn = QToolButton()
         self._browse_batch_folder_btn.setText("...")
@@ -183,8 +184,8 @@ class PanelMixin:
 
         video_sub_layout = QHBoxLayout()
         video_sub_layout.setSpacing(16)
-        self._radio_single_video = QRadioButton("单个视频")
-        self._radio_batch_video = QRadioButton("批量处理")
+        self._radio_single_video = QRadioButton(t("single_video"))
+        self._radio_batch_video = QRadioButton(t("batch_process"))
         self._radio_single_video.setChecked(True)
 
         self._video_sub_group = QButtonGroup(self)
@@ -203,7 +204,7 @@ class PanelMixin:
         single_video_layout.setSpacing(6)
 
         self._source_path_edit = QLineEdit()
-        self._source_path_edit.setPlaceholderText("选择视频文件...")
+        self._source_path_edit.setPlaceholderText(t("ph_select_video"))
         self._source_path_edit.setFixedHeight(32)
         self._browse_source_btn = QToolButton()
         self._browse_source_btn.setText("...")
@@ -220,7 +221,7 @@ class PanelMixin:
         batch_video_layout.setSpacing(6)
 
         self._batch_video_folder_edit = QLineEdit()
-        self._batch_video_folder_edit.setPlaceholderText("选择视频文件夹...")
+        self._batch_video_folder_edit.setPlaceholderText(t("ph_select_video_folder"))
         self._batch_video_folder_edit.setFixedHeight(32)
         self._browse_batch_video_btn = QToolButton()
         self._browse_batch_video_btn.setText("...")
@@ -253,7 +254,7 @@ class PanelMixin:
         camera_layout.addLayout(cam_row)
 
         # RTSP 输入
-        self._rtsp_check = QCheckBox("RTSP 网络摄像头")
+        self._rtsp_check = QCheckBox(t("rtsp_camera"))
         camera_layout.addWidget(self._rtsp_check)
 
         rtsp_row = QHBoxLayout()
@@ -263,7 +264,7 @@ class PanelMixin:
         self._rtsp_edit.setFixedHeight(32)
         self._rtsp_edit.setEnabled(False)
         self._test_rtsp_btn = QToolButton()
-        self._test_rtsp_btn.setText("测试")
+        self._test_rtsp_btn.setText(t("test"))
         self._test_rtsp_btn.setEnabled(False)
         self._test_rtsp_btn.setFixedSize(42, 32)
 
@@ -297,7 +298,7 @@ class PanelMixin:
         model_row = QHBoxLayout()
         model_row.setSpacing(4)
         self._model_path_edit = QLineEdit()
-        self._model_path_edit.setPlaceholderText("选择模型 (.pt)...")
+        self._model_path_edit.setPlaceholderText(t("ph_select_model"))
         self._model_path_edit.setFixedHeight(32)
         self._browse_model_btn = QToolButton()
         self._browse_model_btn.setText("...")
@@ -310,7 +311,7 @@ class PanelMixin:
         # 置信度滑块
         conf_row = QHBoxLayout()
         conf_row.setSpacing(4)
-        conf_label = QLabel("置信度:")
+        conf_label = QLabel(t("confidence"))
         conf_label.setFixedWidth(50)
         self._conf_slider = FocusSlider(Qt.Orientation.Horizontal)
         self._conf_slider.setRange(0, 100)
@@ -344,11 +345,11 @@ class PanelMixin:
         # 性能模式选择
         perf_row = QHBoxLayout()
         perf_row.setSpacing(4)
-        perf_label = QLabel("性能:")
+        perf_label = QLabel(t("performance"))
         perf_label.setFixedWidth(50)
         self._performance_combo = FocusComboBox()
-        self._performance_combo.addItem("最优性能")
-        self._performance_combo.addItem("高性能")
+        self._performance_combo.addItem(t("perf_optimal"))
+        self._performance_combo.addItem(t("perf_high"))
         self._performance_combo.setCurrentIndex(0)
         self._performance_combo.setFixedHeight(32)
 
@@ -359,10 +360,10 @@ class PanelMixin:
         # 类别过滤
         filter_row = QHBoxLayout()
         filter_row.setSpacing(4)
-        filter_label = QLabel("类别:")
+        filter_label = QLabel(t("class_filter"))
         filter_label.setFixedWidth(50)
         self._class_filter_combo = FocusComboBox()
-        self._class_filter_combo.addItem("全部")
+        self._class_filter_combo.addItem(t("filter_all"))
         self._class_filter_combo.setFixedHeight(32)
 
         filter_row.addWidget(filter_label)
@@ -377,10 +378,10 @@ class PanelMixin:
         image_output_layout.setContentsMargins(0, 0, 0, 0)
         image_output_layout.setSpacing(6)
 
-        self._save_result_image_check = QCheckBox("保存结果图片")
-        self._save_original_check = QCheckBox("保存原图副本")
-        self._save_labels_check = QCheckBox("生成标签文件 (TXT+XML)")
-        self._save_image_report_check = QCheckBox("生成报告 (.json)")
+        self._save_result_image_check = QCheckBox(t("save_result_image"))
+        self._save_original_check = QCheckBox(t("save_original"))
+        self._save_labels_check = QCheckBox(t("gen_label_files"))
+        self._save_image_report_check = QCheckBox(t("gen_report"))
 
         for cb in [self._save_result_image_check, self._save_original_check,
                    self._save_labels_check, self._save_image_report_check]:
@@ -392,14 +393,14 @@ class PanelMixin:
         filter_layout.setContentsMargins(0, 4, 0, 0)
         filter_layout.setSpacing(4)
 
-        filter_title = QLabel("过滤条件:")
+        filter_title = QLabel(t("filter_conditions"))
         filter_title.setObjectName("mutedLabel")
         filter_layout.addWidget(filter_title)
 
-        self._filter_all_radio = QRadioButton("全部保存")
-        self._filter_detected_radio = QRadioButton("只保存有检测结果")
-        self._filter_empty_radio = QRadioButton("只保存无检测结果")
-        self._filter_high_conf_radio = QRadioButton("只保存高置信度")
+        self._filter_all_radio = QRadioButton(t("filter_save_all"))
+        self._filter_detected_radio = QRadioButton(t("filter_detected_only"))
+        self._filter_empty_radio = QRadioButton(t("filter_empty_only"))
+        self._filter_high_conf_radio = QRadioButton(t("filter_high_conf_only"))
         self._filter_all_radio.setChecked(True)
 
         self._filter_group = QButtonGroup(self)
@@ -436,11 +437,11 @@ class PanelMixin:
         video_output_layout.setContentsMargins(0, 0, 0, 0)
         video_output_layout.setSpacing(6)
 
-        self._save_video_check = QCheckBox("保存结果视频")
-        self._save_keyframe_annotated_check = QCheckBox("保存关键帧（带框）")
-        self._save_keyframe_raw_check = QCheckBox("保存关键帧（原图）")
-        self._save_report_check = QCheckBox("生成报告 (.json)")
-        self._high_conf_check = QCheckBox("只保存高置信度帧")
+        self._save_video_check = QCheckBox(t("save_result_video"))
+        self._save_keyframe_annotated_check = QCheckBox(t("save_keyframe_annotated"))
+        self._save_keyframe_raw_check = QCheckBox(t("save_keyframe_raw"))
+        self._save_report_check = QCheckBox(t("gen_report"))
+        self._high_conf_check = QCheckBox(t("save_high_conf_frames"))
 
         for cb in [self._save_video_check, self._save_keyframe_annotated_check,
                    self._save_keyframe_raw_check, self._save_report_check, self._high_conf_check]:
@@ -449,7 +450,7 @@ class PanelMixin:
         # 视频模式阈值滑块
         threshold_row = QHBoxLayout()
         threshold_row.setSpacing(4)
-        threshold_label = QLabel("阈值:")
+        threshold_label = QLabel(t("threshold"))
         threshold_label.setFixedWidth(50)
         threshold_label.setObjectName("mutedLabel")
         self._threshold_slider = FocusSlider(Qt.Orientation.Horizontal)
@@ -478,7 +479,7 @@ class PanelMixin:
         output_row = QHBoxLayout()
         output_row.setSpacing(4)
         self._output_dir_edit = QLineEdit()
-        self._output_dir_edit.setPlaceholderText("输出目录...")
+        self._output_dir_edit.setPlaceholderText(t("ph_output_dir"))
         self._output_dir_edit.setFixedHeight(32)
         self._browse_output_btn = QToolButton()
         self._browse_output_btn.setText("...")

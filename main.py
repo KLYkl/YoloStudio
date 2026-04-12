@@ -29,6 +29,7 @@ from PySide6.QtGui import QFont
 
 from config import AppConfig
 from ui.main_window import MainWindow
+from utils.i18n import init_language, t
 from utils.logger import get_logger, setup_stdout_redirect
 
 
@@ -57,24 +58,20 @@ def exception_hook(
     tb_lines = traceback.format_exception(exc_type, exc_value, exc_traceback)
     tb_text = "".join(tb_lines)
     
-    # 记录到日志
     logger = get_logger()
-    logger.critical(f"未捕获的异常:\n{tb_text}")
+    logger.critical(t("uncaught_exception", tb=tb_text))
     
-    # 安全检查: 仅在主线程弹出错误对话框
-    # 从工作线程 (QThread) 创建 QDialog 会导致 QPainter 竞争错误
     if threading.current_thread() is not threading.main_thread():
-        logger.error("异常发生在工作线程中，已记录日志（跳过弹窗）")
+        logger.error(t("exception_in_worker"))
         return
     
-    # 弹出错误对话框 (查找当前活动窗口作为父窗口以居中显示)
     from ui.styled_message_box import StyledMessageBox
     app = QApplication.instance()
     parent = app.activeWindow() if app else None
     StyledMessageBox.critical(
         parent,
-        "程序错误",
-        "程序遇到了一个未预期的错误，请联系开发者。",
+        t("program_error"),
+        t("program_error_msg"),
         detailed_text=tb_text,
     )
 
@@ -95,17 +92,19 @@ def main() -> int:
     app.setApplicationVersion("1.0.0")
     app.setOrganizationName("YoloStudio")
     
-    # 设置全局字体 (使用 QFont API 避免 CSS font-size 解析问题)
-    global_font = QFont("Microsoft YaHei", 10)
+    # 使用系统默认 UI 字体，仅统一字号与风格，避免写死本机字体
+    global_font = app.font()
+    global_font.setPointSize(10)
     global_font.setStyleHint(QFont.StyleHint.SansSerif)
     app.setFont(global_font)
     
-    # 初始化配置 (确保单例创建)
     config = AppConfig()
     
-    # 初始化日志系统
+    # 初始化语言 (在创建 UI 之前)
+    init_language()
+    
     logger = get_logger()
-    logger.info("正在启动 YoloStudio...")
+    logger.info(t("starting_app"))
     logger.debug(f"Python 版本: {sys.version}")
     logger.debug(f"PySide6 版本: {app.platformName()}")
     

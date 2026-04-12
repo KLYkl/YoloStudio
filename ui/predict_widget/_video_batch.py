@@ -13,6 +13,7 @@ from PySide6.QtCore import Slot
 
 from ui.base_ui import set_button_class
 from ui.styled_message_box import StyledMessageBox
+from utils.i18n import t
 
 
 class VideoBatchMixin:
@@ -22,12 +23,12 @@ class VideoBatchMixin:
     def _on_video_batch_started(self, video_path: str, index: int, total: int) -> None:
         """单个视频开始处理"""
         video_name = Path(video_path).name
-        self._frame_display.setText(f"帧: 0/0 (0%)")
-        self._object_display.setText(f"视频 [{index+1}/{total}]: {video_name}")
+        self._frame_display.setText(t("frame_progress_init"))
+        self._object_display.setText(t("video_batch_current", index=index+1, total=total, name=video_name))
         self._fps_display.setText(f"FPS: --")
         self._progress_slider.setValue(0)
         self._time_label.setText("00:00 / 00:00")
-        self.log_message.emit(f"开始处理视频: {video_name}")
+        self.log_message.emit(t("start_processing_video", name=video_name))
 
         self._video_batch_monitor.on_video_started(video_path, index, total)
 
@@ -36,7 +37,7 @@ class VideoBatchMixin:
         """当前视频帧进度更新 → 写入 _frame_display (不与 FPS 竞争)"""
         if total > 0:
             percent = int(current / total * 100)
-            self._frame_display.setText(f"帧: {current}/{total} ({percent}%)")
+            self._frame_display.setText(t("frame_progress", current=current, total=total, percent=percent))
 
         self._video_batch_monitor.on_frame_progress(current, total)
 
@@ -63,49 +64,47 @@ class VideoBatchMixin:
                 self._video_batch_thread.wait(3000)
             self._video_batch_thread.deleteLater()
             self._video_batch_thread = None
-        self._start_btn.setText("▶ 开始")
+        self._start_btn.setText(t("btn_start"))
         set_button_class(self._start_btn, "success")  # Issue15-fix: 重置按钮样式
         self._start_btn.setEnabled(True)
         self._stop_btn.setEnabled(False)
 
         report_path = self._video_batch_processor.generate_batch_report()
         if report_path:
-            self.log_message.emit(f"批量处理完成，汇总报告: {report_path}")
+            self.log_message.emit(t("batch_done_report", path=report_path))
         else:
-            self.log_message.emit("批量处理完成")
+            self.log_message.emit(t("batch_done"))
 
         stats = self._video_batch_processor.get_all_stats()
         total_detections = sum(s.get("detection_count/检测数量", 0) for s in stats.values())
         total_keyframes = sum(s.get("keyframes_saved/已保存关键帧", 0) for s in stats.values())
 
-        self._frame_display.setText(f"已处理: {len(stats)} 个视频")
-        self._object_display.setText(f"检测: {total_detections} 个")
+        self._frame_display.setText(t("processed_videos", count=len(stats)))
+        self._object_display.setText(t("detections_count", count=total_detections))
 
         self._video_batch_monitor.on_batch_finished()
 
         StyledMessageBox.information(
             self,
-            "批量处理完成",
-            f"已处理 {len(stats)} 个视频\n"
-            f"总检测数: {total_detections}\n"
-            f"保存关键帧: {total_keyframes}"
+            t("batch_done"),
+            t("batch_complete_summary", videos=len(stats), detections=total_detections, keyframes=total_keyframes)
         )
 
     def _start_video_batch_processing(self) -> None:
         """启动视频批量处理"""
         # 前置检查: 旧线程是否仍在运行 (必须在修改 UI 之前)
         if hasattr(self, '_video_batch_thread') and self._video_batch_thread and self._video_batch_thread.isRunning():
-            StyledMessageBox.warning(self, "警告", "上一次批量处理尚未完成")
+            StyledMessageBox.warning(self, t("warning"), t("warn_batch_still_running"))
             return
 
         source = self._batch_video_folder_edit.text().strip()
         if not source:
-            StyledMessageBox.warning(self, "警告", "请选择视频文件夹")
+            StyledMessageBox.warning(self, t("warning"), t("warn_select_video_folder"))
             return
 
         model_path = self._model_path_edit.text().strip()
         if not model_path:
-            StyledMessageBox.warning(self, "警告", "请选择模型文件")
+            StyledMessageBox.warning(self, t("warning"), t("warn_select_model"))
             return
 
         if not self._predict_manager.is_model_loaded:
@@ -116,7 +115,7 @@ class VideoBatchMixin:
 
         output_dir = self._output_dir_edit.text().strip()
         if not output_dir:
-            StyledMessageBox.warning(self, "警告", "请选择输出目录")
+            StyledMessageBox.warning(self, t("warning"), t("warn_select_output_dir"))
             return
         model_name = Path(model_path).stem
         output_dir = str(Path(output_dir) / model_name)
@@ -129,7 +128,7 @@ class VideoBatchMixin:
 
         video_count = self._video_batch_processor.load_videos(source)
         if video_count == 0:
-            StyledMessageBox.warning(self, "警告", "未找到视频文件")
+            StyledMessageBox.warning(self, t("warning"), t("warn_no_videos_found"))
             return
 
         self._video_batch_processor.set_model(self._predict_manager.model)
@@ -157,9 +156,10 @@ class VideoBatchMixin:
             batch_config.decode_mode, batch_config.decode_workers
         )
         self.log_message.emit(
-            f"性能模式: {'高性能' if perf_idx == 1 else '最优性能'} | "
-            f"batch_size={batch_config.video_batch_size}, "
-            f"解码={batch_config.decode_mode}"
+            t("perf_mode_info",
+              mode=t("perf_high") if perf_idx == 1 else t("perf_optimal"),
+              batch=batch_config.video_batch_size,
+              decode=batch_config.decode_mode)
         )
 
         # 通过所有验证后再修改 UI 状态
@@ -173,7 +173,7 @@ class VideoBatchMixin:
             self._video_batch_processor.get_video_list()
         )
 
-        self.log_message.emit(f"开始批量处理 {video_count} 个视频")
+        self.log_message.emit(t("start_batch_processing", count=video_count))
 
         from PySide6.QtCore import QThread
 

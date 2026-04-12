@@ -35,6 +35,7 @@ from PySide6.QtWidgets import (
 from config import AppConfig
 from ui.base_ui import PlaceholderWidget
 from ui.theme import ThemeManager
+from utils.i18n import t, LanguageManager
 from utils.logger import get_logger
 
 
@@ -91,18 +92,15 @@ class GlobalLogPanel(QWidget):
         # ========== Header 行 ==========
         header = QHBoxLayout()
         
-        # 标题
-        title = QLabel("📋 系统日志")
+        title = QLabel(t("system_log"))
         title.setObjectName("logTitle")
         
-        # 清空按钮
-        self.clear_btn = QPushButton("清空")
+        self.clear_btn = QPushButton(t("clear"))
         self.clear_btn.setObjectName("logPanelBtn")
         self.clear_btn.setFixedSize(60, 28)
         self.clear_btn.clicked.connect(self._on_clear)
         
-        # 切换按钮
-        self.toggle_btn = QPushButton("▲ 展开")
+        self.toggle_btn = QPushButton(t("expand"))
         self.toggle_btn.setObjectName("logPanelBtn")
         self.toggle_btn.setFixedSize(70, 28)
         self.toggle_btn.clicked.connect(self._on_toggle)
@@ -117,7 +115,7 @@ class GlobalLogPanel(QWidget):
         # ========== Body: 日志文本框 ==========
         self.log_text = QPlainTextEdit()
         self.log_text.setReadOnly(True)
-        self.log_text.setPlaceholderText("运行日志将显示在这里...")
+        self.log_text.setPlaceholderText(t("log_placeholder"))
         self.log_text.setMaximumBlockCount(500)
         self.log_text.setObjectName("logPanel")
         self.log_text.setVisible(False)  # 默认隐藏
@@ -144,11 +142,11 @@ class GlobalLogPanel(QWidget):
         
         if not is_visible:
             self.log_text.setVisible(True)
-            self.toggle_btn.setText("▼ 收起")
+            self.toggle_btn.setText(t("collapse"))
             self._update_log_height()
         else:
             self.log_text.setVisible(False)
-            self.toggle_btn.setText("▲ 展开")
+            self.toggle_btn.setText(t("expand"))
     
     def _update_log_height(self) -> None:
         """根据窗口高度动态调整日志面板高度"""
@@ -176,8 +174,6 @@ class MainWindow(QMainWindow):
         log_manager: 日志管理器
     """
     
-    # 窗口配置
-    APP_TITLE = "YoloStudio - YOLO 可视化训练工具"
     MIN_WIDTH = 1024
     MIN_HEIGHT = 700
     
@@ -199,13 +195,12 @@ class MainWindow(QMainWindow):
         self._setup_ui()
         self._connect_signals()
         
-        # 记录启动日志
-        self.log_manager.info("YoloStudio 启动完成")
-        self.log_manager.info(f"配置文件路径: {self.config.CONFIG_FILE}")
+        self.log_manager.info(t("app_started"))
+        self.log_manager.info(t("config_path", path=self.config.CONFIG_FILE))
     
     def _setup_window(self) -> None:
         """设置窗口属性"""
-        self.setWindowTitle(self.APP_TITLE)
+        self.setWindowTitle(t("app_title"))
         self.setMinimumSize(self.MIN_WIDTH, self.MIN_HEIGHT)
         
         # 应用主题
@@ -236,13 +231,23 @@ class MainWindow(QMainWindow):
         # ========== Tab区域 ==========
         self.tab_widget = QTabWidget()
         
-        # 主题切换按钮 (悬浮在 Tab 栏右侧)
+        # 语言切换按钮 (悬浮在 Tab 栏右侧)
+        self._lang_btn = QToolButton(self.tab_widget)
+        self._lang_btn.setFixedSize(24, 24)
+        self._lang_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._lang_btn.setText("EN")
+        self._lang_btn.setToolTip(t("switch_language"))
+        self._lang_btn.setObjectName("themeToggleBtn")
+        self._lang_btn.clicked.connect(self._toggle_language)
+        self._lang_btn.raise_()
+
+        # 主题切换按钮
         self._theme_btn = QToolButton(self.tab_widget)
         self._theme_btn.setFixedSize(24, 24)
         self._theme_btn.setCursor(Qt.CursorShape.PointingHandCursor)
         self._update_theme_button()
         self._theme_btn.clicked.connect(self._toggle_theme)
-        self._theme_btn.raise_()  # 确保在最上层
+        self._theme_btn.raise_()
         
         main_layout.addWidget(self.tab_widget, 1)  # Flex 1
         
@@ -261,21 +266,21 @@ class MainWindow(QMainWindow):
         self.data_widget = DataWidget()
         # 连接数据模块日志信号到全局日志面板
         self.data_widget.log_message.connect(self.global_log.append_log)
-        self.tab_widget.addTab(self.data_widget, "📁 数据准备")
+        self.tab_widget.addTab(self.data_widget, t("tab_data"))
         
         # Tab 2: 模型训练 (使用 TrainWidget)
         from ui.train_widget import TrainWidget
         self.train_widget = TrainWidget()
         # 连接训练模块日志信号到全局日志面板
         self.train_widget.log_message.connect(self.global_log.append_log)
-        self.tab_widget.addTab(self.train_widget, "🚀 模型训练")
+        self.tab_widget.addTab(self.train_widget, t("tab_train"))
         
         # Tab 3: 预测推理 (使用 PredictWidget)
         from ui.predict_widget import PredictWidget
         self.predict_widget = PredictWidget()
         # 连接预测模块日志信号到全局日志面板
         self.predict_widget.log_message.connect(self.global_log.append_log)
-        self.tab_widget.addTab(self.predict_widget, "🎯 预测推理")
+        self.tab_widget.addTab(self.predict_widget, t("tab_predict"))
     
     def _connect_signals(self) -> None:
         """连接信号与槽"""
@@ -302,10 +307,10 @@ class MainWindow(QMainWindow):
         self._theme_btn.style().polish(self._theme_btn)
         if self._is_dark_theme:
             self._theme_btn.setText("☀️")
-            self._theme_btn.setToolTip("切换到亮色主题")
+            self._theme_btn.setToolTip(t("switch_to_light"))
         else:
             self._theme_btn.setText("🌙")
-            self._theme_btn.setToolTip("切换到暗色主题")
+            self._theme_btn.setToolTip(t("switch_to_dark"))
     
     @Slot()
     def _toggle_theme(self) -> None:
@@ -318,8 +323,8 @@ class MainWindow(QMainWindow):
         self.config.set("dark_theme", self._is_dark_theme)
         self.config.save()
         
-        theme_name = "暗色主题" if self._is_dark_theme else "亮色主题"
-        self.log_manager.info(f"已切换到{theme_name}")
+        theme_key = "switched_to_dark" if self._is_dark_theme else "switched_to_light"
+        self.log_manager.info(t(theme_key))
     
     def resizeEvent(self, event) -> None:
         """窗口大小改变时更新主题按钮位置和日志面板高度"""
@@ -335,14 +340,30 @@ class MainWindow(QMainWindow):
         _set_windows_titlebar_dark(int(self.winId()), self._is_dark_theme)
     
     def _update_theme_button_position(self) -> None:
-        """更新主题按钮位置到 Tab 栏右侧"""
+        """更新主题按钮和语言按钮位置到 Tab 栏右侧"""
         if hasattr(self, '_theme_btn') and hasattr(self, 'tab_widget'):
-            tab_bar = self.tab_widget.tabBar()
-            # 放在 Tab 栏右侧，与 Tab 标签对齐
-            btn_x = self.tab_widget.width() - self._theme_btn.width() - 5
             btn_y = 1
-            self._theme_btn.move(btn_x, btn_y)
+            theme_x = self.tab_widget.width() - self._theme_btn.width() - 5
+            self._theme_btn.move(theme_x, btn_y)
+
+            if hasattr(self, '_lang_btn'):
+                lang_x = theme_x - self._lang_btn.width() - 4
+                self._lang_btn.move(lang_x, btn_y)
     
+    @Slot()
+    def _toggle_language(self) -> None:
+        """切换语言 (需要重启生效)"""
+        mgr = LanguageManager.instance()
+        next_lang = mgr.get_next_language()
+        mgr.switch(next_lang)
+
+        from ui.styled_message_box import StyledMessageBox
+        StyledMessageBox.information(
+            self,
+            t("switch_language"),
+            t("language_restart_hint"),
+        )
+
     def closeEvent(self, event: QCloseEvent) -> None:
         """
         窗口关闭事件
@@ -358,7 +379,7 @@ class MainWindow(QMainWindow):
         self.config.set("window_height", size.height())
         self.config.save()
         
-        self.log_manager.info("YoloStudio 正在关闭...")
+        self.log_manager.info(t("app_closing"))
         
         # 显式关闭子模块，触发各自的 closeEvent 清理
         self.predict_widget.close()
