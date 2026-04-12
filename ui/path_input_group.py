@@ -87,15 +87,23 @@ class PathInputGroup(QWidget):
         
         main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(6)
         
-        group = QGroupBox(group_title)
-        grid = QGridLayout(group)
-        grid.setColumnStretch(1, 1)  # 输入框列拉伸
-        grid.setColumnStretch(2, 0)  # 按钮列固定
+        if group_title:
+            group = QGroupBox(group_title)
+            grid = QGridLayout(group)
+        else:
+            group = None
+            grid = QGridLayout()
+        
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setHorizontalSpacing(8)
+        grid.setVerticalSpacing(6)
+        grid.setColumnStretch(1, 1)
+        grid.setColumnStretch(2, 0)
         
         row = 0
         
-        # 图片目录
         if self._show_image_dir:
             grid.addWidget(QLabel("图片目录:"), row, 0)
             self._image_dir_input = QLineEdit()
@@ -107,7 +115,6 @@ class PathInputGroup(QWidget):
             grid.addWidget(self._image_browse_btn, row, 2)
             row += 1
         
-        # 标签目录
         if self._show_label_dir:
             grid.addWidget(QLabel("标签目录:"), row, 0)
             self._label_dir_input = QLineEdit()
@@ -125,7 +132,6 @@ class PathInputGroup(QWidget):
             grid.addWidget(self._label_browse_btn, row, 2)
             row += 1
         
-        # classes.txt
         if self._show_classes:
             grid.addWidget(QLabel("类别文件:"), row, 0)
             self._classes_input = QLineEdit()
@@ -137,7 +143,10 @@ class PathInputGroup(QWidget):
             grid.addWidget(self._classes_btn, row, 2)
             row += 1
         
-        main_layout.addWidget(group)
+        if group is not None:
+            main_layout.addWidget(group)
+        else:
+            main_layout.addLayout(grid)
     
     def _connect_signals(self) -> None:
         """连接信号"""

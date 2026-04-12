@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QScrollArea,
     QSizePolicy,
+    QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
     QPushButton,
@@ -31,13 +32,42 @@ class StatsTabMixin:
     """统计 Tab 的 UI 构建 + 槽函数"""
 
     def _create_stats_tab(self) -> QWidget:
-        """创建统计 Tab (使用 QScrollArea 防止日志面板展开时内容被压缩)"""
+        """创建统计 Tab"""
         tab = QWidget()
         tab_layout = QVBoxLayout(tab)
         tab_layout.setContentsMargins(0, 0, 0, 0)
         tab_layout.setSpacing(0)
 
-        # 用 QScrollArea 包裹所有内容，防止日志面板展开时被压缩
+        # 用 QStackedWidget 切换空状态提示 / 结果视图
+        self._stats_stack = QStackedWidget()
+
+        # ===== Page 0: 空状态引导 =====
+        empty_page = QWidget()
+        empty_layout = QVBoxLayout(empty_page)
+        empty_layout.setContentsMargins(40, 0, 40, 0)
+        empty_layout.addStretch(2)
+
+        hint_title = QLabel("尚未扫描数据集")
+        hint_title.setObjectName("emptyStateTitle")
+        hint_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        empty_layout.addWidget(hint_title)
+
+        empty_layout.addSpacing(8)
+
+        hint_desc = QLabel(
+            "在上方设置图片目录，然后点击下方「扫描数据集」\n"
+            "即可查看类别分布、标签覆盖率等统计信息"
+        )
+        hint_desc.setObjectName("emptyStateDesc")
+        hint_desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hint_desc.setWordWrap(True)
+        empty_layout.addWidget(hint_desc)
+
+        empty_layout.addStretch(3)
+
+        self._stats_stack.addWidget(empty_page)
+
+        # ===== Page 1: 结果视图 =====
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
         scroll_area.setFrameShape(QFrame.Shape.NoFrame)
@@ -48,13 +78,29 @@ class StatsTabMixin:
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(6)
 
-        # 路径输入组已提升到 DataWidget 外层 (self.path_group)
+        # 顶部: 数据概览 (横排卡片)
+        overview_grid = QGridLayout()
+        overview_grid.setHorizontalSpacing(6)
+        overview_grid.setVerticalSpacing(6)
 
-        # 中部内容区: 左侧类别表，右侧概览
-        content_layout = QHBoxLayout()
-        content_layout.setSpacing(10)
+        overview_items = [
+            ("total_images", "图片总数", "blue"),
+            ("labeled_images", "有标签图片", "green"),
+            ("missing_labels", "缺失标签", "orange"),
+            ("empty_labels", "空标签", "yellow"),
+            ("class_count", "类别数", "purple"),
+            ("total_objects", "目标总数", "blue"),
+            ("missing_ratio", "缺失占比", "red"),
+            ("empty_ratio", "空标签占比", "yellow"),
+        ]
 
-        # ========== 左侧: 类别统计 GroupBox ==========
+        for index, (key, title, accent_key) in enumerate(overview_items):
+            card = self._create_stats_overview_card(title, key, accent_key)
+            overview_grid.addWidget(card, index // 4, index % 4)
+
+        layout.addLayout(overview_grid)
+
+        # 下方: 类别统计表 (全宽)
         stats_group = QGroupBox("类别统计")
         stats_group_layout = QVBoxLayout(stats_group)
         stats_group_layout.setContentsMargins(4, 4, 4, 4)
@@ -69,57 +115,22 @@ class StatsTabMixin:
         self.stats_table.setShowGrid(False)
         stats_group_layout.addWidget(self.stats_table)
 
-        content_layout.addWidget(stats_group, 2)
+        layout.addWidget(stats_group, 1)
 
-        # ========== 右侧: 数据概览 GroupBox ==========
-        overview_group = QGroupBox("数据概览")
-        overview_group.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        overview_group.setMinimumWidth(280)
-        overview_group.setMaximumWidth(380)
-
-        overview_outer = QVBoxLayout(overview_group)
-        overview_outer.setContentsMargins(4, 4, 4, 4)
-        overview_outer.setSpacing(4)
-
-        # 卡片网格
-        overview_grid = QGridLayout()
-        overview_grid.setHorizontalSpacing(4)
-        overview_grid.setVerticalSpacing(4)
-
-        # accent_key 用于 QSS 动态属性匹配颜色
-        overview_items = [
-            ("total_images", "图片总数", "blue"),
-            ("labeled_images", "有标签图片", "green"),
-            ("missing_labels", "缺失标签", "orange"),
-            ("empty_labels", "空标签", "yellow"),
-            ("class_count", "类别数", "purple"),
-            ("total_objects", "目标总数", "blue"),
-            ("missing_ratio", "缺失占比", "red"),
-            ("empty_ratio", "空标签占比", "yellow"),
-        ]
-
-        for index, (key, title, accent_key) in enumerate(overview_items):
-            card = self._create_stats_overview_card(title, key, accent_key)
-            overview_grid.addWidget(card, index // 2, index % 2)
-
-        overview_outer.addLayout(overview_grid)
-        overview_outer.addStretch()
-
-        content_layout.addWidget(overview_group, 1)
-        layout.addLayout(content_layout, 1)
-
-        # 将内容装入滚动区域
         scroll_area.setWidget(scroll_content)
-        tab_layout.addWidget(scroll_area, 1)
+        self._stats_stack.addWidget(scroll_area)
 
-        # 按钮区域 (底部) — 放在 ScrollArea 外部，固定不随滚动消失
+        # 默认显示空状态
+        self._stats_stack.setCurrentIndex(0)
+        tab_layout.addWidget(self._stats_stack, 1)
+
+        # 按钮区域 (底部) — 始终可见
         btn_layout = QHBoxLayout()
         btn_layout.setContentsMargins(4, 6, 10, 4)
         btn_layout.setSpacing(10)
 
         btn_layout.addStretch()
 
-        # 扫描按钮
         self.scan_btn = QPushButton("🔍 扫描数据集")
         self.scan_btn.setMinimumHeight(28)
         self.scan_btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -241,6 +252,7 @@ class StatsTabMixin:
     def _on_scan_finished(self, result: ScanResult) -> None:
         """扫描完成回调"""
         self._scan_result = result
+        self._stats_stack.setCurrentIndex(1)
         self._update_stats_overview(result)
 
         # 更新表格

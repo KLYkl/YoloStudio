@@ -22,7 +22,6 @@ class VideoBatchMixin:
     def _on_video_batch_started(self, video_path: str, index: int, total: int) -> None:
         """单个视频开始处理"""
         video_name = Path(video_path).name
-        # 帧进度和FPS分别使用独立控件，避免信号竞争导致闪跳
         self._frame_display.setText(f"帧: 0/0 (0%)")
         self._object_display.setText(f"视频 [{index+1}/{total}]: {video_name}")
         self._fps_display.setText(f"FPS: --")
@@ -30,12 +29,21 @@ class VideoBatchMixin:
         self._time_label.setText("00:00 / 00:00")
         self.log_message.emit(f"开始处理视频: {video_name}")
 
+        self._video_batch_monitor.on_video_started(video_path, index, total)
+
     @Slot(int, int)
     def _on_video_frame_progress(self, current: int, total: int) -> None:
         """当前视频帧进度更新 → 写入 _frame_display (不与 FPS 竞争)"""
         if total > 0:
             percent = int(current / total * 100)
             self._frame_display.setText(f"帧: {current}/{total} ({percent}%)")
+
+        self._video_batch_monitor.on_frame_progress(current, total)
+
+    @Slot(str, dict)
+    def _on_video_finished(self, video_path: str, stats: dict) -> None:
+        """单个视频处理完成"""
+        self._video_batch_monitor.on_video_finished(video_path, stats)
 
     @Slot(int, int)
     def _on_video_batch_progress(self, completed: int, total: int) -> None:
@@ -72,6 +80,8 @@ class VideoBatchMixin:
 
         self._frame_display.setText(f"已处理: {len(stats)} 个视频")
         self._object_display.setText(f"检测: {total_detections} 个")
+
+        self._video_batch_monitor.on_batch_finished()
 
         StyledMessageBox.information(
             self,
@@ -157,6 +167,11 @@ class VideoBatchMixin:
         set_button_class(self._start_btn, "warning")
         self._stop_btn.setEnabled(True)
         self._playback_bar.setVisible(False)
+
+        # 填充批量监控面板
+        self._video_batch_monitor.set_video_list(
+            self._video_batch_processor.get_video_list()
+        )
 
         self.log_message.emit(f"开始批量处理 {video_count} 个视频")
 

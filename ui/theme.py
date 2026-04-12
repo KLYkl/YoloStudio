@@ -781,6 +781,40 @@ QLabel#previewCanvas {{
     color: {t['canvas_text']};
 }}
 
+/* ========== 视频批量监控面板 ========== */
+QLabel#batchMonitorTitle {{
+    font-size: 15px;
+    font-weight: {s['font_weight_bold']};
+    color: {t['text_primary']};
+}}
+
+/* ========== 空状态引导 ========== */
+QLabel#emptyStateTitle {{
+    font-size: 16px;
+    font-weight: {s['font_weight_bold']};
+    color: {t['text_secondary']};
+}}
+
+QLabel#emptyStateDesc {{
+    font-size: 13px;
+    color: {t['text_dim']};
+    line-height: 1.6;
+}}
+
+QProgressBar#batchOverallProgress {{
+    background-color: {t['bg_elevated']};
+    border-radius: {s['progress_radius']}px;
+    border: none;
+    text-align: center;
+    color: {t['text_primary']};
+    font-weight: {s['font_weight_bold']};
+}}
+
+QProgressBar#batchOverallProgress::chunk {{
+    background-color: {t['accent']};
+    border-radius: {s['progress_radius']}px;
+}}
+
 /* ========== 播放控制栏 ========== */
 QFrame#playbackBar {{
     background-color: {t['bg_surface']};

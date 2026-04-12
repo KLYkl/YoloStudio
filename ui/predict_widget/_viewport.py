@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
 from ui.focus_widgets import FocusComboBox, FocusSlider
 from ui.image_result_browser import ImageResultBrowser, ImageProgressBar
 from ui.predict_preview import PreviewCanvas
+from ui.video_batch_monitor import VideoBatchMonitor
 
 
 class ViewportMixin:
@@ -40,6 +41,9 @@ class ViewportMixin:
         self._image_browser = ImageResultBrowser()
         self._preview_stack.addWidget(self._image_browser)
 
+        self._video_batch_monitor = VideoBatchMonitor()
+        self._preview_stack.addWidget(self._video_batch_monitor)
+
         layout.addWidget(self._preview_stack, 1)
 
         # 控制栏堆叠
@@ -51,6 +55,11 @@ class ViewportMixin:
 
         self._image_progress_bar = ImageProgressBar()
         self._control_stack.addWidget(self._image_progress_bar)
+
+        # 视频批量模式: 控制栏留空（统计信息已在 VideoBatchMonitor 底部）
+        batch_placeholder = QWidget()
+        batch_placeholder.setFixedHeight(0)
+        self._control_stack.addWidget(batch_placeholder)
 
         layout.addWidget(self._control_stack)
 

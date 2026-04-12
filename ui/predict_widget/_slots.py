@@ -38,8 +38,14 @@ class SlotsMixin:
         self._image_output_container.setVisible(is_image_mode)
         self._video_output_container.setVisible(not is_image_mode)
 
-        self._preview_stack.setCurrentIndex(1 if is_image_mode else 0)
-        self._control_stack.setCurrentIndex(1 if is_image_mode else 0)
+        if is_image_mode:
+            stack_idx = 1
+        elif id == 1 and self._is_video_batch_mode:
+            stack_idx = 2
+        else:
+            stack_idx = 0
+        self._preview_stack.setCurrentIndex(stack_idx)
+        self._control_stack.setCurrentIndex(stack_idx)
 
         if id == 2 and not self._cameras_scanned:
             self._scan_cameras()
@@ -60,6 +66,10 @@ class SlotsMixin:
         self._single_video_container.setVisible(id == 0)
         self._batch_video_container.setVisible(id == 1)
         self._is_video_batch_mode = (id == 1)
+
+        # 切换右侧视图: 单视频用 PreviewCanvas(0), 批量用 VideoBatchMonitor(2)
+        self._preview_stack.setCurrentIndex(2 if id == 1 else 0)
+        self._control_stack.setCurrentIndex(2 if id == 1 else 0)
 
     # ==================== 浏览按钮 ====================
 
