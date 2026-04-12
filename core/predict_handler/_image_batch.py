@@ -350,18 +350,26 @@ class ImageBatchProcessor(QObject):
         """获取指定图片的检测结果"""
         return self._results_cache.get(image_path, [])
 
-    def get_detected_list(self) -> list[tuple[Path, float]]:
-        """获取有检测结果的图片列表（含最大置信度）
+    def get_detected_list(self) -> list[tuple[Path, float, str]]:
+        """获取有检测结果的图片列表（含最大置信度和类别名）
 
         Returns:
-            列表，每项为 (图片路径, 最大置信度)
+            列表，每项为 (图片路径, 最大置信度, 类别名字符串)
         """
         result = []
         for p in self._processed_list:
             dets = self._results_cache.get(p)
             if dets:
                 max_conf = max(d.get("confidence", 0.0) for d in dets)
-                result.append((p, max_conf))
+                # 收集去重类别名，保持出现顺序
+                seen: set[str] = set()
+                class_names: list[str] = []
+                for d in dets:
+                    name = d.get("class_name", "unknown")
+                    if name not in seen:
+                        seen.add(name)
+                        class_names.append(name)
+                result.append((p, max_conf, ", ".join(class_names)))
         return result
 
     def get_empty_list(self) -> list[Path]:

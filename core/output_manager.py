@@ -443,10 +443,13 @@ class OutputManager(QObject):
             with open(detected_path, "w", encoding="utf-8") as f:
                 f.write(f"# 有检测结果的图片列表\n")
                 f.write(f"# 生成时间: {timestamp}\n")
-                f.write(f"# 格式: 文件路径 | 最大置信度\n")
+                f.write(f"# 格式: 文件路径 | 最大置信度 | 类别\n")
                 f.write(f"# 总数: {len(detected_paths)}\n")
                 for item in detected_paths:
-                    if isinstance(item, tuple):
+                    if isinstance(item, tuple) and len(item) >= 3:
+                        path, conf, classes = item
+                        f.write(f"{path} | {conf:.4f} | {classes}\n")
+                    elif isinstance(item, tuple) and len(item) == 2:
                         path, conf = item
                         f.write(f"{path} | {conf:.4f}\n")
                     else:
