@@ -32,8 +32,6 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from PySide6.QtCore import Signal as _Signal
-
 from config import AppConfig
 from ui.base_ui import PlaceholderWidget
 from ui.theme import ThemeManager
@@ -176,8 +174,6 @@ class MainWindow(QMainWindow):
         log_manager: 日志管理器
     """
     
-    language_changed = _Signal()
-
     MIN_WIDTH = 1024
     MIN_HEIGHT = 700
     
@@ -381,7 +377,7 @@ class MainWindow(QMainWindow):
 
     @Slot()
     def _toggle_language(self) -> None:
-        """切换语言, 发送信号由 main.py 负责重建窗口"""
+        """切换语言并原地刷新 UI (不重建窗口)"""
         if self._is_busy():
             from ui.styled_message_box import StyledMessageBox
             StyledMessageBox.warning(
@@ -394,7 +390,36 @@ class MainWindow(QMainWindow):
         mgr = LanguageManager.instance()
         next_lang = mgr.get_next_language()
         mgr.switch(next_lang)
-        self.language_changed.emit()
+
+        # 保存当前 Tab 和日志内容
+        current_tab = self.tab_widget.currentIndex()
+        log_content = self.global_log.log_text.toPlainText()
+        log_visible = self.global_log.log_text.isVisible()
+
+        # 关闭旧子模块 (触发清理)
+        self.predict_widget.close()
+        self.data_widget.close()
+        self.train_widget.close()
+
+        # 销毁旧中央控件, 重建 UI
+        old = self.centralWidget()
+        self._setup_ui()
+        self._connect_signals()
+        old.deleteLater()
+
+        # 恢复状态
+        self.setWindowTitle(t("app_title"))
+        self._apply_theme()
+        self._update_theme_button()
+        self._update_lang_button()
+        if current_tab < self.tab_widget.count():
+            self.tab_widget.setCurrentIndex(current_tab)
+        if log_content:
+            self.global_log.log_text.setPlainText(log_content)
+        if log_visible:
+            self.global_log._on_toggle()
+
+        self._update_theme_button_position()
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """
