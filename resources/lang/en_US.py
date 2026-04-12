@@ -36,7 +36,7 @@ TRANSLATIONS = {
 
     # Language
     "switch_language": "Switch Language",
-    "language_restart_hint": "Language changed. Restart the app to take effect.",
+    "warn_switch_lang_busy": "Please stop the current task before switching language.",
 
     # Startup / close
     "app_started": "YoloStudio started",

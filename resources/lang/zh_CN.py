@@ -36,7 +36,7 @@ TRANSLATIONS = {
 
     # 语言
     "switch_language": "切换语言",
-    "language_restart_hint": "语言已切换，重启应用后生效。",
+    "warn_switch_lang_busy": "请先停止当前任务再切换语言。",
 
     # 关闭
     "app_started": "YoloStudio 启动完成",

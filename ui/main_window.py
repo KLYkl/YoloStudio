@@ -32,6 +32,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from PySide6.QtCore import Signal as _Signal
+
 from config import AppConfig
 from ui.base_ui import PlaceholderWidget
 from ui.theme import ThemeManager
@@ -174,6 +176,8 @@ class MainWindow(QMainWindow):
         log_manager: 日志管理器
     """
     
+    language_changed = _Signal()
+
     MIN_WIDTH = 1024
     MIN_HEIGHT = 700
     
@@ -235,9 +239,8 @@ class MainWindow(QMainWindow):
         self._lang_btn = QToolButton(self.tab_widget)
         self._lang_btn.setFixedSize(24, 24)
         self._lang_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        self._lang_btn.setText("EN")
-        self._lang_btn.setToolTip(t("switch_language"))
         self._lang_btn.setObjectName("themeToggleBtn")
+        self._update_lang_button()
         self._lang_btn.clicked.connect(self._toggle_language)
         self._lang_btn.raise_()
 
@@ -350,19 +353,48 @@ class MainWindow(QMainWindow):
                 lang_x = theme_x - self._lang_btn.width() - 4
                 self._lang_btn.move(lang_x, btn_y)
     
+    def _update_lang_button(self) -> None:
+        """更新语言按钮: 显示目标语言的简称"""
+        mgr = LanguageManager.instance()
+        next_lang = mgr.get_next_language()
+        label = "EN" if next_lang == "en_US" else "中"
+        self._lang_btn.setText(label)
+        self._lang_btn.setToolTip(t("switch_language"))
+
+    def _is_busy(self) -> bool:
+        """检查是否有活跃任务 (训练/推理/批处理)"""
+        if hasattr(self, 'predict_widget'):
+            pw = self.predict_widget
+            if pw._predict_manager.is_running:
+                return True
+            if pw._video_batch_processor.is_running:
+                return True
+            if pw._is_batch_processing:
+                return True
+        if hasattr(self, 'train_widget') and self.train_widget._manager.is_running:
+            return True
+        if hasattr(self, 'data_widget'):
+            dw = self.data_widget
+            if dw._worker and dw._worker.isRunning():
+                return True
+        return False
+
     @Slot()
     def _toggle_language(self) -> None:
-        """切换语言 (需要重启生效)"""
+        """切换语言, 发送信号由 main.py 负责重建窗口"""
+        if self._is_busy():
+            from ui.styled_message_box import StyledMessageBox
+            StyledMessageBox.warning(
+                self,
+                t("warning"),
+                t("warn_switch_lang_busy"),
+            )
+            return
+
         mgr = LanguageManager.instance()
         next_lang = mgr.get_next_language()
         mgr.switch(next_lang)
-
-        from ui.styled_message_box import StyledMessageBox
-        StyledMessageBox.information(
-            self,
-            t("switch_language"),
-            t("language_restart_hint"),
-        )
+        self.language_changed.emit()
 
     def closeEvent(self, event: QCloseEvent) -> None:
         """
