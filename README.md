@@ -1,6 +1,9 @@
-[English](README.md) | [中文](README.zh-CN.md)
-
-# YoloStudio
+<div align="center">
+  <h1>YoloStudio</h1>
+  <p>
+    <a href="README.md">English</a> | <a href="README.zh-CN.md">中文</a>
+  </p>
+</div>
 
 A **PySide6 + Ultralytics YOLO** desktop application that brings dataset preparation, model training, and visual inference into a single GUI workflow.
 

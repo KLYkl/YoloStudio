@@ -1,6 +1,9 @@
-[中文](README.zh-CN.md) | [English](README.md)
-
-# YoloStudio
+<div align="center">
+  <h1>YoloStudio</h1>
+  <p>
+    <a href="README.zh-CN.md">中文</a> | <a href="README.md">English</a>
+  </p>
+</div>
 
 一个基于 **PySide6 + Ultralytics YOLO** 的桌面可视化工具，用来把数据准备、模型训练和预测推理放到同一个 GUI 工作流里。
 
