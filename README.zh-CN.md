@@ -88,26 +88,6 @@ pip install -r requirements.txt
 python main.py
 ```
 
-## 测试
-
-运行测试：
-
-```bash
-pytest tests -q
-```
-
-如果当前环境没有安装 `pytest`，先执行：
-
-```bash
-pip install pytest
-```
-
-当前仓库包含的测试主要覆盖：
-- 数据处理关键逻辑
-- 训练环境检测
-- 视频批处理结果清单
-- 原子写入与线程池清理
-
 ## 项目结构
 
 ```text
@@ -118,7 +98,6 @@ yolodo2.0/
 ├── ui/                     # PySide6 界面
 ├── utils/                  # 通用工具
 ├── resources/              # SVG 等静态资源
-├── tests/                  # 自动化测试
 ├── docs/                   # 项目文档
 └── requirements.txt
 ```

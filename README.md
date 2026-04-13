@@ -88,26 +88,6 @@ pip install -r requirements.txt
 python main.py
 ```
 
-## Tests
-
-Run tests with:
-
-```bash
-pytest tests -q
-```
-
-If `pytest` is not installed yet:
-
-```bash
-pip install pytest
-```
-
-Current tests mainly cover:
-- Core data-processing logic
-- Training environment detection
-- Batch video result list generation
-- Atomic writes and thread-pool cleanup
-
 ## Project Structure
 
 ```text
@@ -118,7 +98,6 @@ yolodo2.0/
 ├── ui/                     # PySide6 UI
 ├── utils/                  # shared utilities
 ├── resources/              # static assets such as SVG files
-├── tests/                  # automated tests
 ├── docs/                   # project documentation
 └── requirements.txt
 ```
