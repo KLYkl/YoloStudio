@@ -1,8 +1,32 @@
-# YoloStudio（YoloDo 2.0）
+# YoloStudio
 
-一个基于 **PySide6 + Ultralytics YOLO** 的桌面可视化工具，用来把数据准备、模型训练和预测推理放到同一个 GUI 工作流里。
+一个基于 **PySide6 + Ultralytics YOLO** 的桌面可视化工具，用来把数据准备、模型训练和预测推理放到同一个 GUI 工作流里。  
+A **PySide6 + Ultralytics YOLO** desktop application that brings dataset preparation, model training, and visual inference into one GUI workflow.
 
 > 当前仓库面向源码交付；模型权重、运行日志、推理输出、临时文件和本机配置默认不纳入版本管理。
+
+## 界面预览 / Screenshots
+
+### 模型训练 / Model Training
+
+中文：在图形界面中配置训练环境、模型权重、数据集和关键超参数，并实时查看训练命令预览与日志输出。  
+English: Configure the training environment, model weights, dataset, and key hyperparameters from the GUI, with live command preview and training logs.
+
+![YoloStudio training](docs/training.png)
+
+### 数据准备 / Data Preparation
+
+中文：集中完成数据目录选择、类别文件加载、统计分析、抽帧、增强、划分与图像检查，方便在训练前快速整理数据集。  
+English: Prepare datasets in one place with folder selection, class loading, statistics, frame extraction, augmentation, splitting, and image inspection before training.
+
+![YoloStudio data preparation](docs/data-prep.png)
+
+### 预测推理 / Prediction
+
+中文：支持图片、视频、摄像头与屏幕等输入模式，可配置置信度、IOU、输出选项和批处理流程。  
+English: Run inference on images, videos, camera feeds, or screen capture with configurable confidence, IOU, output options, and batch-processing workflows.
+
+![YoloStudio prediction](docs/prediction.png)
 
 ## 功能概览
 
@@ -116,4 +140,5 @@ yolodo2.0/
 
 ## License
 
-暂未添加。若准备公开仓库，建议在首次正式发布前补充 `LICENSE`。
+本仓库采用 GNU Affero General Public License v3.0（AGPL-3.0）许可。  
+This repository is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0).
