@@ -2,13 +2,14 @@ import shutil
 import subprocess
 import uuid
 from pathlib import Path
+import tempfile
 
 import core.train_handler as train_handler_module
 from core.train_handler import TrainManager
 
 
 def test_detect_conda_envs_decodes_utf8_output(monkeypatch) -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"conda-env-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"conda-env-{uuid.uuid4().hex}"
     try:
         env_path = tmp_root / "envs" / "sample"
         env_path.mkdir(parents=True)

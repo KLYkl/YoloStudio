@@ -7,7 +7,7 @@
 | 版本 | 2.0 |
 | 开发周期 | 2026年1月 |
 | 技术栈 | Python 3.10, PySide6, Ultralytics |
-| 运行环境 | Windows, Conda (yolodo) |
+| 运行环境 | Windows, Conda |
 | 代码规模 | 约 6000+ 行核心代码 |
 
 ---
@@ -253,13 +253,13 @@ subprocess.run(["conda", "env", "list", "--json"])
 # 方法 B (回退): 扫描常见目录
 - ~/anaconda3/envs/
 - ~/miniconda3/envs/
-- C:/Users/<user>/anaconda3/envs/
+- <conda-install-dir>/envs/
 ```
 
 **显示格式：**
 ```
 环境名称 (python.exe 路径)
-例: yolodo (D:\anaconda3\envs\yolodo\python.exe)
+例: sample-env (<env-root>/python.exe)
 ```
 
 #### 3.2.3 训练参数
@@ -583,7 +583,7 @@ class PredictManager(QObject):
 ### 6.1 配置文件位置
 
 ```
-~/.yolostudio/config.yaml
+~/.yolostudio/config.json
 ```
 
 ### 6.2 配置项
@@ -594,10 +594,10 @@ theme: "dark"  # dark | light
 
 # 最近使用的路径
 recent_paths:
-  image_dir: "D:/datasets/images"
-  label_dir: "D:/datasets/labels"
-  model_path: "D:/models/best.pt"
-  output_dir: "D:/output"
+  image_dir: "<dataset_root>/images"
+  label_dir: "<dataset_root>/labels"
+  model_path: "<model_dir>/best.pt"
+  output_dir: "<output_dir>"
 
 # 训练默认参数
 train_defaults:

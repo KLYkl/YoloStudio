@@ -1,6 +1,7 @@
 import shutil
 import uuid
 from pathlib import Path
+import tempfile
 
 from PIL import Image
 
@@ -13,7 +14,7 @@ def _create_image(path: Path) -> None:
 
 
 def test_modify_labels_without_label_dir_only_touches_image_matched_labels() -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"modify-scope-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"modify-scope-{uuid.uuid4().hex}"
     try:
         image_dir = tmp_root / "images"
         labels_dir = tmp_root / "labels"

@@ -1,13 +1,14 @@
 import shutil
 import uuid
 from pathlib import Path
+import tempfile
 
 import core.data_handler._modify as _modify_module
 from core.data_handler import DataHandler, ModifyAction
 
 
 def test_modify_labels_creates_unique_backup_files() -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"atomic-backup-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"atomic-backup-{uuid.uuid4().hex}"
     try:
         labels_dir = tmp_root / "labels"
         labels_dir.mkdir(parents=True)
@@ -29,7 +30,7 @@ def test_modify_labels_creates_unique_backup_files() -> None:
 
 
 def test_atomic_text_write_preserves_original_file_on_replace_failure() -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"atomic-write-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"atomic-write-{uuid.uuid4().hex}"
     try:
         labels_dir = tmp_root / "labels"
         labels_dir.mkdir(parents=True)

@@ -3,12 +3,13 @@ import threading
 import time
 import uuid
 from pathlib import Path
+import tempfile
 
 from core.data_handler import DataHandler, ModifyAction
 
 
 def test_modify_labels_uses_stable_class_mapping_snapshot() -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"class-mapping-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"class-mapping-{uuid.uuid4().hex}"
     try:
         labels_dir = tmp_root / "labels"
         labels_dir.mkdir(parents=True)

@@ -35,7 +35,7 @@ class DeviceScanner:
     Example:
         cameras = DeviceScanner.scan_cameras()
         screens = DeviceScanner.scan_screens()
-        is_ok = DeviceScanner.test_rtsp("rtsp://192.168.1.100:554/stream")
+        is_ok = DeviceScanner.test_rtsp("rtsp://<camera-host>:554/stream")
     """
     
     @staticmethod
@@ -122,7 +122,7 @@ class DeviceScanner:
         测试 RTSP 地址是否可连接
         
         Args:
-            url: RTSP 地址 (如 rtsp://ip:port/stream)
+            url: RTSP 地址 (如 rtsp://<host>:<port>/stream)
             timeout_ms: 超时时间 (毫秒)
             
         Returns:

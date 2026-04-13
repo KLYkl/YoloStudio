@@ -290,8 +290,8 @@ class TrainManager(QObject):
         """
         从 Python 解释器路径推导 yolo 可执行文件的位置
         
-        Windows: .../envs/yolodo/python.exe → .../envs/yolodo/Scripts/yolo.exe
-        Unix:    .../envs/yolodo/bin/python  → .../envs/yolodo/bin/yolo
+        Windows: .../envs/<env>/python.exe → .../envs/<env>/Scripts/yolo.exe
+        Unix:    .../envs/<env>/bin/python  → .../envs/<env>/bin/yolo
         """
         python_dir = Path(python_path).parent
         

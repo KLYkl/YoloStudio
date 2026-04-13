@@ -24,13 +24,13 @@
 
 ### 环境要求
 - Python 3.10+
-- Conda 虚拟环境 `yolodo`
+- Conda 虚拟环境（可选，推荐）
 - CUDA (可选，用于 GPU 加速)
 
 ### 启动步骤
 ```bash
 # 1. 激活虚拟环境
-conda activate yolodo
+conda activate <your-env>
 
 # 2. 运行程序
 python main.py

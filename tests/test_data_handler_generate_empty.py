@@ -1,6 +1,7 @@
 import shutil
 import uuid
 from pathlib import Path
+import tempfile
 
 from PIL import Image
 
@@ -13,7 +14,7 @@ def _create_image(path: Path) -> None:
 
 
 def test_generate_missing_labels_writes_to_explicit_label_dir() -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"generate-empty-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"generate-empty-{uuid.uuid4().hex}"
     try:
         image_dir = tmp_root / "images"
         label_dir = tmp_root / "custom_labels"

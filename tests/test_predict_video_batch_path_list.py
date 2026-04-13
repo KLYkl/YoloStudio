@@ -3,6 +3,7 @@ import sys
 import types
 import uuid
 from pathlib import Path
+import tempfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -50,7 +51,7 @@ from core.predict_handler._video_batch import VideoBatchProcessor
 
 
 def test_video_batch_generates_detected_and_empty_lists() -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"video-batch-list-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"video-batch-list-{uuid.uuid4().hex}"
     try:
         output_dir = tmp_root / "output"
         video_a = tmp_root / "videos" / "a.mp4"

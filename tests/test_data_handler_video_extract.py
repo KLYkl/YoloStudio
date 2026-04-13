@@ -3,6 +3,7 @@ import sys
 import types
 import uuid
 from pathlib import Path
+import tempfile
 
 import pytest
 
@@ -68,7 +69,7 @@ def _solid_frame(color: tuple[int, int, int], size: tuple[int, int] = (32, 32)):
 
 
 def test_scan_videos_counts_root_and_subdirs() -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"video-scan-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"video-scan-{uuid.uuid4().hex}"
     try:
         video_dir = tmp_root / "videos"
         video_dir.mkdir(parents=True, exist_ok=True)
@@ -98,7 +99,7 @@ def test_extract_video_frames_supports_interval_and_time_modes(
     mode: str,
     config_kwargs: dict,
 ) -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"video-extract-{mode}-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"video-extract-{mode}-{uuid.uuid4().hex}"
     try:
         video_path = tmp_root / "sample.avi"
         output_dir = tmp_root / "frames"
@@ -134,7 +135,7 @@ def test_extract_video_frames_supports_interval_and_time_modes(
 
 
 def test_extract_video_frames_supports_scene_mode() -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"video-scene-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"video-scene-{uuid.uuid4().hex}"
     try:
         video_path = tmp_root / "scene.avi"
         output_dir = tmp_root / "frames"
@@ -169,7 +170,7 @@ def test_extract_video_frames_supports_scene_mode() -> None:
 def test_extract_video_frames_deduplicates_identical_frames() -> None:
     pytest.importorskip("imagehash")
 
-    tmp_root = Path("D:/yolodo2.0") / f"video-dedup-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"video-dedup-{uuid.uuid4().hex}"
     try:
         video_path = tmp_root / "dup.avi"
         output_dir = tmp_root / "frames"

@@ -2,6 +2,7 @@ import shutil
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
+import tempfile
 
 from PIL import Image
 
@@ -35,7 +36,7 @@ def _create_xml_label(path: Path, image_name: str, width: int, height: int) -> N
 
 
 def test_augment_dataset_flips_yolo_labels_with_images() -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"augment-yolo-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"augment-yolo-{uuid.uuid4().hex}"
     try:
         image_dir = tmp_root / "images"
         label_dir = tmp_root / "labels"
@@ -95,7 +96,7 @@ def test_augment_dataset_flips_yolo_labels_with_images() -> None:
 
 
 def test_augment_dataset_fixed_mode_outputs_individual_and_combo_variants() -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"augment-fixed-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"augment-fixed-{uuid.uuid4().hex}"
     try:
         image_dir = tmp_root / "images"
         label_dir = tmp_root / "labels"
@@ -162,7 +163,7 @@ def test_augment_dataset_fixed_mode_outputs_individual_and_combo_variants() -> N
 
 
 def test_augment_dataset_rotates_voc_boxes_and_updates_metadata() -> None:
-    tmp_root = Path("D:/yolodo2.0") / f"augment-voc-{uuid.uuid4().hex}"
+    tmp_root = Path(tempfile.gettempdir()) / f"augment-voc-{uuid.uuid4().hex}"
     try:
         image_dir = tmp_root / "images"
         label_dir = tmp_root / "Annotations"

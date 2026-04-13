@@ -7,6 +7,12 @@ __pycache__/
 dist/
 build/
 *.egg
+.pytest_cache/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Virtual environments
 .venv/
@@ -22,26 +28,41 @@ ENV/
 
 # Cursor / Agent
 .agent/
+.codex/
 .gemini/
 .cursor/
 mcps/
 agent-transcripts/
 terminals/
-scratch/
 
 # OS
 Thumbs.db
 Desktop.ini
 .DS_Store
 
+# Local temp / experimental
+scratch/
+tmp/
+agent_plan/
+D:/
+designs/
+pencil-new.pen
+run_yolodo.bat
+*.bak
+*.bak.*
+*.orig
+
 # Project specific
 assets/
 logs/
+*.log
 *.lnk
 runs/
 weights/
 *.pt
 *.onnx
 
-# Config (user-specific runtime config)
+# Config / secrets (user-specific runtime config)
+.env
+.env.*
 config.json
