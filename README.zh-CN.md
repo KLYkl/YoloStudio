@@ -106,7 +106,6 @@ yolodo2.0/
 
 - 使用手册：[`docs/USER_MANUAL.md`](docs/USER_MANUAL.md)
 - 项目报告：[`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md)
-- GitHub 推送整理清单：[`docs/GITHUB_PUBLISH_CHECKLIST.md`](docs/GITHUB_PUBLISH_CHECKLIST.md)
 
 ## 仓库说明
 

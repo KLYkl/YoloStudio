@@ -106,7 +106,6 @@ yolodo2.0/
 
 - User manual: [`docs/USER_MANUAL.md`](docs/USER_MANUAL.md)
 - Project report: [`docs/PROJECT_REPORT.md`](docs/PROJECT_REPORT.md)
-- GitHub publish checklist: [`docs/GITHUB_PUBLISH_CHECKLIST.md`](docs/GITHUB_PUBLISH_CHECKLIST.md)
 
 ## Repository Notes
 
