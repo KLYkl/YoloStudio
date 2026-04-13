@@ -45,9 +45,12 @@ scratch/
 tmp/
 agent_plan/
 D:/
+%SystemDrive%/
 designs/
 pencil-new.pen
 run_yolodo.bat
+.codex_*.sh
+.codex_*.py
 *.bak
 *.bak.*
 *.orig
