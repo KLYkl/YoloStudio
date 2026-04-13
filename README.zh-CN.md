@@ -15,19 +15,19 @@
 
 在图形界面中配置训练环境、模型权重、数据集和关键超参数，并实时查看训练命令预览与日志输出。
 
-![YoloStudio training](docs/training.png)
+![YoloStudio training](docs/training_zh.png)
 
 ### 数据准备
 
 集中完成数据目录选择、类别文件加载、统计分析、抽帧、增强、划分与图像检查，方便在训练前快速整理数据集。
 
-![YoloStudio data preparation](docs/data-prep.png)
+![YoloStudio data preparation](docs/data-prep_zh.png)
 
 ### 预测推理
 
 支持图片、视频、摄像头与屏幕等输入模式，可配置置信度、IOU、输出选项和批处理流程。
 
-![YoloStudio prediction](docs/prediction.png)
+![YoloStudio prediction](docs/prediction_zh.png)
 
 ## 功能概览
 
