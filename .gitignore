@@ -70,3 +70,6 @@ weights/
 .env
 .env.*
 config.json
+
+# Local publish checklist
+/docs/GITHUB_PUBLISH_CHECKLIST.md
